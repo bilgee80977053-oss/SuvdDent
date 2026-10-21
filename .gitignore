@@ -480,3 +480,17 @@ $RECYCLE.BIN/
 
 # Vim temporary swap files
 *.swp
+
+# Database files
+*.db
+*.db-shm
+*.db-wal
+
+# Sensitive configuration
+.env
+.env.*
+**/secrets.json
+
+# Build output
+**/bin/
+**/obj/

@@ -10,16 +10,33 @@ public class Clinic
     public string? WorkHours { get; set; }
 }
 
+
 public class User
 {
     public int Id { get; set; }
+
     public int ClinicId { get; set; }
+
     public string FullName { get; set; } = "";
-    public string Phone { get; set; } = "";
+
+    public string? Phone { get; set; }
+
+    public string? Email { get; set; }
+
     public string PasswordHash { get; set; } = "";
+
     public Role Role { get; set; }
+
+    public bool IsPhoneVerified { get; set; } = false;
+
+    public bool IsEmailVerified { get; set; } = false;
+
     public bool IsActive { get; set; } = true;
+
+    public DateTime? CreatedAt { get; set; }
+
 }
+
 
 public class Service
 {
