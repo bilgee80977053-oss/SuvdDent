@@ -35,6 +35,18 @@ public record ResendCodeRequest(
     int ClinicId = 1
 );
 
+public record ForgotPasswordRequest(
+    string Email,
+    int ClinicId = 1
+);
+
+public record ResetPasswordRequest(
+    string Email,
+    string Code,
+    string NewPassword,
+    int ClinicId = 1
+);
+
 public record AuthResponse(
     string Token,
     int UserId,
@@ -133,6 +145,7 @@ public class AuthController(
                 Channel = !string.IsNullOrWhiteSpace(user.Email)
                     ? "email"
                     : "sms",
+                Purpose = "registration",
                 CodeHash = verification.HashCode(code),
                 CreatedAt = now,
                 ExpiresAt = now.AddSeconds(120),
@@ -210,7 +223,8 @@ public class AuthController(
 
         var latest = await db.VerificationCodes
             .Where(v => v.UserId == user.Id &&
-                        v.Channel == "email")
+                        v.Channel == "email" &&
+                        (v.Purpose == "registration" || v.Purpose == ""))
             .OrderByDescending(v => v.CreatedAt)
             .FirstOrDefaultAsync();
 
@@ -229,6 +243,7 @@ public class AuthController(
                 .Where(v =>
                     v.UserId == user.Id &&
                     v.Channel == "email" &&
+                    (v.Purpose == "registration" || v.Purpose == "") &&
                     !v.IsUsed)
                 .ExecuteUpdateAsync(setters => setters
                     .SetProperty(v => v.IsUsed, true));
@@ -237,9 +252,10 @@ public class AuthController(
             {
                 UserId = user.Id,
                 Channel = "email",
+                Purpose = "registration",
                 CodeHash = verification.HashCode(code),
                 CreatedAt = now,
-                ExpiresAt = now.AddMinutes(5),
+                ExpiresAt = now.AddSeconds(120),
                 IsUsed = false,
                 FailedAttempts = 0
             });
@@ -302,7 +318,9 @@ public class AuthController(
             });
 
         var record = await db.VerificationCodes
-            .Where(v => v.UserId == r.UserId && !v.IsUsed)
+            .Where(v => v.UserId == r.UserId &&
+                        !v.IsUsed &&
+                        (v.Purpose == "registration" || v.Purpose == ""))
             .OrderByDescending(v => v.CreatedAt)
             .FirstOrDefaultAsync();
 
@@ -382,6 +400,172 @@ public class AuthController(
             message = "Бүртгэл амжилттай баталгаажлаа",
             userId = user.Id
         });
+    }
+
+    // Имэйлээр нууц үг сэргээх код хүсэх
+    [EnableRateLimiting("auth")]
+    [HttpPost("forgot-password")]
+    public async Task<IActionResult> ForgotPassword(ForgotPasswordRequest r)
+    {
+        // Имэйл бүртгэлтэй эсэхийг ил гаргахгүй.
+        var response = new
+        {
+            message = "Хэрэв энэ имэйлээр баталгаажсан бүртгэл байгаа бол " +
+                      "нууц үг сэргээх заавар илгээнэ."
+        };
+
+        var addressText = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(addressText) ||
+            !MailAddress.TryCreate(addressText, out var parsedAddress) ||
+            parsedAddress.Address != addressText)
+            return Ok(response);
+
+        var user = await db.Users.FirstOrDefaultAsync(u =>
+            u.ClinicId == r.ClinicId &&
+            u.Email == addressText &&
+            u.IsActive &&
+            u.IsEmailVerified);
+
+        if (user is null)
+            return Ok(response);
+
+        var now = DateTime.UtcNow;
+        var latest = await db.VerificationCodes
+            .Where(v => v.UserId == user.Id &&
+                        v.Channel == "email" &&
+                        v.Purpose == "password-reset")
+            .OrderByDescending(v => v.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        // Тухайн хэрэглэгчид 60 секундэд нэг удаа, 24 цагт 5 хүртэл хүсэлт.
+        if (latest is not null && latest.CreatedAt.AddSeconds(60) > now)
+            return Ok(response);
+
+        var recentCount = await db.VerificationCodes.CountAsync(v =>
+            v.UserId == user.Id &&
+            v.Purpose == "password-reset" &&
+            v.CreatedAt > now.AddHours(-24));
+
+        if (recentCount >= 5)
+            return Ok(response);
+
+        var code = verification.GenerateCode();
+        var record = new VerificationCode
+        {
+            UserId = user.Id,
+            Channel = "email",
+            Purpose = "password-reset",
+            CodeHash = verification.HashCode(code),
+            CreatedAt = now,
+            ExpiresAt = now.AddSeconds(120),
+            IsUsed = false,
+            FailedAttempts = 0
+        };
+
+        // Кодыг эхлээд хадгална. Амжилтгүй илгээлтийн кодыг хүчингүй болгоно.
+        await using (var transaction = await db.Database.BeginTransactionAsync())
+        {
+            await db.VerificationCodes
+                .Where(v => v.UserId == user.Id &&
+                            v.Purpose == "password-reset" &&
+                            !v.IsUsed)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(v => v.IsUsed, true));
+
+            db.VerificationCodes.Add(record);
+            await db.SaveChangesAsync();
+            await transaction.CommitAsync();
+        }
+
+        try
+        {
+            await emailService.SendAsync(
+                user.Email!,
+                "Nexora Platform | Нууц үг сэргээх код",
+                $"Сайн байна уу, {user.FullName}!\n\n" +
+                $"Нууц үг сэргээх код: {code}\n\n" +
+                "Код 120 секунд хүчинтэй.\n" +
+                "Хэрэв та хүсэлт гаргаагүй бол энэ имэйлийг алгасна уу.\n\n" +
+                "Хүндэтгэсэн,\nNexora Platform");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Нууц үг сэргээх имэйл илгээхэд алдаа: {ex.GetType().Name}");
+            await db.VerificationCodes
+                .Where(v => v.Id == record.Id && !v.IsUsed)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(v => v.IsUsed, true));
+        }
+
+        return Ok(response);
+    }
+
+    // Зөвхөн password-reset зориулалтын кодоор нууц үг солих
+    [EnableRateLimiting("auth")]
+    [HttpPost("reset-password")]
+    public async Task<IActionResult> ResetPassword(ResetPasswordRequest r)
+    {
+        var email = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) ||
+            string.IsNullOrWhiteSpace(r.Code) ||
+            r.Code.Length != 6 ||
+            !r.Code.All(char.IsDigit) ||
+            string.IsNullOrWhiteSpace(r.NewPassword) ||
+            r.NewPassword.Length < 12 ||
+            r.NewPassword.Length > 128)
+            return BadRequest(new
+            {
+                error = "Имэйл, 6 оронтой код болон 12-128 тэмдэгтийн шинэ нууц үг оруулна уу."
+            });
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        var user = await db.Users.FirstOrDefaultAsync(u =>
+            u.ClinicId == r.ClinicId &&
+            u.Email == email &&
+            u.IsActive && u.IsEmailVerified);
+
+        if (user is null)
+            return BadRequest(new { error = "Код буруу эсвэл хугацаа дууссан." });
+
+        var record = await db.VerificationCodes
+            .Where(v => v.UserId == user.Id &&
+                        v.Channel == "email" &&
+                        v.Purpose == "password-reset" &&
+                        !v.IsUsed)
+            .OrderByDescending(v => v.CreatedAt)
+            .FirstOrDefaultAsync();
+
+        if (record is null || record.ExpiresAt <= DateTime.UtcNow ||
+            record.FailedAttempts >= 5)
+            return BadRequest(new { error = "Код буруу эсвэл хугацаа дууссан." });
+
+        if (!verification.VerifyCode(r.Code, record.CodeHash))
+        {
+            await db.VerificationCodes
+                .Where(v => v.Id == record.Id && !v.IsUsed &&
+                            v.FailedAttempts < 5 &&
+                            v.ExpiresAt > DateTime.UtcNow)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(v => v.FailedAttempts, v => v.FailedAttempts + 1));
+            await transaction.CommitAsync();
+            return BadRequest(new { error = "Код буруу эсвэл хугацаа дууссан." });
+        }
+
+        var updated = await db.VerificationCodes
+            .Where(v => v.Id == record.Id && !v.IsUsed &&
+                        v.FailedAttempts < 5 &&
+                        v.ExpiresAt > DateTime.UtcNow)
+            .ExecuteUpdateAsync(setters => setters
+                .SetProperty(v => v.IsUsed, true));
+
+        if (updated != 1)
+            return BadRequest(new { error = "Кодыг ашиглах боломжгүй." });
+
+        user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(r.NewPassword);
+        await db.SaveChangesAsync();
+        await transaction.CommitAsync();
+
+        return Ok(new { message = "Нууц үг амжилттай шинэчлэгдлээ." });
     }
 
     [EnableRateLimiting("auth")]

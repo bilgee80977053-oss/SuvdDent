@@ -153,6 +153,10 @@ namespace DentalApi.Migrations
                     b.Property<bool>("IsUsed")
                         .HasColumnType("INTEGER");
 
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("UserId")
                         .HasColumnType("INTEGER");
 
