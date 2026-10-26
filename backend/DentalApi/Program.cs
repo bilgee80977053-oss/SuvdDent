@@ -169,6 +169,7 @@ if (app.Environment.IsDevelopment())
 }
 
 // Өгөгдлийн сангийн migration
+if (!app.Environment.IsEnvironment("Testing"))
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider
@@ -229,3 +230,6 @@ if (app.Environment.IsDevelopment() &&
 }
 
 app.Run();
+
+// Exposes the entry point to WebApplicationFactory integration tests.
+public partial class Program { }
