@@ -67,6 +67,74 @@ builder.Services
 
             ClockSkew = TimeSpan.FromMinutes(1)
         };
+
+        // JWT баталгаажсаны дараа хэрэглэгчийн төлөвийг шалгах
+        options.Events = new JwtBearerEvents
+        {
+            OnTokenValidated = async context =>
+            {
+                var principal = context.Principal;
+
+                var userIdText =
+                    principal?.FindFirst("userId")?.Value;
+
+                var subjectText =
+                    principal?.FindFirst("sub")?.Value;
+
+                var clinicIdText =
+                    principal?.FindFirst("clinicId")?.Value;
+
+                var tokenVersionText =
+                    principal?.FindFirst("tokenVersion")?.Value;
+
+                var roleText =
+                    principal?.FindFirst("role")?.Value;
+
+                // Токены шаардлагатай мэдээллийг шалгах
+                if (!int.TryParse(userIdText, out var userId) ||
+                    !int.TryParse(subjectText, out var subjectId) ||
+                    !int.TryParse(clinicIdText, out var clinicId) ||
+                    !int.TryParse(
+                        tokenVersionText, out var tokenVersion) ||
+                    userId <= 0 ||
+                    subjectId != userId ||
+                    clinicId <= 0 ||
+                    tokenVersion < 0 ||
+                    string.IsNullOrWhiteSpace(roleText))
+                {
+                    context.Fail("Invalid token claims.");
+                    return;
+                }
+
+                // Өгөгдлийн сангаас хэрэглэгчийг шалгах
+                var db = context.HttpContext.RequestServices
+                    .GetRequiredService<AppDbContext>();
+
+                var user = await db.Users
+                    .AsNoTracking()
+                    .Where(u => u.Id == userId)
+                    .Select(u => new
+                    {
+                        u.ClinicId,
+                        u.TokenVersion,
+                        u.IsActive,
+                        u.Role
+                    })
+                    .FirstOrDefaultAsync(
+                        context.HttpContext.RequestAborted);
+
+                // Токены мэдээллийг өгөгдлийн сантай харьцуулах
+                if (user is null ||
+                    !user.IsActive ||
+                    user.ClinicId != clinicId ||
+                    user.TokenVersion != tokenVersion ||
+                    user.Role.ToString() != roleText)
+                {
+                    context.Fail("Token revoked or user inactive.");
+                    return;
+                }
+            }
+        };
     });
 
 builder.Services.AddAuthorization();

@@ -23,7 +23,8 @@ public class JwtService(IConfiguration cfg)
                 new Claim("userId", user.Id.ToString()),
                 new Claim("name", user.FullName),
                 new Claim("role", user.Role.ToString()),
-                new Claim("clinicId", user.ClinicId.ToString())
+                new Claim("clinicId", user.ClinicId.ToString()),
+                new Claim("tokenVersion", user.TokenVersion.ToString())
             }),
 
             Issuer = cfg["Jwt:Issuer"],

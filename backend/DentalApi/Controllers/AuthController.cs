@@ -562,6 +562,7 @@ public class AuthController(
             return BadRequest(new { error = "Кодыг ашиглах боломжгүй." });
 
         user.PasswordHash = BCrypt.Net.BCrypt.HashPassword(r.NewPassword);
+        user.TokenVersion++;
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
