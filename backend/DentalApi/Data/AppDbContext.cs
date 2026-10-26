@@ -19,6 +19,9 @@ public class AppDbContext(
     public DbSet<VerificationCode> VerificationCodes =>
         Set<VerificationCode>();
 
+    public DbSet<DoctorProfile> DoctorProfiles => Set<DoctorProfile>();
+    public DbSet<DoctorWorkingHours> DoctorWorkingHours => Set<DoctorWorkingHours>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -67,5 +70,29 @@ public class AppDbContext(
             .HasIndex(p => new { p.ClinicId, p.UserId })
             .IsUnique()
             .HasFilter("\"UserId\" IS NOT NULL");
+
+        b.Entity<DoctorProfile>()
+            .HasOne(d => d.User).WithMany()
+            .HasForeignKey(d => new { d.ClinicId, d.UserId })
+            .HasPrincipalKey(u => new { u.ClinicId, u.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<DoctorProfile>().HasIndex(d => new { d.ClinicId, d.UserId }).IsUnique();
+        b.Entity<DoctorProfile>().HasOne<Clinic>().WithMany()
+            .HasForeignKey(d => d.ClinicId).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<DoctorProfile>().Property(d => d.Version).IsConcurrencyToken();
+        b.Entity<DoctorProfile>().Property(d => d.Specialty).HasMaxLength(200);
+        b.Entity<DoctorProfile>().Property(d => d.Biography).HasMaxLength(4000);
+        b.Entity<DoctorProfile>().Property(d => d.PhotoPath).HasMaxLength(300);
+
+        b.Entity<DoctorWorkingHours>()
+            .HasOne<DoctorProfile>().WithMany(d => d.WorkingHours)
+            .HasForeignKey(h => new { h.ClinicId, h.DoctorProfileId })
+            .HasPrincipalKey(d => new { d.ClinicId, d.Id })
+            .OnDelete(DeleteBehavior.Restrict);
+        b.Entity<DoctorWorkingHours>()
+            .HasIndex(h => new { h.ClinicId, h.DoctorProfileId, h.DayOfWeek, h.StartMinute }).IsUnique();
+        b.Entity<DoctorWorkingHours>().ToTable(t => t.HasCheckConstraint(
+            "CK_DoctorWorkingHours_Interval",
+            "\"DayOfWeek\" BETWEEN 0 AND 6 AND \"StartMinute\" >= 0 AND \"StartMinute\" < \"EndMinute\" AND \"EndMinute\" <= 1440"));
     }
 }

@@ -11,6 +11,7 @@ namespace DentalApi.IntegrationTests;
 
 public sealed class TenantIntegrityTests
 {
+    private const string TenantMigration = "20261026100808_AddPatientUserTenantIntegrity";
     private const string PreviousMigration = "20261026074904_AddUserTokenVersion";
 
     // These tests apply actual migrations, rather than EnsureCreated.
@@ -44,7 +45,7 @@ public sealed class TenantIntegrityTests
             });
             await Db.SaveChangesAsync();
             Db.ChangeTracker.Clear();
-            if (upgrade) await Db.Database.MigrateAsync();
+            if (upgrade) await Db.GetService<IMigrator>().MigrateAsync(TenantMigration);
         }
 
         public async ValueTask DisposeAsync()
@@ -114,7 +115,7 @@ public sealed class TenantIntegrityTests
             "SELECT name, sql FROM sqlite_master WHERE type = 'index' AND name LIKE 'IX_%' ORDER BY name");
         var otherForeignKey = await RowsAsync(database.Connection, "PRAGMA foreign_key_list('VerificationCodes')");
 
-        await database.Db.Database.MigrateAsync();
+        await database.Db.GetService<IMigrator>().MigrateAsync(TenantMigration);
 
         Assert.Equal(before, await SnapshotAsync(database.Db));
         foreach (var table in tables)
@@ -144,7 +145,7 @@ public sealed class TenantIntegrityTests
         await database.InitializeAsync(upgrade: false);
         await database.Db.Database.ExecuteSqlRawAsync("UPDATE Patients SET UserId = 12 WHERE Id = 21");
         var before = await SnapshotAsync(database.Db);
-        var error = await Assert.ThrowsAsync<SqliteException>(() => database.Db.Database.MigrateAsync());
+        var error = await Assert.ThrowsAsync<SqliteException>(() => database.Db.GetService<IMigrator>().MigrateAsync(TenantMigration));
         Assert.Equal(275, error.SqliteExtendedErrorCode); // Named preflight CHECK.
         Assert.Equal(before, await SnapshotAsync(database.Db));
         Assert.DoesNotContain("20261026100808_AddPatientUserTenantIntegrity",

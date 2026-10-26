@@ -40,6 +40,7 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<DoctorProfileService>();
 
 // JWT Authentication
 builder.Services
