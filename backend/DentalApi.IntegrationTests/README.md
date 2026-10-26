@@ -32,3 +32,27 @@ Coverage:
 
 Scope: patient self-service isolation and authentication. Public service catalogs
 and future staff CRUD require separate tests.
+## Patient–User tenant integrity
+
+TenantIntegrityTests applies real EF migrations to its own SQLite in-memory
+connection with Foreign Keys=True. It upgrades from AddUserTokenVersion with
+synthetic rows in every application table. It verifies:
+- Same-tenant and nullable UserId links succeed.
+- Cross-tenant and missing users fail with SQLite FK error 787.
+- Raw SQL cannot break patient/user links or delete a referenced user.
+- All row values, column types/nullability/defaults/primary keys, existing named
+  indexes, and the VerificationCodes foreign key survive the rebuild.
+- Foreign keys remain enabled, foreign_key_check is empty, and IDs still generate.
+- Conflicting legacy rows abort the new migration before rebuilding; no automatic
+  repair or deletion occurs and the migration is not recorded as applied.
+
+The design-time AppDbContext factory intentionally uses only an in-memory
+connection; schema tooling does not start the web app or use real configuration.
+The generated AddPatientUserTenantIntegrity.sql is a review artifact, not applied
+to a real database. Users and Patients are rebuilt. The preflight CHECK rejects
+bad legacy links. A helper unique index supports SQLite's copy phase and is
+removed when the old Users table is dropped.
+
+Before deploying, back up and rehearse against an authorized isolated copy.
+Normal non-Testing application startup still applies pending migrations, so do
+not start the changed app against a real database before that review.

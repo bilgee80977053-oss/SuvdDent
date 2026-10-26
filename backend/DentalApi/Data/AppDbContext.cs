@@ -23,6 +23,10 @@ public class AppDbContext(
     {
         base.OnModelCreating(b);
 
+        // Preserve the TokenVersion default introduced by its SQLite migration
+        // when rebuilding Users for its tenant alternate key.
+        b.Entity<User>().Property(u => u.TokenVersion).HasDefaultValue(0);
+
         // Хэрэглэгчийн утас давхардахгүй
         b.Entity<User>()
             .HasIndex(u => new { u.ClinicId, u.Phone })
@@ -51,11 +55,14 @@ public class AppDbContext(
         b.Entity<Patient>()
             .HasOne<User>()
             .WithMany()
-            .HasForeignKey(p => p.UserId)
+            .HasForeignKey(p => new { p.ClinicId, p.UserId })
+            .HasPrincipalKey(u => new { u.ClinicId, u.Id })
             .OnDelete(DeleteBehavior.Restrict);
 
         // Нэг эмнэлэгт нэг хэрэглэгчтэй
         // давхар өвчтөний бүртгэл үүсгэхгүй
+        b.Entity<Patient>().HasIndex(p => p.UserId);
+
         b.Entity<Patient>()
             .HasIndex(p => new { p.ClinicId, p.UserId })
             .IsUnique()
