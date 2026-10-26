@@ -41,6 +41,10 @@ builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DoctorProfileService>();
+builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddSingleton<MongoliaLocations>();
+builder.Services.AddScoped<ClinicLocationService>();
+builder.Services.AddScoped<ClinicSchedulingPolicy>();
 
 // JWT Authentication
 builder.Services
@@ -139,11 +143,16 @@ builder.Services
     });
 
 builder.Services.AddAuthorization();
+builder.Services.AddPlatformIdentity(builder.Configuration);
 
 // Хүсэлтийн тооны хязгаарлалт
 builder.Services.AddRateLimiter(options =>
 {
     options.RejectionStatusCode = 429;
+
+    options.AddPolicy("platform-auth", context => RateLimitPartition.GetFixedWindowLimiter(
+        partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+        factory: _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
 
     options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(

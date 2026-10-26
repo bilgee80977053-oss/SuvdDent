@@ -1,0 +1,1794 @@
+{
+  "sourceVersion": "FHIR MN Core 1.0.0",
+  "sources": [
+    "https://fhir.mn/CodeSystem-provinces-cities.json",
+    "https://fhir.mn/CodeSystem-districts-soums.json"
+  ],
+  "provinces": [
+    {
+      "code": "11",
+      "name": "\u0423\u043b\u0430\u0430\u043d\u0431\u0430\u0430\u0442\u0430\u0440"
+    },
+    {
+      "code": "21",
+      "name": "\u0414\u043e\u0440\u043d\u043e\u0434"
+    },
+    {
+      "code": "22",
+      "name": "\u0421\u04af\u0445\u0431\u0430\u0430\u0442\u0430\u0440"
+    },
+    {
+      "code": "23",
+      "name": "\u0425\u044d\u043d\u0442\u0438\u0439"
+    },
+    {
+      "code": "41",
+      "name": "\u0422\u04e9\u0432"
+    },
+    {
+      "code": "42",
+      "name": "\u0413\u043e\u0432\u044c\u0441\u04af\u043c\u0431\u044d\u0440"
+    },
+    {
+      "code": "43",
+      "name": "\u0421\u044d\u043b\u044d\u043d\u0433\u044d"
+    },
+    {
+      "code": "44",
+      "name": "\u0414\u043e\u0440\u043d\u043e\u0433\u043e\u0432\u044c"
+    },
+    {
+      "code": "45",
+      "name": "\u0414\u0430\u0440\u0445\u0430\u043d-\u0423\u0443\u043b"
+    },
+    {
+      "code": "46",
+      "name": "\u04e8\u043c\u043d\u04e9\u0433\u043e\u0432\u044c"
+    },
+    {
+      "code": "48",
+      "name": "\u0414\u0443\u043d\u0434\u0433\u043e\u0432\u044c"
+    },
+    {
+      "code": "61",
+      "name": "\u041e\u0440\u0445\u043e\u043d"
+    },
+    {
+      "code": "62",
+      "name": "\u04e8\u0432\u04e9\u0440\u0445\u0430\u043d\u0433\u0430\u0439"
+    },
+    {
+      "code": "63",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d"
+    },
+    {
+      "code": "64",
+      "name": "\u0411\u0430\u044f\u043d\u0445\u043e\u043d\u0433\u043e\u0440"
+    },
+    {
+      "code": "65",
+      "name": "\u0410\u0440\u0445\u0430\u043d\u0433\u0430\u0439"
+    },
+    {
+      "code": "67",
+      "name": "\u0425\u04e9\u0432\u0441\u0433\u04e9\u043b"
+    },
+    {
+      "code": "81",
+      "name": "\u0417\u0430\u0432\u0445\u0430\u043d"
+    },
+    {
+      "code": "82",
+      "name": "\u0413\u043e\u0432\u044c-\u0410\u043b\u0442\u0430\u0439"
+    },
+    {
+      "code": "83",
+      "name": "\u0411\u0430\u044f\u043d-\u04e8\u043b\u0433\u0438\u0439"
+    },
+    {
+      "code": "84",
+      "name": "\u0425\u043e\u0432\u0434"
+    },
+    {
+      "code": "85",
+      "name": "\u0423\u0432\u0441"
+    }
+  ],
+  "districts": [
+    {
+      "code": "1101",
+      "name": "\u0411\u0430\u0433\u0430\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1104",
+      "name": "\u0411\u0430\u0433\u0430\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1107",
+      "name": "\u0411\u0430\u044f\u043d\u0433\u043e\u043b",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1110",
+      "name": "\u0411\u0430\u044f\u043d\u0437\u04af\u0440\u0445",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1113",
+      "name": "\u041d\u0430\u043b\u0430\u0439\u0445",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1116",
+      "name": "\u0421\u043e\u043d\u0433\u0438\u043d\u043e\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1119",
+      "name": "\u0421\u04af\u0445\u0431\u0430\u0430\u0442\u0430\u0440",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1122",
+      "name": "\u0425\u0430\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "1125",
+      "name": "\u0427\u0438\u043d\u0433\u044d\u043b\u0442\u044d\u0439",
+      "provinceOrCapitalCode": "11"
+    },
+    {
+      "code": "2101",
+      "name": "\u0425\u044d\u0440\u043b\u044d\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2104",
+      "name": "\u0411\u0430\u044f\u043d\u0434\u0443\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2107",
+      "name": "\u0411\u0430\u044f\u043d\u0442\u04af\u043c\u044d\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2110",
+      "name": "\u0411\u0430\u044f\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2113",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2116",
+      "name": "\u0413\u0443\u0440\u0432\u0430\u043d\u0437\u0430\u0433\u0430\u043b",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2119",
+      "name": "\u0414\u0430\u0448\u0431\u0430\u043b\u0431\u0430\u0440",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2122",
+      "name": "\u041c\u0430\u0442\u0430\u0434",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2125",
+      "name": "\u0421\u044d\u0440\u0433\u044d\u043b\u044d\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2128",
+      "name": "\u0425\u0430\u043b\u0445\u0433\u043e\u043b",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2131",
+      "name": "\u0425\u04e9\u043b\u04e9\u043d\u0431\u0443\u0439\u0440",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2134",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2137",
+      "name": "\u0427\u043e\u0439\u0431\u0430\u043b\u0441\u0430\u043d",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2140",
+      "name": "\u0427\u0443\u043b\u0443\u0443\u043d\u0445\u043e\u0440\u043e\u043e\u0442",
+      "provinceOrCapitalCode": "21"
+    },
+    {
+      "code": "2201",
+      "name": "\u0411\u0430\u0440\u0443\u0443\u043d-\u0423\u0440\u0442",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2204",
+      "name": "\u0410\u0441\u0433\u0430\u0442",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2207",
+      "name": "\u0411\u0430\u044f\u043d\u0434\u044d\u043b\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2210",
+      "name": "\u0414\u0430\u0440\u044c\u0433\u0430\u043d\u0433\u0430",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2213",
+      "name": "\u041c\u04e9\u043d\u0445\u0445\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2216",
+      "name": "\u041d\u0430\u0440\u0430\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2219",
+      "name": "\u041e\u043d\u0433\u043e\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2222",
+      "name": "\u0421\u04af\u0445\u0431\u0430\u0430\u0442\u0430\u0440",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2225",
+      "name": "\u0422\u04af\u0432\u0448\u0438\u043d\u0448\u0438\u0440\u044d\u044d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2228",
+      "name": "\u0422\u04af\u043c\u044d\u043d\u0446\u043e\u0433\u0442",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2231",
+      "name": "\u0423\u0443\u043b\u0431\u0430\u044f\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2234",
+      "name": "\u0425\u0430\u043b\u0437\u0430\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2237",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "22"
+    },
+    {
+      "code": "2301",
+      "name": "\u0425\u044d\u0440\u043b\u044d\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2304",
+      "name": "\u0411\u0430\u0442\u043d\u043e\u0440\u043e\u0432",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2307",
+      "name": "\u0411\u0430\u0442\u0448\u0438\u0440\u044d\u044d\u0442",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2310",
+      "name": "\u0411\u0430\u044f\u043d-\u0410\u0434\u0430\u0440\u0433\u0430",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2313",
+      "name": "\u0411\u0430\u044f\u043d\u043c\u04e9\u043d\u0445",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2316",
+      "name": "\u0411\u0430\u044f\u043d-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2319",
+      "name": "\u0411\u0430\u044f\u043d\u0445\u0443\u0442\u0430\u0433",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2322",
+      "name": "\u0411\u0438\u043d\u0434\u044d\u0440",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2325",
+      "name": "\u0413\u0430\u043b\u0448\u0430\u0440",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2328",
+      "name": "\u0414\u0430\u0434\u0430\u043b",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2331",
+      "name": "\u0414\u0430\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2334",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440\u0445\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2337",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0442\u0445\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2340",
+      "name": "\u041c\u04e9\u0440\u04e9\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2343",
+      "name": "\u041d\u043e\u0440\u043e\u0432\u043b\u0438\u043d",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2346",
+      "name": "\u04e8\u043c\u043d\u04e9\u0434\u044d\u043b\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2349",
+      "name": "\u0426\u044d\u043d\u0445\u044d\u0440\u043c\u0430\u043d\u0434\u0430\u043b",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "2352",
+      "name": "\u0411\u043e\u0440-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "23"
+    },
+    {
+      "code": "4101",
+      "name": "\u0417\u0443\u0443\u043d\u043c\u043e\u0434",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4104",
+      "name": "\u0410\u043b\u0442\u0430\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4107",
+      "name": "\u0410\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4110",
+      "name": "\u0410\u0440\u0445\u0443\u0441\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4113",
+      "name": "\u0411\u0430\u0442\u0441\u04af\u043c\u0431\u044d\u0440",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4116",
+      "name": "\u0411\u0430\u044f\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4119",
+      "name": "\u0411\u0430\u044f\u043d\u0434\u044d\u043b\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4122",
+      "name": "\u0411\u0430\u044f\u043d\u0436\u0430\u0440\u0433\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4125",
+      "name": "\u0411\u0430\u044f\u043d-\u04e8\u043d\u0436\u04af\u04af\u043b",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4128",
+      "name": "\u0411\u0430\u044f\u043d\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4131",
+      "name": "\u0411\u0430\u044f\u043d\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4134",
+      "name": "\u0411\u0430\u044f\u043d\u0446\u043e\u0433\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4137",
+      "name": "\u0411\u0430\u044f\u043d\u0447\u0430\u043d\u0434\u043c\u0430\u043d\u044c",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4140",
+      "name": "\u0411\u043e\u0440\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4143",
+      "name": "\u0411\u04af\u0440\u044d\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4146",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440\u0445\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4149",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4152",
+      "name": "\u0417\u0430\u0430\u043c\u0430\u0440",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4155",
+      "name": "\u041b\u04af\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4158",
+      "name": "\u041c\u04e9\u043d\u0433\u04e9\u043d\u043c\u043e\u0440\u044c\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4161",
+      "name": "\u04e8\u043d\u0434\u04e9\u0440\u0448\u0438\u0440\u044d\u044d\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4164",
+      "name": "\u0421\u04af\u043c\u0431\u044d\u0440",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4167",
+      "name": "\u0421\u044d\u0440\u0433\u044d\u043b\u044d\u043d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4170",
+      "name": "\u0423\u0433\u0442\u0430\u0430\u043b\u0446\u0430\u0439\u0434\u0430\u043c",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4173",
+      "name": "\u0426\u044d\u044d\u043b",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4176",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4179",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0441\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "41"
+    },
+    {
+      "code": "4201",
+      "name": "\u0421\u04af\u043c\u0431\u044d\u0440",
+      "provinceOrCapitalCode": "42"
+    },
+    {
+      "code": "4204",
+      "name": "\u0411\u0430\u044f\u043d\u0442\u0430\u043b",
+      "provinceOrCapitalCode": "42"
+    },
+    {
+      "code": "4207",
+      "name": "\u0428\u0438\u0432\u044d\u044d\u0433\u043e\u0432\u044c",
+      "provinceOrCapitalCode": "42"
+    },
+    {
+      "code": "4301",
+      "name": "\u0421\u04af\u0445\u0431\u0430\u0430\u0442\u0430\u0440",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4304",
+      "name": "\u0410\u043b\u0442\u0430\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4307",
+      "name": "\u0411\u0430\u0440\u0443\u0443\u043d\u0431\u04af\u0440\u044d\u043d",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4310",
+      "name": "\u0411\u0430\u044f\u043d\u0433\u043e\u043b",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4313",
+      "name": "\u0415\u0440\u04e9\u04e9",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4316",
+      "name": "\u0416\u0430\u0432\u0445\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4319",
+      "name": "\u0417\u04af\u04af\u043d\u0431\u04af\u0440\u044d\u043d",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4322",
+      "name": "\u041c\u0430\u043d\u0434\u0430\u043b",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4325",
+      "name": "\u041e\u0440\u0445\u043e\u043d",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4328",
+      "name": "\u041e\u0440\u0445\u043e\u043d\u0442\u0443\u0443\u043b",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4331",
+      "name": "\u0421\u0430\u0439\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4334",
+      "name": "\u0421\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4337",
+      "name": "\u0422\u04af\u0448\u0438\u0433",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4340",
+      "name": "\u0425\u04af\u0434\u044d\u0440",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4343",
+      "name": "\u0425\u0443\u0448\u0430\u0430\u0442",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4346",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4349",
+      "name": "\u0428\u0430\u0430\u043c\u0430\u0440",
+      "provinceOrCapitalCode": "43"
+    },
+    {
+      "code": "4401",
+      "name": "\u0421\u0430\u0439\u043d\u0448\u0430\u043d\u0434",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4404",
+      "name": "\u0410\u0439\u0440\u0430\u0433",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4407",
+      "name": "\u0410\u043b\u0442\u0430\u043d\u0448\u0438\u0440\u044d\u044d",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4410",
+      "name": "\u0414\u0430\u043b\u0430\u043d\u0436\u0430\u0440\u0433\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4413",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440\u044d\u0445",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4416",
+      "name": "\u0417\u0430\u043c\u044b\u043d-\u04ae\u04af\u0434",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4419",
+      "name": "\u0418\u0445\u0445\u044d\u0442",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4422",
+      "name": "\u041c\u0430\u043d\u0434\u0430\u0445",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4425",
+      "name": "\u04e8\u0440\u0433\u04e9\u043d",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4428",
+      "name": "\u0421\u0430\u0439\u0445\u0430\u043d\u0434\u0443\u043b\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4431",
+      "name": "\u0423\u043b\u0430\u0430\u043d\u0431\u0430\u0434\u0440\u0430\u0445",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4434",
+      "name": "\u0425\u0430\u0442\u0430\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4437",
+      "name": "\u0425\u04e9\u0432\u0441\u0433\u04e9\u043b",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4440",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d",
+      "provinceOrCapitalCode": "44"
+    },
+    {
+      "code": "4501",
+      "name": "\u0414\u0430\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "45"
+    },
+    {
+      "code": "4504",
+      "name": "\u041e\u0440\u0445\u043e\u043d",
+      "provinceOrCapitalCode": "45"
+    },
+    {
+      "code": "4507",
+      "name": "\u0425\u043e\u043d\u0433\u043e\u0440",
+      "provinceOrCapitalCode": "45"
+    },
+    {
+      "code": "4510",
+      "name": "\u0428\u0430\u0440\u044b\u043d \u0413\u043e\u043b",
+      "provinceOrCapitalCode": "45"
+    },
+    {
+      "code": "4601",
+      "name": "\u0414\u0430\u043b\u0430\u043d\u0437\u0430\u0434\u0433\u0430\u0434",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4604",
+      "name": "\u0411\u0430\u044f\u043d\u0434\u0430\u043b\u0430\u0439",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4607",
+      "name": "\u0411\u0430\u044f\u043d-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4610",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4613",
+      "name": "\u0413\u0443\u0440\u0432\u0430\u043d\u0442\u044d\u0441",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4616",
+      "name": "\u041c\u0430\u043d\u0434\u0430\u043b-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4619",
+      "name": "\u041c\u0430\u043d\u043b\u0430\u0439",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4622",
+      "name": "\u041d\u043e\u0451\u043d",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4625",
+      "name": "\u041d\u043e\u043c\u0433\u043e\u043d",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4628",
+      "name": "\u0421\u044d\u0432\u0440\u044d\u0439",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4631",
+      "name": "\u0425\u0430\u043d\u0431\u043e\u0433\u0434",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4634",
+      "name": "\u0425\u0430\u043d\u0445\u043e\u043d\u0433\u043e\u0440",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4637",
+      "name": "\u0425\u04af\u0440\u043c\u044d\u043d",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4640",
+      "name": "\u0426\u043e\u0433\u0442-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4643",
+      "name": "\u0426\u043e\u0433\u0442\u0446\u044d\u0446\u0438\u0439",
+      "provinceOrCapitalCode": "46"
+    },
+    {
+      "code": "4801",
+      "name": "\u0421\u0430\u0439\u043d\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4804",
+      "name": "\u0410\u0434\u0430\u0430\u0446\u0430\u0433",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4807",
+      "name": "\u0411\u0430\u044f\u043d\u0436\u0430\u0440\u0433\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4810",
+      "name": "\u0413\u043e\u0432\u044c-\u0423\u0433\u0442\u0430\u0430\u043b",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4813",
+      "name": "\u0413\u0443\u0440\u0432\u0430\u043d\u0441\u0430\u0439\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4816",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4819",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440\u0446\u043e\u0433\u0442",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4822",
+      "name": "\u0414\u044d\u0440\u044d\u043d",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4825",
+      "name": "\u041b\u0443\u0443\u0441",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4828",
+      "name": "\u04e8\u043b\u0437\u0438\u0439\u0442",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4831",
+      "name": "\u04e8\u043d\u0434\u04e9\u0440\u0448\u0438\u043b",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4834",
+      "name": "\u0421\u0430\u0439\u0445\u0430\u043d-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4837",
+      "name": "\u0425\u0443\u043b\u0434",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4840",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u0434\u044d\u043b\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "4843",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0434\u0430\u043b\u0430\u0439",
+      "provinceOrCapitalCode": "48"
+    },
+    {
+      "code": "6101",
+      "name": "\u0411\u0430\u044f\u043d-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "61"
+    },
+    {
+      "code": "6104",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "61"
+    },
+    {
+      "code": "6201",
+      "name": "\u0410\u0440\u0432\u0430\u0439\u0445\u044d\u044d\u0440",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6204",
+      "name": "\u0411\u0430\u0440\u0443\u0443\u043d\u0431\u0430\u044f\u043d-\u0423\u043b\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6207",
+      "name": "\u0411\u0430\u0442-\u04e8\u043b\u0437\u0438\u0439",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6210",
+      "name": "\u0411\u0430\u044f\u043d\u0433\u043e\u043b",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6213",
+      "name": "\u0411\u0430\u044f\u043d-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6216",
+      "name": "\u0411\u043e\u0433\u0434",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6219",
+      "name": "\u0411\u04af\u0440\u0434",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6222",
+      "name": "\u0413\u0443\u0447\u0438\u043d-\u0423\u0441",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6225",
+      "name": "\u0415\u0441\u04e9\u043d \u0417\u04af\u0439\u043b",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6228",
+      "name": "\u0417\u04af\u04af\u043d\u0431\u0430\u044f\u043d-\u0423\u043b\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6231",
+      "name": "\u041d\u0430\u0440\u0438\u0439\u043d\u0442\u044d\u044d\u043b",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6234",
+      "name": "\u04e8\u043b\u0437\u0438\u0439\u0442",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6237",
+      "name": "\u0421\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6240",
+      "name": "\u0422\u0430\u0440\u0430\u0433\u0442",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6243",
+      "name": "\u0422\u04e9\u0433\u0440\u04e9\u0433",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6246",
+      "name": "\u0423\u044f\u043d\u0433\u0430",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6249",
+      "name": "\u0425\u0430\u0439\u0440\u0445\u0430\u043d\u0434\u0443\u043b\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6252",
+      "name": "\u0425\u0430\u0440\u0445\u043e\u0440\u0438\u043d",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6255",
+      "name": "\u0425\u0443\u0436\u0438\u0440\u0442",
+      "provinceOrCapitalCode": "62"
+    },
+    {
+      "code": "6301",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6304",
+      "name": "\u0411\u0430\u044f\u043d-\u0410\u0433\u0442",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6307",
+      "name": "\u0411\u0430\u044f\u043d\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6310",
+      "name": "\u0411\u0443\u0433\u0430\u0442",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6313",
+      "name": "\u0411\u04af\u0440\u044d\u0433\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6316",
+      "name": "\u0413\u0443\u0440\u0432\u0430\u043d \u0411\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6319",
+      "name": "\u0414\u0430\u0448\u0438\u043d\u0447\u0438\u043b\u044d\u043d",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6322",
+      "name": "\u041c\u043e\u0433\u043e\u0434",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6325",
+      "name": "\u041e\u0440\u0445\u043e\u043d",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6328",
+      "name": "\u0420\u0430\u0448\u0430\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6331",
+      "name": "\u0421\u0430\u0439\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6334",
+      "name": "\u0421\u044d\u043b\u044d\u043d\u0433\u044d",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6337",
+      "name": "\u0422\u044d\u0448\u0438\u0433",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6340",
+      "name": "\u0425\u0430\u043d\u0433\u0430\u043b",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6343",
+      "name": "\u0425\u0438\u0448\u0438\u0433-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6346",
+      "name": "\u0425\u0443\u0442\u0430\u0433-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "63"
+    },
+    {
+      "code": "6401",
+      "name": "\u0411\u0430\u044f\u043d\u0445\u043e\u043d\u0433\u043e\u0440",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6404",
+      "name": "\u0411\u0430\u0430\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6407",
+      "name": "\u0411\u0430\u044f\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6410",
+      "name": "\u0411\u0430\u044f\u043d\u0433\u043e\u0432\u044c",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6413",
+      "name": "\u0411\u0430\u044f\u043d\u043b\u0438\u0433",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6416",
+      "name": "\u0411\u0430\u044f\u043d-\u041e\u0432\u043e\u043e",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6419",
+      "name": "\u0411\u0430\u044f\u043d-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6422",
+      "name": "\u0411\u0430\u044f\u043d\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6425",
+      "name": "\u0411\u043e\u0433\u0434",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6428",
+      "name": "\u0411\u04e9\u043c\u0431\u04e9\u0433\u04e9\u0440",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6431",
+      "name": "\u0411\u0443\u0443\u0446\u0430\u0433\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6434",
+      "name": "\u0413\u0430\u043b\u0443\u0443\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6437",
+      "name": "\u0413\u0443\u0440\u0432\u0430\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6440",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6443",
+      "name": "\u0416\u0438\u043d\u0441\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6446",
+      "name": "\u0417\u0430\u0433",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6449",
+      "name": "\u04e8\u043b\u0437\u0438\u0439\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6452",
+      "name": "\u0425\u04af\u0440\u044d\u044d\u043c\u0430\u0440\u0430\u043b",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6455",
+      "name": "\u0428\u0438\u043d\u044d\u0436\u0438\u043d\u0441\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6458",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0446\u043e\u0433\u0442",
+      "provinceOrCapitalCode": "64"
+    },
+    {
+      "code": "6501",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0431\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6504",
+      "name": "\u0411\u0430\u0442\u0446\u044d\u043d\u0433\u044d\u043b",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6507",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6510",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6513",
+      "name": "\u0418\u0445 \u0422\u0430\u043c\u0438\u0440",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6516",
+      "name": "\u04e8\u0433\u0438\u0439\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6519",
+      "name": "\u04e8\u043b\u0437\u0438\u0439\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6522",
+      "name": "\u04e8\u043d\u0434\u04e9\u0440-\u0423\u043b\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6525",
+      "name": "\u0422\u0430\u0440\u0438\u0430\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6528",
+      "name": "\u0422\u04e9\u0432\u0448\u0440\u04af\u04af\u043b\u044d\u0445",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6531",
+      "name": "\u0425\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6534",
+      "name": "\u0425\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6537",
+      "name": "\u0425\u0430\u0448\u0430\u0430\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6540",
+      "name": "\u0425\u043e\u0442\u043e\u043d\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6543",
+      "name": "\u0426\u0430\u0445\u0438\u0440",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6546",
+      "name": "\u0426\u044d\u043d\u0445\u044d\u0440",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6549",
+      "name": "\u0426\u044d\u0446\u044d\u0440\u043b\u044d\u0433",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6552",
+      "name": "\u0427\u0443\u043b\u0443\u0443\u0442",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6555",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u043c\u0430\u043d\u0434\u0430\u043b",
+      "provinceOrCapitalCode": "65"
+    },
+    {
+      "code": "6701",
+      "name": "\u041c\u04e9\u0440\u04e9\u043d",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6704",
+      "name": "\u0410\u043b\u0430\u0433-\u042d\u0440\u0434\u044d\u043d\u044d",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6707",
+      "name": "\u0410\u0440\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6710",
+      "name": "\u0411\u0430\u044f\u043d\u0437\u04af\u0440\u0445",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6713",
+      "name": "\u0411\u04af\u0440\u044d\u043d\u0442\u043e\u0433\u0442\u043e\u0445",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6716",
+      "name": "\u0413\u0430\u043b\u0442",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6719",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6722",
+      "name": "\u0418\u0445-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6725",
+      "name": "\u0420\u0430\u0448\u0430\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6728",
+      "name": "\u0420\u044d\u043d\u0447\u0438\u043d\u043b\u0445\u04af\u043c\u0431\u044d",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6731",
+      "name": "\u0422\u0430\u0440\u0438\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6734",
+      "name": "\u0422\u043e\u0441\u043e\u043d\u0446\u044d\u043d\u0433\u044d\u043b",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6737",
+      "name": "\u0422\u04e9\u043c\u04e9\u0440\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6740",
+      "name": "\u0422\u04af\u043d\u044d\u043b",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6743",
+      "name": "\u0423\u043b\u0430\u0430\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6746",
+      "name": "\u0425\u0430\u043d\u0445",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6749",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6752",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6755",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d-\u04ae\u04af\u0440",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6758",
+      "name": "\u0426\u044d\u0446\u044d\u0440\u043b\u044d\u0433",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6761",
+      "name": "\u0427\u0430\u043d\u0434\u043c\u0430\u043d\u044c-\u04e8\u043d\u0434\u04e9\u0440",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6764",
+      "name": "\u0428\u0438\u043d\u044d-\u0418\u0434\u044d\u0440",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "6767",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0431\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "67"
+    },
+    {
+      "code": "8101",
+      "name": "\u0423\u043b\u0438\u0430\u0441\u0442\u0430\u0439",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8104",
+      "name": "\u0410\u043b\u0434\u0430\u0440\u0445\u0430\u0430\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8107",
+      "name": "\u0410\u0441\u0433\u0430\u0442",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8110",
+      "name": "\u0411\u0430\u044f\u043d\u0442\u044d\u0441",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8113",
+      "name": "\u0411\u0430\u044f\u043d\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8116",
+      "name": "\u0414\u04e9\u0440\u0432\u04e9\u043b\u0436\u0438\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8119",
+      "name": "\u0417\u0430\u0432\u0445\u0430\u043d\u043c\u0430\u043d\u0434\u0430\u043b",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8122",
+      "name": "\u0418\u0434\u044d\u0440",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8125",
+      "name": "\u0418\u0445-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8128",
+      "name": "\u041d\u04e9\u043c\u0440\u04e9\u0433",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8131",
+      "name": "\u041e\u0442\u0433\u043e\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8134",
+      "name": "\u0421\u0430\u043d\u0442\u043c\u0430\u0440\u0433\u0430\u0446",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8137",
+      "name": "\u0421\u043e\u043d\u0433\u0438\u043d\u043e",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8140",
+      "name": "\u0422\u043e\u0441\u043e\u043d\u0446\u044d\u043d\u0433\u044d\u043b",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8143",
+      "name": "\u0422\u04af\u0434\u044d\u0432\u0442\u044d\u0439",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8146",
+      "name": "\u0422\u044d\u043b\u043c\u044d\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8149",
+      "name": "\u0422\u044d\u0441",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8152",
+      "name": "\u0423\u0440\u0433\u0430\u043c\u0430\u043b",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8155",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8158",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u0447\u0443\u043b\u0443\u0443\u0442",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8161",
+      "name": "\u0426\u044d\u0446\u044d\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8164",
+      "name": "\u0428\u0438\u043b\u04af\u04af\u0441\u0442\u044d\u0439",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8167",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8170",
+      "name": "\u042f\u0440\u0443\u0443",
+      "provinceOrCapitalCode": "81"
+    },
+    {
+      "code": "8201",
+      "name": "\u0415\u0441\u04e9\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8204",
+      "name": "\u0410\u043b\u0442\u0430\u0439",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8207",
+      "name": "\u0411\u0430\u044f\u043d-\u0423\u0443\u043b",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8210",
+      "name": "\u0411\u0438\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8213",
+      "name": "\u0411\u0443\u0433\u0430\u0442",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8216",
+      "name": "\u0414\u0430\u0440\u0438\u0432",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8219",
+      "name": "\u0414\u044d\u043b\u0433\u044d\u0440",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8222",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8225",
+      "name": "\u0422\u0430\u0439\u0448\u0438\u0440",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8228",
+      "name": "\u0422\u043e\u043d\u0445\u0438\u043b",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8231",
+      "name": "\u0422\u04e9\u0433\u0440\u04e9\u0433",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8234",
+      "name": "\u0425\u0430\u043b\u0438\u0443\u043d",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8237",
+      "name": "\u0425\u04e9\u0445\u043c\u043e\u0440\u044c\u0442",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8240",
+      "name": "\u0426\u043e\u0433\u0442",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8243",
+      "name": "\u0426\u044d\u044d\u043b",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8246",
+      "name": "\u0427\u0430\u043d\u0434\u043c\u0430\u043d\u044c",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8249",
+      "name": "\u0428\u0430\u0440\u0433\u0430",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8252",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d",
+      "provinceOrCapitalCode": "82"
+    },
+    {
+      "code": "8301",
+      "name": "\u04e8\u043b\u0433\u0438\u0439",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8304",
+      "name": "\u0410\u043b\u0442\u0430\u0439",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8307",
+      "name": "\u0410\u043b\u0442\u0430\u043d\u0446\u04e9\u0433\u0446",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8310",
+      "name": "\u0411\u0430\u044f\u043d\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8313",
+      "name": "\u0411\u0443\u0433\u0430\u0442",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8316",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8319",
+      "name": "\u0411\u0443\u044f\u043d\u0442",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8322",
+      "name": "\u0414\u044d\u043b\u04af\u04af\u043d",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8325",
+      "name": "\u041d\u043e\u0433\u043e\u043e\u043d\u043d\u0443\u0443\u0440",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8328",
+      "name": "\u0421\u0430\u0433\u0441\u0430\u0439",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8331",
+      "name": "\u0422\u043e\u043b\u0431\u043e",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8334",
+      "name": "\u0423\u043b\u0430\u0430\u043d\u0445\u0443\u0441",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8337",
+      "name": "\u0426\u044d\u043d\u0433\u044d\u043b",
+      "provinceOrCapitalCode": "83"
+    },
+    {
+      "code": "8401",
+      "name": "\u0416\u0430\u0440\u0433\u0430\u043b\u0430\u043d\u0442",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8404",
+      "name": "\u0410\u043b\u0442\u0430\u0439",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8407",
+      "name": "\u0411\u0443\u043b\u0433\u0430\u043d",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8410",
+      "name": "\u0411\u0443\u044f\u043d\u0442",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8413",
+      "name": "\u0414\u0430\u0440\u0432\u0438",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8416",
+      "name": "\u0414\u04e9\u0440\u0433\u04e9\u043d",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8419",
+      "name": "\u0414\u0443\u0443\u0442",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8422",
+      "name": "\u0417\u044d\u0440\u044d\u0433",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8425",
+      "name": "\u041c\u0430\u043d\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8428",
+      "name": "\u041c\u04e9\u043d\u0445\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8431",
+      "name": "\u041c\u04e9\u0441\u0442",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8434",
+      "name": "\u041c\u044f\u043d\u0433\u0430\u0434",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8437",
+      "name": "\u04ae\u0435\u043d\u0447",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8440",
+      "name": "\u0425\u043e\u0432\u0434",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8443",
+      "name": "\u0426\u044d\u0446\u044d\u0433",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8446",
+      "name": "\u0427\u0430\u043d\u0434\u043c\u0430\u043d\u044c",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8449",
+      "name": "\u042d\u0440\u0434\u044d\u043d\u044d\u0431\u04af\u0440\u044d\u043d",
+      "provinceOrCapitalCode": "84"
+    },
+    {
+      "code": "8501",
+      "name": "\u0423\u043b\u0430\u0430\u043d\u0433\u043e\u043c",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8504",
+      "name": "\u0411\u0430\u0440\u0443\u0443\u043d\u0442\u0443\u0440\u0443\u0443\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8507",
+      "name": "\u0411\u04e9\u0445\u043c\u04e9\u0440\u04e9\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8510",
+      "name": "\u0414\u0430\u0432\u0441\u0442",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8513",
+      "name": "\u0417\u0430\u0432\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8516",
+      "name": "\u0417\u04af\u04af\u043d\u0433\u043e\u0432\u044c",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8519",
+      "name": "\u0417\u04af\u04af\u043d\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8522",
+      "name": "\u041c\u0430\u043b\u0447\u0438\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8525",
+      "name": "\u041d\u0430\u0440\u0430\u043d\u0431\u0443\u043b\u0430\u0433",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8528",
+      "name": "\u04e8\u043b\u0433\u0438\u0439",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8531",
+      "name": "\u04e8\u043c\u043d\u04e9\u0433\u043e\u0432\u044c",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8534",
+      "name": "\u04e8\u043d\u0434\u04e9\u0440\u0445\u0430\u043d\u0433\u0430\u0439",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8537",
+      "name": "\u0421\u0430\u0433\u0438\u043b",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8540",
+      "name": "\u0422\u0430\u0440\u0438\u0430\u043b\u0430\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8543",
+      "name": "\u0422\u04af\u0440\u0433\u044d\u043d",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8546",
+      "name": "\u0422\u044d\u0441",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8549",
+      "name": "\u0425\u043e\u0432\u0434",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8552",
+      "name": "\u0425\u044f\u0440\u0433\u0430\u0441",
+      "provinceOrCapitalCode": "85"
+    },
+    {
+      "code": "8555",
+      "name": "\u0426\u0430\u0433\u0430\u0430\u043d\u0445\u0430\u0439\u0440\u0445\u0430\u043d",
+      "provinceOrCapitalCode": "85"
+    }
+  ]
+}

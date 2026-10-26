@@ -21,7 +21,16 @@ namespace DentalApi.Migrations
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
-                        .HasColumnType("INTEGER");
+                        .HasColumnType("INTEGER")
+                        .HasAnnotation("Sqlite:Autoincrement", true);
+
+                    b.Property<string>("AddressLine")
+                        .HasMaxLength(500)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CountryCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -30,12 +39,82 @@ namespace DentalApi.Migrations
                     b.Property<string>("Phone")
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("ProvinceOrCapitalCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("SoumOrDistrictCode")
+                        .HasMaxLength(4)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimeZoneId")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Asia/Ulaanbaatar");
+
+                    b.Property<string>("TimeZoneStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("PendingVerification");
+
+                    b.Property<DateTime?>("TimeZoneVerifiedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("TimeZoneVerifiedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("TimeZoneVerifiedClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue(new Guid("00000000-0000-0000-0000-000000000000"));
+
                     b.Property<string>("WorkHours")
                         .HasColumnType("TEXT");
 
                     b.HasKey("Id");
 
-                    b.ToTable("Clinics");
+                    b.HasIndex("TimeZoneVerifiedClinicId", "TimeZoneVerifiedByUserId");
+
+                    b.ToTable("Clinics", t =>
+                        {
+                            t.HasCheckConstraint("CK_Clinics_TimeZoneVerification", "(\"TimeZoneStatus\" = 'PendingVerification' AND \"TimeZoneVerifiedClinicId\" IS NULL AND \"TimeZoneVerifiedByUserId\" IS NULL AND \"TimeZoneVerifiedAtUtc\" IS NULL) OR (\"TimeZoneStatus\" = 'Verified' AND \"TimeZoneId\" IN ('Asia/Ulaanbaatar', 'Asia/Hovd') AND \"CountryCode\" IS NOT NULL AND \"CountryCode\" = 'MN' AND \"ProvinceOrCapitalCode\" IS NOT NULL AND \"SoumOrDistrictCode\" IS NOT NULL AND \"AddressLine\" IS NOT NULL AND length(trim(\"AddressLine\")) > 0 AND \"TimeZoneVerifiedClinicId\" IS NOT NULL AND \"TimeZoneVerifiedClinicId\" = \"Id\" AND \"TimeZoneVerifiedByUserId\" IS NOT NULL AND \"TimeZoneVerifiedAtUtc\" IS NOT NULL)");
+                        });
+                });
+
+            modelBuilder.Entity("DentalApi.Models.ClinicPatientLink", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PlatformAccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "PatientId")
+                        .IsUnique();
+
+                    b.HasIndex("PlatformAccountId", "ClinicId")
+                        .IsUnique();
+
+                    b.ToTable("ClinicPatientLinks");
                 });
 
             modelBuilder.Entity("DentalApi.Models.DoctorProfile", b =>
@@ -88,6 +167,46 @@ namespace DentalApi.Migrations
                         .IsUnique();
 
                     b.ToTable("DoctorProfiles");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.DoctorService", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferAfterMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferBeforeMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DoctorProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DurationMinutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ServiceId");
+
+                    b.HasIndex("ClinicId", "DoctorProfileId", "ServiceId")
+                        .IsUnique();
+
+                    b.ToTable("DoctorServices", t =>
+                        {
+                            t.HasCheckConstraint("CK_DoctorServices_Duration", "\"DurationMinutes\" > 0 AND \"BufferBeforeMinutes\" >= 0 AND \"BufferAfterMinutes\" >= 0 AND \"DurationMinutes\" + \"BufferBeforeMinutes\" + \"BufferAfterMinutes\" <= 1440");
+                        });
                 });
 
             modelBuilder.Entity("DentalApi.Models.DoctorWorkingHours", b =>
@@ -169,6 +288,144 @@ namespace DentalApi.Migrations
                         .HasFilter("\"UserId\" IS NOT NULL");
 
                     b.ToTable("Patients");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PatientAvailability", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "PatientId", "StartUtc")
+                        .IsUnique();
+
+                    b.ToTable("PatientAvailabilities", t =>
+                        {
+                            t.HasCheckConstraint("CK_PatientAvailabilities_Interval", "\"StartUtc\" >= 0 AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= 3155378975999999999");
+                        });
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PatientAvailabilitySchedule", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClinicId", "PatientId");
+
+                    b.ToTable("PatientAvailabilitySchedules");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PlatformAccount", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Email")
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("FullName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsEmailVerified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsPhoneVerified")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("PasswordHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Phone")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("TokenVersion")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Email")
+                        .IsUnique()
+                        .HasFilter("\"Email\" IS NOT NULL");
+
+                    b.HasIndex("Phone")
+                        .IsUnique()
+                        .HasFilter("\"Phone\" IS NOT NULL");
+
+                    b.ToTable("PlatformAccounts", t =>
+                        {
+                            t.HasCheckConstraint("CK_PlatformAccounts_Contacts", "(\"Email\" IS NOT NULL OR \"Phone\" IS NOT NULL) AND \"TokenVersion\" >= 0");
+                        });
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PlatformVerificationCode", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("ExpiresAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsUsed")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PlatformAccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Purpose")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("PlatformAccountId", "Channel", "Purpose", "CreatedAt");
+
+                    b.ToTable("PlatformVerificationCodes");
                 });
 
             modelBuilder.Entity("DentalApi.Models.Service", b =>
@@ -305,6 +562,31 @@ namespace DentalApi.Migrations
                     b.ToTable("VerificationCodes");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.Clinic", b =>
+                {
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("TimeZoneVerifiedClinicId", "TimeZoneVerifiedByUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("DentalApi.Models.ClinicPatientLink", b =>
+                {
+                    b.HasOne("DentalApi.Models.PlatformAccount", null)
+                        .WithMany()
+                        .HasForeignKey("PlatformAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("DentalApi.Models.DoctorProfile", b =>
                 {
                     b.HasOne("DentalApi.Models.Clinic", null)
@@ -321,6 +603,23 @@ namespace DentalApi.Migrations
                         .IsRequired();
 
                     b.Navigation("User");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.DoctorService", b =>
+                {
+                    b.HasOne("DentalApi.Models.DoctorProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DentalApi.Models.DoctorWorkingHours", b =>
@@ -340,6 +639,34 @@ namespace DentalApi.Migrations
                         .HasForeignKey("ClinicId", "UserId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict);
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PatientAvailability", b =>
+                {
+                    b.HasOne("DentalApi.Models.PatientAvailabilitySchedule", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PatientAvailabilitySchedule", b =>
+                {
+                    b.HasOne("DentalApi.Models.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PlatformVerificationCode", b =>
+                {
+                    b.HasOne("DentalApi.Models.PlatformAccount", null)
+                        .WithMany()
+                        .HasForeignKey("PlatformAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DentalApi.Models.VerificationCode", b =>

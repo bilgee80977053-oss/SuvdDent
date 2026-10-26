@@ -19,7 +19,7 @@ public sealed class DoctorMigrationTests
         await using var db = new AppDbContext(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(connection).Options);
         await db.GetService<IMigrator>().MigrateAsync("20261026100808_AddPatientUserTenantIntegrity");
         var date = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-        db.Clinics.Add(new Clinic { Id = 101, Name = "Synthetic clinic", WorkHours = "Synthetic" });
+        await db.Database.ExecuteSqlRawAsync("INSERT INTO Clinics (Id, Name, WorkHours) VALUES (101, 'Synthetic clinic', 'Synthetic')");
         db.Users.Add(new User { Id = 11, ClinicId = 101, FullName = "Synthetic user",
             Email = "synthetic@example.invalid", Phone = "11111111", PasswordHash = "synthetic-only",
             Role = Role.Doctor, IsEmailVerified = true, TokenVersion = 7, CreatedAt = date });
@@ -46,7 +46,7 @@ public sealed class DoctorMigrationTests
             return JsonSerializer.Serialize(state);
         }
         var before = await SnapshotAsync();
-        await db.Database.MigrateAsync();
+        await db.GetService<IMigrator>().MigrateAsync("20261026104238_AddDoctorProfiles");
         Assert.Equal(before, await SnapshotAsync());
         Assert.Empty(await db.DoctorProfiles.ToArrayAsync());
         Assert.Empty(await db.DoctorWorkingHours.ToArrayAsync());

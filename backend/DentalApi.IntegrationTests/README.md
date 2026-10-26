@@ -56,3 +56,46 @@ removed when the old Users table is dropped.
 Before deploying, back up and rehearse against an authorized isolated copy.
 Normal non-Testing application startup still applies pending migrations, so do
 not start the changed app against a real database before that review.
+
+## Scheduling foundations
+
+SchedulingTests uses DoctorApiFactory: real JWT authentication, independent request
+connections to a uniquely named SQLite in-memory database, synthetic tenants, no
+production configuration, no startup seeding and no real SMTP transport. Tests
+cover role/tenant/ownership checks, duration validation, explicit timestamp offsets,
+UTC normalization, overlap rejection, empty-list versions, stale/concurrent writes,
+shared doctor versions and raw SQL foreign key/check/unique constraints.
+
+SchedulingMigrationTests rehearses both the EF migration and generated SQL from
+AddDoctorProfiles with synthetic rows. It checks old row values, column metadata,
+named indexes, old FKs, nullable patient links, new timezone defaults, ID generation,
+integrity, migration history and absence of pending model changes. Historical
+TenantIntegrityTests and DoctorMigrationTests still target their original migration
+boundaries; their Clinic fixtures use that historical schema without TimeZoneId.
+
+See ../DentalApi/SchedulingApi.md for endpoints, examples and deployment risks.
+
+
+## Clinic location and timezone verification
+
+ClinicLocationTests covers all 22 province/capital entries and 339 districts/soums,
+location membership, timezone suggestions, explicit Director confirmation, tenant
+spoofing, roles, stale/concurrent edits, invalidation and raw SQL constraints.
+The scheduling policy is exercised within a real transaction with Ulaanbaatar and
+Hovd clinics, fail-closed Pending behavior and stale scheduling versions.
+ClinicLocationMigrationTests applies scheduling and verification migrations in
+sequence on synthetic in-memory SQLite and separately tests the generated SQL.
+No real database, backups, startup seeding or SMTP transport is used.
+See ../DentalApi/ClinicLocationApi.md for the future booking integration contract.
+
+
+## Platform identity foundation
+
+PlatformApiFactory derives the isolated in-memory DoctorApiFactory and adds an
+independent synthetic Platform JWT configuration plus an in-memory fake email/SMS
+sender. PlatformAccountTests covers verification, normalized unique contacts,
+password byte limits, scheme isolation, ownership, token revocation, recovery/code
+replay/expiry/attempt limits and ClinicPatientLink tenant FKs. PlatformMigrationTests
+checks both EF migration and generated SQL preserve legacy rows/schema/indexes/FKs.
+No public auto-link flow, real transport, real database or credential backfill exists.
+See ../DentalApi/PlatformAccountApi.md for configuration and deployment limitations.

@@ -26,8 +26,7 @@ public sealed class TenantIntegrityTests
             await Connection.OpenAsync();
             await Db.GetService<IMigrator>().MigrateAsync(PreviousMigration);
             var created = new DateTime(2026, 1, 2, 3, 4, 5, DateTimeKind.Utc);
-            Db.Clinics.AddRange(new Clinic { Id = 101, Name = "Clinic A", Phone = "11111111", WorkHours = "Synthetic hours" },
-                                new Clinic { Id = 202, Name = "Clinic B" });
+            await Db.Database.ExecuteSqlRawAsync("INSERT INTO Clinics (Id, Name, Phone, WorkHours) VALUES (101, 'Clinic A', '11111111', 'Synthetic hours'), (202, 'Clinic B', NULL, NULL)");
             Db.Users.AddRange(
                 new User { Id = 11, ClinicId = 101, FullName = "Synthetic A", Email = "a@example.invalid", Phone = "11111111", Role = Role.Patient, PasswordHash = "synthetic-hash-A", CreatedAt = created, TokenVersion = 3, IsEmailVerified = true, IsPhoneVerified = true },
                 new User { Id = 12, ClinicId = 202, FullName = "Synthetic B", Email = "b@example.invalid", Role = Role.Patient, PasswordHash = "synthetic-hash-B", CreatedAt = null });
@@ -154,7 +153,7 @@ public sealed class TenantIntegrityTests
 
     private static async Task<string> SnapshotAsync(AppDbContext db) => JsonSerializer.Serialize(new
     {
-        Clinics = await db.Clinics.AsNoTracking().OrderBy(x => x.Id).ToListAsync(),
+        Clinics = await db.Clinics.AsNoTracking().OrderBy(x => x.Id).Select(x => new { x.Id, x.Name, x.Phone, x.WorkHours }).ToListAsync(),
         Users = await db.Users.AsNoTracking().OrderBy(x => x.Id).ToListAsync(),
         Patients = await db.Patients.AsNoTracking().OrderBy(x => x.Id).ToListAsync(),
         Services = await db.Services.AsNoTracking().OrderBy(x => x.Id).ToListAsync(),

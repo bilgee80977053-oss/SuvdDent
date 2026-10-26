@@ -18,7 +18,7 @@ namespace DentalApi.IntegrationTests;
 
 // Independent request connections allow actual concurrent HTTP updates.
 // An anchor keeps this factory's unique shared in-memory database alive.
-public sealed class DoctorApiFactory : WebApplicationFactory<Program>
+public class DoctorApiFactory : WebApplicationFactory<Program>
 {
     private readonly string connectionString = new SqliteConnectionStringBuilder
     {
