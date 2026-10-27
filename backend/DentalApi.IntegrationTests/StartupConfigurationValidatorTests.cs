@@ -60,12 +60,34 @@ public sealed class StartupConfigurationValidatorTests
         StartupConfigurationValidator.Validate(Build(ValidSettings()), "Production");
     }
 
+    [Theory]
+    [InlineData("*")]
+    [InlineData("")]
+    [InlineData("https://api.example.invalid")]
+    public void UnsafeHostsAreRejected(string hosts)
+    {
+        var values = ValidSettings();
+        values["AllowedHosts"] = hosts;
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupConfigurationValidator.Validate(Build(values), "Production"));
+    }
+
+    [Fact]
+    public void CorsOriginsMustHaveNoPathOrWildcard()
+    {
+        var values = ValidSettings();
+        values["Cors:AllowedOrigins:0"] = "https://example.invalid/app";
+        Assert.Throws<InvalidOperationException>(() =>
+            StartupConfigurationValidator.Validate(Build(values), "Production"));
+    }
+
     private static IConfiguration Build(Dictionary<string, string?> values) =>
         new ConfigurationBuilder().AddInMemoryCollection(values).Build();
 
     private static Dictionary<string, string?> ValidSettings() => new()
     {
         ["ConnectionStrings:Default"] = "Data Source=:memory:",
+        ["AllowedHosts"] = "localhost",
         ["Jwt:Key"] = "Synthetic-clinic-key-for-validator-tests-2026",
         ["Jwt:Issuer"] = "TestClinicIssuer",
         ["Jwt:Audience"] = "TestClinicAudience",

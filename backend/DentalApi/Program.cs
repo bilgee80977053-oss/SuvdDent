@@ -13,6 +13,12 @@ var builder = WebApplication.CreateBuilder(args);
 // Controllers болон Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddCors(options => options.AddPolicy("ConfiguredOrigins", policy =>
+{
+    var origins = StartupConfigurationValidator.AllowedOrigins(builder.Configuration);
+    if (origins.Length > 0)
+        policy.WithOrigins(origins).AllowAnyHeader().AllowAnyMethod();
+}));
 
 builder.Services.AddSwaggerGen(options =>
 {
@@ -206,6 +212,7 @@ using (var scope = app.Services.CreateScope())
 app.UseHttpsRedirection();
 
 app.UseRouting();
+app.UseCors("ConfiguredOrigins");
 
 app.UseAuthentication();
 app.UseRateLimiter();

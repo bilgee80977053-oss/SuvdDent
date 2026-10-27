@@ -14,6 +14,8 @@ double underscores (`__`) to `:` in configuration paths. Do not put credentials 
 | `Email__Host`, `Email__Port` | SMTP host and port (1-65535) |
 | `Email__From`, `Email__Username`, `Email__Password` | SMTP sender and credentials |
 | `Seed__AdminPhone`, `Seed__AdminPassword` | Optional initial Director credentials; both required |
+| `AllowedHosts` | Semicolon-separated accepted host names, for example `api.example.mn;localhost` (never `*`) |
+| `Cors__AllowedOrigins__0`, `Cors__AllowedOrigins__1`, ... | Exact browser origins (scheme, host and optional port) |
 
 JWT signing keys, issuers and audiences must differ between the Clinic and Platform
 schemes. Startup validates them in every environment. SMTP is required outside the
@@ -23,3 +25,7 @@ from the legacy SMTP service; it must be replaced before enabling Platform signu
 `appsettings.Example.json` is documentation only and is not automatically loaded.
 Its values are placeholders, not credentials. Replace them through private
 configuration, never by committing real values into the example.
+
+The default `AllowedHosts` is `localhost`; override it when deploying behind a
+real domain. CORS denies cross-origin browsers by default until permitted origins
+are configured. It never grants credentialed wildcard access.

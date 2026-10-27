@@ -30,6 +30,8 @@ public sealed class DentalApiFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = "Data Source=:memory:",
+                ["AllowedHosts"] = "localhost",
+                ["Cors:AllowedOrigins:0"] = "https://allowed.example.invalid",
                 ["Jwt:Key"] = "Synthetic-integration-test-signing-key-only-2026-0123456789",
                 ["Jwt:Issuer"] = "DentalApi.IntegrationTests",
                 ["Jwt:Audience"] = "DentalApi.IntegrationTests",

@@ -21,6 +21,14 @@ public static class StartupConfigurationValidator
 
         Require(config, "ConnectionStrings:Default");
 
+        var allowedHosts = config["AllowedHosts"]?.Split(';',
+            StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);
+        if (allowedHosts is null || allowedHosts.Length == 0 ||
+            allowedHosts.Any(host => host == "*" || host.Contains("://")))
+            throw new InvalidOperationException("AllowedHosts нь тодорхой host нэрс байх ёстой; '*' ашиглахгүй.");
+
+        AllowedOrigins(config);
+
         // Integration тестүүд бодит SMTP-гүй, тусгаарлагдсан орчинд ажиллана.
         if (environmentName == "Testing") return;
 
@@ -34,6 +42,23 @@ public static class StartupConfigurationValidator
 
         if (!System.Net.Mail.MailAddress.TryCreate(config["Email:From"], out _))
             throw new InvalidOperationException("Email:From нь хүчинтэй имэйл хаяг байх ёстой.");
+    }
+
+    public static string[] AllowedOrigins(IConfiguration config)
+    {
+        var origins = config.GetSection("Cors:AllowedOrigins")
+            .GetChildren().Select(x => x.Value).Where(x => !string.IsNullOrWhiteSpace(x))
+            .Select(x => x!.Trim()).Distinct(StringComparer.OrdinalIgnoreCase).ToArray();
+
+        foreach (var origin in origins)
+        {
+            if (!Uri.TryCreate(origin, UriKind.Absolute, out var uri) ||
+                uri.Scheme is not ("http" or "https") ||
+                origin != uri.GetLeftPart(UriPartial.Authority))
+                throw new InvalidOperationException("Cors:AllowedOrigins-д зөвхөн http(s) origin оруулна (path, '*'-гүй).");
+        }
+
+        return origins;
     }
 
     private static void RequireKey(IConfiguration config, string name)

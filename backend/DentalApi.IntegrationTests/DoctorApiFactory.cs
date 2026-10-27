@@ -42,6 +42,7 @@ public class DoctorApiFactory : WebApplicationFactory<Program>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
                 ["ConnectionStrings:Default"] = connectionString,
+                ["AllowedHosts"] = "localhost",
                 ["Jwt:Key"] = "Synthetic-doctor-tests-signing-key-only-01234567890123456789",
                 ["Jwt:Issuer"] = "DoctorIntegrationTests",
                 ["Jwt:Audience"] = "DoctorIntegrationTests",
