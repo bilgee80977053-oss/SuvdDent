@@ -1,7 +1,8 @@
 # Appointment persistence foundation
 
-This step adds storage only. Existing APIs, authentication, scheduling services,
-and the Flutter demonstration are unchanged.
+This document records the Step 2 storage foundation. Step 3 adds the
+[patient booking API](AppointmentApi.md) without further schema changes.
+Existing API contracts and the Flutter demonstration remain unchanged.
 
 ## Model and tenant boundaries
 
@@ -20,19 +21,19 @@ clinic or doctor-service configuration does not rewrite these stored snapshots.
 
 Statuses are `Confirmed` and `Cancelled`; these are persistence values, not new
 API operations. A nonempty GUID `RequestId` is unique per clinic and patient.
-That constraint supports future idempotency but does not implement replay handling.
+The Step 3 booking service now implements replay handling using this constraint.
 
 SQLite stores UTC .NET ticks as integers, preserving ordering and 100 ns
 precision. PostgreSQL uses `timestamp with time zone`, with values normalized to
-UTC by EF converters; PostgreSQL storage precision is microseconds. Future booking
-logic should select a common precision before deriving intervals. Database checks
+UTC by EF converters; PostgreSQL storage precision is microseconds. The Step 3
+booking service uses whole-minute starts and interval lengths. Database checks
 validate finite/representable times, interval relationships and snapshot metadata.
 Timezone identifiers still require application validation against supported zones.
 
 Indexes support patient history and doctor occupied-time lookups. Ordinary indexes
-DO NOT prevent all overlapping bookings. Booking concurrency, authorization,
-verified-email enforcement, eligibility, working-hour checks, optimistic update
-handling and transaction-safe confirmation delivery remain later service work.
+DO NOT prevent all overlapping bookings. Step 3 implements transactional booking
+validation and concurrency protection in the service. Appointment updates and
+transaction-safe confirmation delivery remain later work.
 
 ## Separate additive migrations
 

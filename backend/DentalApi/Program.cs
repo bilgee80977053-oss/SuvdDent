@@ -55,6 +55,8 @@ builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
 builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
+builder.Services.AddScoped<AppointmentService>();
+builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MongoliaLocations>();
 builder.Services.AddScoped<ClinicLocationService>();
 builder.Services.AddScoped<ClinicSchedulingPolicy>();

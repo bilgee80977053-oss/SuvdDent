@@ -276,3 +276,24 @@ For offline validation, require `NEXORA_PG_TEST_CONNECTION` to be absent using t
 check above. All ten live PostgreSQL tests should skip. See the
 [appointment storage scope](../DentalApi/AppointmentPersistence.md) for schema
 semantics, precision differences and booking behavior reserved for later steps.
+
+
+## Patient booking APIs (University MVP, Step 3)
+
+See [AppointmentApi.md](../DentalApi/AppointmentApi.md) for contracts, grid,
+timezone, overlap and idempotency rules. `AppointmentApiTests` exercise real JWT
+requests in isolated SQLite memory databases, including independent connections
+for races, commit rollback and safe responses. `AppointmentProviderTests` check
+PostgreSQL Serializable selection and 23505/40001/40P01 handling with connection
+opening suppressed.
+
+`PostgreSqlAppointmentTests` adds two explicitly opt-in races using the existing
+approved disposable target guard. Both booking snapshots reach the overlap check
+before INSERT. The tests verify independent PostgreSQL backend connections,
+Serializable isolation, a real serialization failure and one committed booking.
+They require the Step 2 appointment migration to be applied beforehand; they never
+apply migrations. They delete only their generated request keys in an ownership-
+checked synthetic clinic before normal fixture cleanup. No broad purge or schema
+reset is used. These tests have not been run against PostgreSQL in Step 3 offline
+validation. With the opt-in variable absent, expect 12 PostgreSQL tests skipped
+(the original ten plus these two), not passed.
