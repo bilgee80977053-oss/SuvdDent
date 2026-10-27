@@ -4,9 +4,17 @@ namespace DentalApi.Data;
 
 public static class DbSeeder
 {
-    public static void Seed(AppDbContext db)
+    public static bool Seed(AppDbContext db, string? adminPhone, string? adminPassword, ILogger logger)
     {
-        if (db.Clinics.Any()) return;
+        if (string.IsNullOrWhiteSpace(adminPhone) || string.IsNullOrWhiteSpace(adminPassword))
+        {
+            logger.LogWarning("Эхний Director хэрэглэгч үүсгэх тохиргоо дутуу тул seed хийгдээгүй.");
+            return false;
+        }
+
+        if (db.Clinics.Any()) return false;
+
+        using var transaction = db.Database.BeginTransaction();
 
         var clinic = new Clinic { Name = "Сувд дент", WorkHours = "08:00-18:00" };
         db.Clinics.Add(clinic);
@@ -16,8 +24,8 @@ public static class DbSeeder
         {
             ClinicId = clinic.Id,
             FullName = "Захирал",
-            Phone = "99000000",
-            PasswordHash = BCrypt.Net.BCrypt.HashPassword("ChangeMe123!"),
+            Phone = adminPhone.Trim(),
+            PasswordHash = BCrypt.Net.BCrypt.HashPassword(adminPassword),
             Role = Role.Director
         });
 
@@ -36,5 +44,7 @@ public static class DbSeeder
                 Description = "Шүдний өнгийг цайруулах үйлчилгээ.",
                 MinPrice = 300000, MaxPrice = 300000 });
         db.SaveChanges();
+        transaction.Commit();
+        return true;
     }
 }

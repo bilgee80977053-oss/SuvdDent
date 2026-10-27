@@ -186,7 +186,17 @@ using (var scope = app.Services.CreateScope())
         .GetRequiredService<AppDbContext>();
 
     db.Database.Migrate();
-    DbSeeder.Seed(db);
+    var seedPhone = app.Configuration["Seed:AdminPhone"];
+    var seedPassword = app.Configuration["Seed:AdminPassword"];
+    if (app.Environment.IsDevelopment() ||
+        (!string.IsNullOrWhiteSpace(seedPhone) && !string.IsNullOrWhiteSpace(seedPassword)))
+    {
+        DbSeeder.Seed(db, seedPhone, seedPassword, app.Logger);
+    }
+    else
+    {
+        app.Logger.LogWarning("Seed:AdminPhone болон Seed:AdminPassword тохиргоогүй тул seed алгаслаа.");
+    }
 }
 
 // Middleware
