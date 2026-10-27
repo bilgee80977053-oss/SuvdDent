@@ -14,6 +14,8 @@ var builder = WebApplication.CreateBuilder(args);
 // Controllers болон Swagger
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
+builder.Services.AddProblemDetails();
 builder.Services.AddCors(options => options.AddPolicy("ConfiguredOrigins", policy =>
 {
     var origins = StartupConfigurationValidator.AllowedOrigins(builder.Configuration);
@@ -182,6 +184,8 @@ var app = builder.Build();
 
 // Нууц тохиргоо дутуу бол API-г ажиллуулахгүй.
 StartupConfigurationValidator.Validate(app.Configuration, app.Environment.EnvironmentName);
+
+app.UseExceptionHandler();
 
 // Swagger зөвхөн Development орчинд
 if (app.Environment.IsDevelopment())
