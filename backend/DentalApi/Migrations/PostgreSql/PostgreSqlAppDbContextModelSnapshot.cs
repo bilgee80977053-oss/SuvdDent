@@ -23,6 +23,94 @@ namespace DentalApi.Migrations.PostgreSql
 
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("integer");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("BufferAfterMinutesSnapshot")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("BufferBeforeMinutesSnapshot")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("ClinicTimeZoneIdSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<DateTimeOffset>("CreatedAtUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("DoctorProfileId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("DurationMinutesSnapshot")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("EndUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("OccupiedEndUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<DateTimeOffset>("OccupiedStartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("integer");
+
+                    b.Property<DateTimeOffset>("StartUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)")
+                        .HasDefaultValue("Confirmed");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ServiceId");
+
+                    b.HasIndex("ClinicId", "PatientId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("ClinicId", "PatientId", "StartUtc");
+
+                    b.HasIndex("ClinicId", "DoctorProfileId", "Status", "OccupiedStartUtc", "OccupiedEndUtc");
+
+                    b.ToTable("Appointments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Appointments_Interval", "\"OccupiedStartUtc\" <= \"StartUtc\" AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= \"OccupiedEndUtc\"");
+
+                            t.HasCheckConstraint("CK_Appointments_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_Appointments_SnapshotBounds", "\"DurationMinutesSnapshot\" BETWEEN 1 AND 1440 AND \"BufferBeforeMinutesSnapshot\" BETWEEN 0 AND 1439 AND \"BufferAfterMinutesSnapshot\" BETWEEN 0 AND 1439 AND CAST(\"DurationMinutesSnapshot\" AS bigint) + \"BufferBeforeMinutesSnapshot\" + \"BufferAfterMinutesSnapshot\" <= 1440");
+
+                            t.HasCheckConstraint("CK_Appointments_SnapshotIntervals", "\"EndUtc\" = \"StartUtc\" + \"DurationMinutesSnapshot\" * INTERVAL '1 minute' AND \"OccupiedStartUtc\" = \"StartUtc\" - \"BufferBeforeMinutesSnapshot\" * INTERVAL '1 minute' AND \"OccupiedEndUtc\" = \"EndUtc\" + \"BufferAfterMinutesSnapshot\" * INTERVAL '1 minute'");
+
+                            t.HasCheckConstraint("CK_Appointments_Status", "\"Status\" IN ('Confirmed', 'Cancelled')");
+
+                            t.HasCheckConstraint("CK_Appointments_TimeZoneSnapshot", "length(trim(\"ClinicTimeZoneIdSnapshot\")) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("CK_Appointments_UtcRange", "isfinite(\"OccupiedStartUtc\") AND isfinite(\"StartUtc\") AND isfinite(\"EndUtc\") AND isfinite(\"OccupiedEndUtc\") AND isfinite(\"CreatedAtUtc\")");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>
                 {
                     b.Property<int>("Id")
@@ -589,6 +677,36 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasIndex("UserId");
 
                     b.ToTable("VerificationCodes");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.DoctorProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>

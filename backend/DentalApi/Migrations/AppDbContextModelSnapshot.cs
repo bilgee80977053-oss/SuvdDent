@@ -17,6 +17,92 @@ namespace DentalApi.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferAfterMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferBeforeMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ClinicTimeZoneIdSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("CreatedAtUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DoctorProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("DurationMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OccupiedEndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OccupiedStartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("StartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT")
+                        .HasDefaultValue("Confirmed");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ServiceId");
+
+                    b.HasIndex("ClinicId", "PatientId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("ClinicId", "PatientId", "StartUtc");
+
+                    b.HasIndex("ClinicId", "DoctorProfileId", "Status", "OccupiedStartUtc", "OccupiedEndUtc");
+
+                    b.ToTable("Appointments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Appointments_Interval", "\"OccupiedStartUtc\" <= \"StartUtc\" AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= \"OccupiedEndUtc\"");
+
+                            t.HasCheckConstraint("CK_Appointments_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_Appointments_SnapshotBounds", "\"DurationMinutesSnapshot\" BETWEEN 1 AND 1440 AND \"BufferBeforeMinutesSnapshot\" BETWEEN 0 AND 1439 AND \"BufferAfterMinutesSnapshot\" BETWEEN 0 AND 1439 AND CAST(\"DurationMinutesSnapshot\" AS bigint) + \"BufferBeforeMinutesSnapshot\" + \"BufferAfterMinutesSnapshot\" <= 1440");
+
+                            t.HasCheckConstraint("CK_Appointments_SnapshotIntervals", "\"EndUtc\" - \"StartUtc\" = \"DurationMinutesSnapshot\" * 600000000 AND \"StartUtc\" - \"OccupiedStartUtc\" = \"BufferBeforeMinutesSnapshot\" * 600000000 AND \"OccupiedEndUtc\" - \"EndUtc\" = \"BufferAfterMinutesSnapshot\" * 600000000");
+
+                            t.HasCheckConstraint("CK_Appointments_Status", "\"Status\" IN ('Confirmed', 'Cancelled')");
+
+                            t.HasCheckConstraint("CK_Appointments_TimeZoneSnapshot", "length(trim(\"ClinicTimeZoneIdSnapshot\")) BETWEEN 1 AND 100");
+
+                            t.HasCheckConstraint("CK_Appointments_UtcRange", "\"OccupiedStartUtc\" >= 0 AND \"OccupiedEndUtc\" <= 3155378975999999999 AND \"CreatedAtUtc\" BETWEEN 0 AND 3155378975999999999");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>
                 {
                     b.Property<int>("Id")
@@ -560,6 +646,36 @@ namespace DentalApi.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("VerificationCodes");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.DoctorProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Patient", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>

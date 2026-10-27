@@ -256,3 +256,23 @@ Expect all ten real PostgreSQL tests to be skipped, not passed. The remaining
 suite uses in-memory SQLite or offline checks. Stop and investigate if any
 historical migration test fails; do not edit migration history or SQL contents
 to bypass the failure. This validation must not connect to an existing database.
+
+
+## Appointment persistence foundation (University MVP, Step 2)
+
+`AppointmentPersistenceTests` use only disposable in-memory SQLite databases.
+They cover additive migration and generated SQL upgrades, preservation of all
+13 historical tables, composite tenant foreign keys, invalid intervals and
+snapshots, UTC ordering, request-key uniqueness and half-open boundaries.
+`AppointmentMigrationMetadataTests` inspect provider-specific migrations and
+PostgreSQL SQL offline; they never open a PostgreSQL connection.
+
+The baseline regression test selects its exact historical migration and target
+model. The platform migration test checks the expected later pending migrations
+when stopped at its historical target. Their historical schema/data and SQL
+fixture assertions remain in place.
+
+For offline validation, require `NEXORA_PG_TEST_CONNECTION` to be absent using the
+check above. All ten live PostgreSQL tests should skip. See the
+[appointment storage scope](../DentalApi/AppointmentPersistence.md) for schema
+semantics, precision differences and booking behavior reserved for later steps.

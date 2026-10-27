@@ -55,7 +55,9 @@ public sealed class PlatformMigrationTests
         Assert.Empty(await db.PlatformVerificationCodes.ToArrayAsync());
         Assert.Equal("[]", await Query(connection, "PRAGMA foreign_key_check"));
         Assert.Equal("[[\"ok\"]]", await Query(connection, "PRAGMA integrity_check"));
-        Assert.Empty(await db.Database.GetPendingMigrationsAsync()); Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal(db.Database.GetMigrations().SkipWhile(m => m != target).Skip(1),
+            await db.Database.GetPendingMigrationsAsync());
+        Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(target, (await db.Database.GetAppliedMigrationsAsync()).Last());
         db.PlatformAccounts.Add(new PlatformAccount { FullName = "Synthetic", Email = "a@example.invalid", PasswordHash = "synthetic-only" });
         await db.SaveChangesAsync();

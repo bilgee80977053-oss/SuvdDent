@@ -10,6 +10,7 @@ public class AppDbContext : DbContext
 
     protected AppDbContext(DbContextOptions options) : base(options) { }
     public DbSet<Clinic> Clinics => Set<Clinic>();
+    public DbSet<Appointment> Appointments => Set<Appointment>();
 
     public DbSet<User> Users => Set<User>();
 
@@ -34,6 +35,7 @@ public class AppDbContext : DbContext
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
+        AppointmentModelConfiguration.Configure(b, Database.IsSqlite());
 
         // Preserve the TokenVersion default introduced by its SQLite migration
         // when rebuilding Users for its tenant alternate key.
