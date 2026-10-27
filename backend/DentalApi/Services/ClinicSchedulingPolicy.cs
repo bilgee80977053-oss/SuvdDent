@@ -11,7 +11,8 @@ public sealed class ClinicSchedulingPolicy(AppDbContext db, MongoliaLocations lo
     public const string Unverified = "CLINIC_TIMEZONE_UNVERIFIED";
 
     // Future matching/booking/rescheduling writers must call this within the SAME
-    // non-deferred transaction as resource validation and the booking write.
+    // write transaction as resource validation and the booking write (SQLite
+    // non-deferred; PostgreSQL serializable via DatabaseCompatibility).
     public async Task<ClinicSchedulingDecision> RequireVerifiedAsync(int clinicId, Guid? expectedVersion = null)
     {
         if (db.Database.CurrentTransaction is null)

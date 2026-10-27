@@ -1,3 +1,4 @@
+using System.Data;
 using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
@@ -25,12 +26,24 @@ public class SchedulingService(AppDbContext db)
     {
         try
         {
-            await db.Database.OpenConnectionAsync();
-            await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
-            await using var enlisted = await db.Database.UseTransactionAsync(transaction);
-            var result = await read();
-            await transaction.CommitAsync();
-            return result;
+            if (db.Database.IsSqlite())
+            {
+                await db.Database.OpenConnectionAsync();
+                try
+                {
+                    await using var transaction = ((SqliteConnection)db.Database.GetDbConnection()).BeginTransaction(deferred: true);
+                    await using var enlisted = await db.Database.UseTransactionAsync(transaction);
+                    var result = await read();
+                    await transaction.CommitAsync();
+                    return result;
+                }
+                finally { await db.Database.CloseConnectionAsync(); }
+            }
+            // One MVCC snapshot keeps the version and list consistent across queries.
+            await using var snapshot = await db.Database.BeginTransactionAsync(IsolationLevel.RepeatableRead);
+            var response = await read();
+            await snapshot.CommitAsync();
+            return response;
         }
         catch (Exception error) when (Conflict(error)) { return new(409); }
     }
@@ -57,7 +70,7 @@ public class SchedulingService(AppDbContext db)
         {
             // Microsoft.Data.Sqlite begins a non-deferred transaction: the write lock
             // precedes reads/validation. Version CAS also covers profile/hour editors.
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var profile = await Doctors(clinic).AsNoTracking().SingleOrDefaultAsync(d => d.Id == doctor);
             if (profile is null) return new(404);
             if (profile.Version != request.Version) return new(409);
@@ -116,7 +129,7 @@ public class SchedulingService(AppDbContext db)
             if (items[i].StartUtc < items[i - 1].EndUtc) return new(400);
         try
         {
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var patient = await PatientId(clinic, user);
             if (patient is null) return new(404);
             var current = await db.PatientAvailabilitySchedules.AsNoTracking()
@@ -142,8 +155,6 @@ public class SchedulingService(AppDbContext db)
         catch (Exception error) when (Conflict(error)) { return new(409); }
     }
 
-    private static bool Conflict(Exception error) => error is DbUpdateConcurrencyException ||
-        error is SqliteException { SqliteErrorCode: 5 or 6 } ||
-        error is DbUpdateException { InnerException: SqliteException { SqliteErrorCode: 5 or 6 } } ||
-        error is DbUpdateException { InnerException: SqliteException { SqliteExtendedErrorCode: 2067 or 1555 } };
+    private static bool Conflict(Exception error) =>
+        DatabaseCompatibility.IsConflict(error, sqliteUnique: true, sqlitePrimaryKey: true);
 }

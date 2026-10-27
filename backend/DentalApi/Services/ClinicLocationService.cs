@@ -1,7 +1,6 @@
 using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Services;
@@ -33,7 +32,7 @@ public sealed class ClinicLocationService(AppDbContext db, MongoliaLocations loc
         if (location is null && (zone is null || !MongoliaLocations.Supported(zone))) return new(400);
         try
         {
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             if (!await db.Users.AnyAsync(u => u.Id == userId && u.ClinicId == clinicId && u.IsActive && u.Role == Role.Director))
                 return new(403);
             var c = await db.Clinics.SingleOrDefaultAsync(c => c.Id == clinicId);
@@ -77,8 +76,6 @@ public sealed class ClinicLocationService(AppDbContext db, MongoliaLocations loc
             await tx.CommitAsync();
             return new(200, response);
         }
-        catch (DbUpdateConcurrencyException) { return new(409); }
-        catch (SqliteException e) when (e.SqliteErrorCode is 5 or 6) { return new(409); }
-        catch (DbUpdateException e) when (e.InnerException is SqliteException { SqliteErrorCode: 5 or 6 }) { return new(409); }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e)) { return new(409); }
     }
 }

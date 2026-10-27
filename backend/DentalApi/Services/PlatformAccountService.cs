@@ -4,7 +4,6 @@ using System.Text.RegularExpressions;
 using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Services;
@@ -33,9 +32,6 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
         .SingleOrDefaultAsync(a => contact.Channel == "email" ? a.Email == contact.Value : a.Phone == contact.Value);
     private static bool Verified(PlatformAccount a, string channel) => channel == "email" ? a.IsEmailVerified : a.IsPhoneVerified;
     private static PlatformAccountResponse Response(PlatformAccount a) => new(a.Id, a.FullName, a.Email, a.Phone, a.IsEmailVerified, a.IsPhoneVerified);
-    private static bool Conflict(Exception e) => e is SqliteException { SqliteErrorCode: 5 or 6 } ||
-        e is DbUpdateException { InnerException: SqliteException { SqliteErrorCode: 5 or 6 } };
-
     public async Task<SchedulingResult> Register(PlatformRegisterRequest request)
     {
         var email = Contact(request.Email); var phone = Contact(request.Phone);
@@ -49,15 +45,14 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
         var code = codes.GenerateCode();
         try
         {
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             if (await db.PlatformAccounts.AnyAsync(a => (account.Email != null && a.Email == account.Email) ||
                 (account.Phone != null && a.Phone == account.Phone))) return new(409);
             db.PlatformAccounts.Add(account); await db.SaveChangesAsync();
             db.PlatformVerificationCodes.Add(NewCode(account.Id, contact.Channel, "registration", code));
             await db.SaveChangesAsync(); await tx.CommitAsync();
         }
-        catch (DbUpdateException e) when (e.InnerException is SqliteException { SqliteExtendedErrorCode: 2067 }) { return new(409); }
-        catch (Exception e) when (Conflict(e)) { return new(409); }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true)) { return new(409); }
         return await Deliver(contact, "registration", code);
     }
     private PlatformVerificationCode NewCode(int account, string channel, string purpose, string code) => new()
@@ -80,7 +75,7 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
         var code = codes.GenerateCode();
         try
         {
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var account = await Find(contact.Value);
             if (account is null || (recovery ? !account.IsActive || !Verified(account, contact.Value.Channel) :
                 Verified(account, contact.Value.Channel) || (!account.IsActive && (account.IsEmailVerified || account.IsPhoneVerified))))
@@ -93,7 +88,7 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
             db.PlatformVerificationCodes.Add(NewCode(account.Id, contact.Value.Channel, purpose, code));
             await db.SaveChangesAsync(); await tx.CommitAsync();
         }
-        catch (Exception e) when (Conflict(e)) { return new(409); }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e)) { return new(409); }
         return await Deliver(contact.Value, purpose, code);
     }
 
@@ -104,7 +99,7 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
         var purpose = password is null ? "registration" : "password-reset";
         try
         {
-            await using var tx = await db.Database.BeginTransactionAsync();
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var a = await Find(contact.Value);
             if (a is null || (password is null ? Verified(a, contact.Value.Channel) ||
                 (!a.IsActive && (a.IsEmailVerified || a.IsPhoneVerified)) : !a.IsActive || !Verified(a, contact.Value.Channel))) return new(400);
@@ -132,7 +127,7 @@ public sealed class PlatformAccountService(AppDbContext db, PlatformJwtService j
             await db.SaveChangesAsync(); await tx.CommitAsync();
             return new(200, new { message = "Account verification or password update completed." });
         }
-        catch (Exception e) when (Conflict(e)) { return new(409); }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e)) { return new(409); }
     }
 
     public async Task<SchedulingResult> Login(PlatformLoginRequest request)

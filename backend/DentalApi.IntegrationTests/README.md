@@ -99,3 +99,34 @@ replay/expiry/attempt limits and ClinicPatientLink tenant FKs. PlatformMigration
 checks both EF migration and generated SQL preserve legacy rows/schema/indexes/FKs.
 No public auto-link flow, real transport, real database or credential backfill exists.
 See ../DentalApi/PlatformAccountApi.md for configuration and deployment limitations.
+
+
+## Provider compatibility (Phase 2, Step 3)
+
+`ProviderCompatibilityTests` uses the real Npgsql EF provider with connection
+opening suppressed, then injects synthetic PostgreSQL errors before transaction
+creation. It verifies every transactional service entry point chooses PostgreSQL
+`RepeatableRead` for scheduling snapshots or `Serializable` for validated writes,
+and returns the existing 409 response for SQL states 23505, 40001 and 40P01.
+Tests cover direct exceptions, EF wrappers and Npgsql transient-error wrappers;
+unrelated SQL states propagate to the existing sanitized error handler.
+No PostgreSQL socket, Docker, credentials or external database is needed.
+
+Additional failures injected at commit against an isolated SQLite in-memory
+schema verify rollback of versions, availability, profile changes, location and
+verification-code consumption, including unchanged Clinic B data. SQLite busy,
+locked and existing unique/primary-key conflict paths retain 409 responses.
+Existing integration tests continue to exercise tenant isolation, stale versions,
+concurrent writes, code replay and API contracts against SQLite.
+
+SQLite reads keep deferred transactions; writes keep their default immediate
+transactions. PostgreSQL Serializable also protects predicate reads used by
+first-time availability writes and Platform challenge/verification. Conflicts
+require the caller to reload/retry; services never replay writes automatically.
+ClinicId predicates and optimistic version comparisons are unchanged.
+
+These are offline compatibility checks, not a PostgreSQL concurrency rehearsal.
+Real PostgreSQL snapshot, deadlock and serialization behavior under competing
+connections still requires a separately authorized disposable database run.
+The PostgreSQL startup migration guard stays enabled; this step changes no model
+or migration and applies no migrations to a real database.

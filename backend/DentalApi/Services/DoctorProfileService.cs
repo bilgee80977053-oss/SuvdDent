@@ -2,7 +2,6 @@ using System.Text.RegularExpressions;
 using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
-using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Services;
@@ -40,7 +39,7 @@ public class DoctorProfileService(AppDbContext db)
         if (!ValidDetails(request.Profile, clinicId)) return new(400, Error: "Invalid doctor profile.");
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync();
+            await using var transaction = await DatabaseCompatibility.BeginWriteAsync(db);
             // The body identifies a target, never grants tenant or role authority.
             var validUser = await db.Users.AnyAsync(u => u.Id == request.UserId &&
                 u.ClinicId == clinicId && u.IsActive && u.Role == Role.Doctor);
@@ -61,8 +60,7 @@ public class DoctorProfileService(AppDbContext db)
             await transaction.CommitAsync();
             return new(201, await ReadAsync(clinicId, profile.Id, null, false));
         }
-        catch (DbUpdateException e) when (IsConflict(e)) { return Conflict(); }
-        catch (SqliteException e) when (IsConflict(e)) { return Conflict(); }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true)) { return Conflict(); }
     }
 
     public async Task<DoctorWriteResult> UpdateAsync(int clinicId, int? id, int? userId,
@@ -74,7 +72,7 @@ public class DoctorProfileService(AppDbContext db)
             return new(400, Error: "Invalid profile, version, or working hours.");
         try
         {
-            await using var transaction = await db.Database.BeginTransactionAsync();
+            await using var transaction = await DatabaseCompatibility.BeginWriteAsync(db);
             var query = Scope(clinicId);
             if (id.HasValue) query = query.Where(d => d.Id == id);
             if (userId.HasValue) query = query.Where(d => d.UserId == userId && d.IsActive);
@@ -119,15 +117,7 @@ public class DoctorProfileService(AppDbContext db)
             await transaction.CommitAsync();
             return new(200, await ReadAsync(clinicId, target.Id, null, false));
         }
-        catch (DbUpdateConcurrencyException) { return Conflict(); }
-        catch (DbUpdateException e) when (IsConflict(e)) { return Conflict(); }
-        catch (SqliteException e) when (IsConflict(e)) { return Conflict(); }
-    }
-
-    private static bool IsConflict(Exception error)
-    {
-        var sqlite = error as SqliteException ?? error.InnerException as SqliteException;
-        return sqlite is not null && (sqlite.SqliteErrorCode is 5 or 6 || sqlite.SqliteExtendedErrorCode == 2067);
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true)) { return Conflict(); }
     }
 
     private static DoctorWriteResult Conflict() =>
