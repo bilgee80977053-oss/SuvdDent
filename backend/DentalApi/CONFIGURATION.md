@@ -102,3 +102,91 @@ connection, migration execution or schema change is authorized by these docs.
 The archived `Migrations/Archive/Sqlite/AddPatientUserTenantIntegrity.sql` retains
 its exact contents and has no test-file consumer. The scheduling, clinic location
 and platform SQL scripts stay in `Migrations/` as active SQLite test fixtures.
+
+
+## Docker Compose development PostgreSQL (Phase 2, Step 6)
+
+The root [docker-compose.yml](../../docker-compose.yml) contains only PostgreSQL.
+It uses `postgres:18`, a named persistent volume mounted at `/var/lib/postgresql`,
+and a `pg_isready` health check. It publishes only `127.0.0.1:55432` to the
+container's port 5432. The native Windows PostgreSQL instance on port 5432 and
+its `nexora_dental_dev` / `nexora_dental_test` databases are separate and untouched.
+Use `127.0.0.1` for the host connection; an IPv6 localhost address is not published.
+
+| Purpose | Configuration |
+| --- | --- |
+| Compose database | `nexora_dental_compose_dev` |
+| Compose development user | `nexora_compose_dev` |
+| Compose bootstrap password | Required `NEXORA_POSTGRES_PASSWORD` in the shell environment or ignored root `.env`; no default |
+| Persistent Docker volume | `nexora-dental-local_postgres_data` with the default project name |
+| Future host application connection | Private `ConnectionStrings__Default`, with Docker host/port/database/user below |
+
+The [compose.env.example](../../compose.env.example) file contains an empty
+password placeholder. Copy it to root `.env` only if that file does not already
+exist, then fill it privately. Both `.env` and `.env.*` remain ignored; the
+example's different filename is trackable. Shell values override `.env` values.
+Single-quote private dotenv values containing `$` or `#` to avoid interpolation
+or comment parsing. Never print resolved Compose configuration or share container
+environment output: the required password becomes part of the container environment.
+This credential is for local development only. The official image's POSTGRES_USER
+is a bootstrap superuser inside this isolated cluster, not a production app role.
+
+PowerShell commands from the repository root (after manually installing Docker
+Desktop with Linux containers and Compose v2):
+
+```powershell
+if (Test-Path .env) { throw 'Keep the existing .env; edit it privately.' }
+Copy-Item compose.env.example .env
+notepad .env
+# Save a private, nonempty password before continuing.
+docker compose config --quiet
+docker compose up -d postgres
+docker compose ps postgres
+# Stop without deleting data:
+docker compose stop postgres
+# Optional container/network removal, retaining the named volume:
+docker compose down
+```
+
+`pg_isready` reports server readiness, not password validity, application schema
+presence or passing EF integration tests. Do not use volume-removal/reset flags.
+Do not change the project name to work around an existing volume; inspect ownership
+first. Initialization settings apply to a new empty volume only. Changing the
+password variable later does not rotate an existing database user's password.
+
+For a future explicitly authorized host application setup, build a **separate**
+Npgsql connection privately with these fields:
+
+| Field | Docker development value |
+| --- | --- |
+| Host | `127.0.0.1` (localhost IPv4) |
+| Port | `55432` |
+| Database | `nexora_dental_compose_dev` |
+| Username | `nexora_compose_dev` |
+| Password | Private value configured for this volume; never copy it into documentation |
+
+Supply that connection via `ConnectionStrings__Default`, never JSON, source or
+command-line arguments. Compose's `.env` is read by Compose, not automatically
+by ASP.NET Core; `NEXORA_POSTGRES_PASSWORD` alone does not configure the backend.
+`Database__Provider=PostgreSQL` selects the PostgreSQL context but the production
+startup migration guard remains enabled. Do not disable it to run this container.
+The Compose file contains no backend service, init-script mount, EF command,
+application schema creation or migration runner. The official entrypoint only
+bootstraps its own new PostgreSQL cluster/database. No existing Windows database
+is imported, migrated or modified. SQLite SQL scripts must NEVER be applied to
+PostgreSQL; any future schema rollout needs separate authorization and the
+[provider migration workflow](Migrations/README.md).
+
+The real PostgreSQL tests still require the separate, strictly validated native
+`nexora_dental_test` target on port 5432. The Compose development database is not a
+replacement test target. For STEP 6 build/test validation,
+`NEXORA_PG_TEST_CONNECTION` must be absent and the ten real PostgreSQL tests skipped.
+Do not run `psql`, EF migrations, or real database probes as validation for this task.
+
+Docker runtime validation is **NOT TESTED** in this environment because Docker
+is unavailable. Starting the image, health transitions, host connectivity and
+volume persistence require a later authorized check. The `postgres:18` tag tracks
+PostgreSQL 18 updates; image pinning and upgrades need review before nonlocal use.
+
+References: [official PostgreSQL image and version 18 volume layout](https://hub.docker.com/_/postgres),
+[Compose required variables and escaping](https://docs.docker.com/reference/compose-file/interpolation/).

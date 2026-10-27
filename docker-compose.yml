@@ -1,0 +1,27 @@
+# Local PostgreSQL only. No application, migration runner or initialization scripts.
+name: nexora-dental-local
+
+services:
+  postgres:
+    image: postgres:18
+    environment:
+      POSTGRES_DB: nexora_dental_compose_dev
+      POSTGRES_USER: nexora_compose_dev
+      POSTGRES_PASSWORD: ${NEXORA_POSTGRES_PASSWORD:?Set a private local password}
+    ports:
+      - "127.0.0.1:55432:5432"
+    volumes:
+      # PostgreSQL 18 stores its versioned data directory beneath this mount.
+      - postgres_data:/var/lib/postgresql
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -h 127.0.0.1 -p 5432 -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"'
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+    stop_grace_period: 30s
+
+volumes:
+  postgres_data:

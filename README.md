@@ -78,6 +78,83 @@ dotnet run --project backend/DentalApi
 - Reverse proxy forwarding нь default-оор идэвхгүй. Идэвхжүүлэхдээ зөвхөн
   итгэмжлэгдсэн IP/CIDR оруулна. HSTS нь Development-ээс бусад орчинд ажиллана.
 
+## Local PostgreSQL with Docker Compose (Phase 2, Step 6)
+
+The optional root `docker-compose.yml` runs only the official PostgreSQL 18 image.
+Docker Desktop with Linux containers and Compose v2 must be installed and running
+by the developer; this task does not install it. The container is separate from
+the Windows PostgreSQL server on port 5432:
+
+| Setting | Compose development instance |
+| --- | --- |
+| Windows host endpoint | `127.0.0.1:55432` (localhost port 55432) |
+| Container port | `5432` |
+| Database | `nexora_dental_compose_dev` |
+| Development user | `nexora_compose_dev` |
+| Project / named volume | `nexora-dental-local` / `nexora-dental-local_postgres_data` |
+| Persistent mount | `/var/lib/postgresql` (PostgreSQL 18 layout) |
+
+From the repository root in PowerShell, prepare private configuration:
+
+```powershell
+if (Test-Path .env) { throw 'Keep your existing .env; edit it privately instead of overwriting it.' }
+Copy-Item compose.env.example .env
+notepad .env
+```
+
+Fill the empty `NEXORA_POSTGRES_PASSWORD` value privately with a strong unique
+local password, then save and close the editor. The example is trackable; the
+actual `.env` and `.env.*` files remain ignored. Compose also accepts this variable
+from the shell environment, which takes precedence over `.env`. Never print its
+value or store it in source. Missing or empty passwords make Compose fail.
+
+When Docker is available, validate without printing resolved secrets, start the
+service, and check that its status becomes healthy:
+
+```powershell
+docker compose config --quiet
+docker compose up -d postgres
+docker compose ps postgres
+```
+
+Stop while retaining the persistent data:
+
+```powershell
+docker compose stop postgres
+# Optional: remove the stopped container/network; the named volume is retained.
+docker compose down
+```
+
+Do not use volume-deletion or reset options. Keep the Compose project name stable
+to keep using the same named volume. Changing the initialization password in
+`.env` does not rotate the password in an already initialized volume.
+
+If the PostgreSQL client is installed, this command connects to the **Docker**
+instance and prompts for the password without putting it in command history:
+
+```powershell
+psql --host=127.0.0.1 --port=55432 --username=nexora_compose_dev --dbname=nexora_dental_compose_dev --password
+```
+
+This is a connection example for a later developer session, not a STEP 6 validation
+command. No database connections are part of this implementation task.
+
+Compose initializes only its own empty PostgreSQL cluster/database on first use.
+It does not start ASP.NET Core, apply EF migrations, run historical SQLite SQL,
+or connect to the Windows `nexora_dental_dev` or `nexora_dental_test` databases.
+Application tables must not be created automatically. The PostgreSQL application
+startup migration guard remains enabled; starting the backend with PostgreSQL
+still fails outside `Testing` pending a separately authorized rollout.
+
+Use a separate private `ConnectionStrings__Default` for any future Docker-backed
+application setup; never reuse the Windows database connection or change the
+strict test target to point at this development instance. See
+[Compose connection and safety details](backend/DentalApi/CONFIGURATION.md#docker-compose-development-postgresql-phase-2-step-6).
+
+Docker runtime validation has **not been performed** in STEP 6 because Docker is
+unavailable in the implementation environment. Image pull, startup, health and
+persistence still need a later authorized runtime check.
+
 ## EF Core migrations
 
 See the [provider-specific migration workflow](backend/DentalApi/Migrations/README.md)
