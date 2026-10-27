@@ -49,9 +49,10 @@ public static class DatabaseProviderSettings
 
     public static void EnsureMigrationsReady(IConfiguration config)
     {
-        // Until the separate PostgreSQL baseline exists, never run old SQLite migrations on it.
+        // Step 2 only prepares the baseline. Keep PostgreSQL startup migration blocked
+        // until database rollout is explicitly authorized in a later step.
         if (Selected(config) == PostgreSql)
             throw new InvalidOperationException(
-                "PostgreSQL-ийн тусдаа baseline migration бэлэн болтол startup migration хаалттай.");
+                "PostgreSQL startup migrations remain blocked pending explicit database rollout authorization.");
     }
 }

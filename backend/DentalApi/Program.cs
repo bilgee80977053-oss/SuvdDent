@@ -42,8 +42,12 @@ builder.Services.AddSwaggerGen(options =>
 });
 
 // Өгөгдлийн сангийн provider-ийг тохиргооноос сонгоно.
-builder.Services.AddDbContext<AppDbContext>(options =>
-    DatabaseProviderSettings.Configure(options, builder.Configuration));
+if (DatabaseProviderSettings.Selected(builder.Configuration) == DatabaseProviderSettings.PostgreSql)
+    builder.Services.AddDbContext<AppDbContext, PostgreSqlAppDbContext>(options =>
+        DatabaseProviderSettings.Configure(options, builder.Configuration));
+else
+    builder.Services.AddDbContext<AppDbContext>(options =>
+        DatabaseProviderSettings.Configure(options, builder.Configuration));
 
 // Үйлчилгээний бүртгэл
 builder.Services.AddSingleton<JwtService>();

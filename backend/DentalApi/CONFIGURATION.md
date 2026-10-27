@@ -37,9 +37,9 @@ are configured. It never grants credentialed wildcard access.
 Phase 2 migration in progress: the PostgreSQL provider package is installed and
 `Database__Provider=PostgreSQL` selects it. PostgreSQL connection strings are
 accepted **only** from the `ConnectionStrings__Default` environment variable,
-never from JSON configuration. Startup intentionally rejects PostgreSQL until
-its independent migration baseline is committed, so the existing SQLite migration
-history cannot accidentally execute on PostgreSQL. SQLite also requires a
+never from JSON configuration. Step 2 adds an independent PostgreSQL baseline;
+startup still intentionally rejects PostgreSQL pending a separately authorized
+database rollout. SQLite also requires a
 configured connection string; no database path is bundled in appsettings.json.
 
 Forwarded headers are disabled by default. When enabled, configure at least one
@@ -49,3 +49,35 @@ client IP/scheme, and at most one forwarding hop is processed. Do **not** set
 forwarded values. `UseForwardedHeaders` runs before HTTPS redirection and IP-based
 rate limiting. HSTS is enabled outside Development; confirm TLS and your proxy's
 own HSTS behavior during deployment.
+
+## PostgreSQL baseline (Phase 2, Step 2)
+
+`PostgreSqlAppDbContext` inherits the shared model and owns only
+`Migrations/PostgreSql`; `AppDbContext` retains the unchanged SQLite migrations
+and snapshot. Runtime PostgreSQL registration resolves the dedicated context.
+Always specify `--context` for EF tooling now that both contexts exist.
+
+Model-only review commands (no database connection or application startup):
+
+```powershell
+dotnet ef migrations has-pending-model-changes --context PostgreSqlAppDbContext --project backend/DentalApi
+dotnet ef migrations script --idempotent --context PostgreSqlAppDbContext --project backend/DentalApi
+```
+
+The design-time factories ignore application configuration and use synthetic,
+credential-free connection settings. Do not run `database update` for this step.
+The baseline creates a new schema; it does not upgrade an existing SQLite or
+PostgreSQL database or transfer data. Its Down operation removes that schema.
+
+PostgreSQL uses native identity integers, UUIDs, booleans and UTC timestamps.
+Patient DateOfBirth remains a calendar DateTime (`timestamp without time zone`).
+Availability endpoints retain UTC ticks in bigint columns, preserving comparison,
+range checks and API precision. SQLite keeps its original mappings.
+Platform email uses an ICU nondeterministic case-insensitive, accent-sensitive
+collation (`platform_email_nocase`); PostgreSQL must support ICU. Unlike SQLite's
+ASCII NOCASE, this also folds Unicode case. Existing-data collision review is
+required before any future import. No extension or credentials are embedded.
+
+Offline tests verify migration isolation, snapshot agreement, table coverage,
+provider mappings and generated idempotent SQL. Execution against PostgreSQL is
+reserved for a separately authorized isolated database rehearsal.

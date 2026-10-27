@@ -4,10 +4,11 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Data;
 
-public class AppDbContext(
-    DbContextOptions<AppDbContext> options
-) : DbContext(options)
+public class AppDbContext : DbContext
 {
+    public AppDbContext(DbContextOptions<AppDbContext> options) : base(options) { }
+
+    protected AppDbContext(DbContextOptions options) : base(options) { }
     public DbSet<Clinic> Clinics => Set<Clinic>();
 
     public DbSet<User> Users => Set<User>();
@@ -128,7 +129,9 @@ public class AppDbContext(
         b.Entity<PatientAvailability>().HasIndex(x => new { x.ClinicId, x.PatientId, x.StartUtc }).IsUnique();
         b.Entity<PatientAvailability>().ToTable(t => t.HasCheckConstraint("CK_PatientAvailabilities_Interval",
             "\"StartUtc\" >= 0 AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= 3155378975999999999"));
-        b.Entity<Clinic>().Property(c => c.Id).ValueGeneratedOnAdd().HasAnnotation("Sqlite:Autoincrement", true);
+        b.Entity<Clinic>().Property(c => c.Id).ValueGeneratedOnAdd();
+        if (Database.IsSqlite())
+            b.Entity<Clinic>().Property(c => c.Id).HasAnnotation("Sqlite:Autoincrement", true);
         b.Entity<Clinic>().Property(c => c.CountryCode).HasMaxLength(2);
         b.Entity<Clinic>().Property(c => c.ProvinceOrCapitalCode).HasMaxLength(2);
         b.Entity<Clinic>().Property(c => c.SoumOrDistrictCode).HasMaxLength(4);
@@ -146,7 +149,19 @@ public class AppDbContext(
             "\"CountryCode\" IS NOT NULL AND \"CountryCode\" = 'MN' AND \"ProvinceOrCapitalCode\" IS NOT NULL AND " +
             "\"SoumOrDistrictCode\" IS NOT NULL AND \"AddressLine\" IS NOT NULL AND length(trim(\"AddressLine\")) > 0 AND " +
             "\"TimeZoneVerifiedClinicId\" IS NOT NULL AND \"TimeZoneVerifiedClinicId\" = \"Id\" AND \"TimeZoneVerifiedByUserId\" IS NOT NULL AND \"TimeZoneVerifiedAtUtc\" IS NOT NULL)"));
-        b.Entity<PlatformAccount>().Property(x => x.Email).UseCollation("NOCASE");
+        if (Database.IsSqlite())
+            b.Entity<PlatformAccount>().Property(x => x.Email).UseCollation("NOCASE");
+        else if (Database.IsNpgsql())
+        {
+            // PostgreSQL has no SQLite NOCASE collation. ICU provides case-insensitive uniqueness.
+            b.HasCollation("platform_email_nocase", locale: "und-u-ks-level2", provider: "icu", deterministic: false);
+            b.Entity<PlatformAccount>().Property(x => x.Email).UseCollation("platform_email_nocase");
+            // Birth dates are calendar values, not UTC instants. Preserve the DateTime API.
+            b.Entity<Patient>().Property(x => x.DateOfBirth)
+                .HasConversion(x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Unspecified) : x,
+                    x => x.HasValue ? DateTime.SpecifyKind(x.Value, DateTimeKind.Unspecified) : x)
+                .HasColumnType("timestamp without time zone");
+        }
         b.Entity<PlatformAccount>().HasIndex(x => x.Email).IsUnique().HasFilter("\"Email\" IS NOT NULL");
         b.Entity<PlatformAccount>().HasIndex(x => x.Phone).IsUnique().HasFilter("\"Phone\" IS NOT NULL");
         b.Entity<PlatformAccount>().ToTable(t => t.HasCheckConstraint("CK_PlatformAccounts_Contacts",
