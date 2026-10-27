@@ -33,7 +33,10 @@ public sealed class DentalApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Key"] = "Synthetic-integration-test-signing-key-only-2026-0123456789",
                 ["Jwt:Issuer"] = "DentalApi.IntegrationTests",
                 ["Jwt:Audience"] = "DentalApi.IntegrationTests",
-                ["Jwt:ExpireHours"] = "1"
+                ["Jwt:ExpireHours"] = "1",
+                ["PlatformJwt:Key"] = "Synthetic-separate-platform-key-for-clinic-tests-2026",
+                ["PlatformJwt:Issuer"] = "ClinicTestPlatformIssuer",
+                ["PlatformJwt:Audience"] = "ClinicTestPlatformAudience"
             });
         });
         builder.ConfigureServices(services =>

@@ -45,7 +45,10 @@ public class DoctorApiFactory : WebApplicationFactory<Program>
                 ["Jwt:Key"] = "Synthetic-doctor-tests-signing-key-only-01234567890123456789",
                 ["Jwt:Issuer"] = "DoctorIntegrationTests",
                 ["Jwt:Audience"] = "DoctorIntegrationTests",
-                ["Jwt:ExpireHours"] = "1"
+                ["Jwt:ExpireHours"] = "1",
+                ["PlatformJwt:Key"] = "Synthetic-separate-platform-key-for-doctor-tests-2026",
+                ["PlatformJwt:Issuer"] = "DoctorTestPlatformIssuer",
+                ["PlatformJwt:Audience"] = "DoctorTestPlatformAudience"
             });
         });
         builder.ConfigureServices(services =>

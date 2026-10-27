@@ -171,6 +171,9 @@ builder.Services.AddRateLimiter(options =>
 
 var app = builder.Build();
 
+// Нууц тохиргоо дутуу бол API-г ажиллуулахгүй.
+StartupConfigurationValidator.Validate(app.Configuration, app.Environment.EnvironmentName);
+
 // Swagger зөвхөн Development орчинд
 if (app.Environment.IsDevelopment())
 {
