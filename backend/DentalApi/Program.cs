@@ -16,6 +16,7 @@ builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddExceptionHandler<GlobalExceptionHandler>();
 builder.Services.AddProblemDetails();
+builder.Services.AddHealthChecks().AddCheck<DatabaseHealthCheck>("database");
 builder.Services.AddCors(options => options.AddPolicy("ConfiguredOrigins", policy =>
 {
     var origins = StartupConfigurationValidator.AllowedOrigins(builder.Configuration);
@@ -232,6 +233,7 @@ app.UseRateLimiter();
 app.UseAuthorization();
 
 app.MapControllers();
+app.MapHealthChecks("/health").AllowAnonymous();
 
 // Gmail SMTP туршилт
 if (app.Environment.IsDevelopment() &&
