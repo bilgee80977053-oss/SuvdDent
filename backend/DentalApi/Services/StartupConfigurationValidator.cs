@@ -28,6 +28,7 @@ public static class StartupConfigurationValidator
             throw new InvalidOperationException("AllowedHosts нь тодорхой host нэрс байх ёстой; '*' ашиглахгүй.");
 
         AllowedOrigins(config);
+        ForwardedProxySettings.Validate(config);
 
         // Integration тестүүд бодит SMTP-гүй, тусгаарлагдсан орчинд ажиллана.
         if (environmentName == "Testing") return;

@@ -7,6 +7,7 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.OpenApi;
+using Microsoft.AspNetCore.HttpOverrides;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -150,6 +151,8 @@ builder.Services
 
 builder.Services.AddAuthorization();
 builder.Services.AddPlatformIdentity(builder.Configuration);
+builder.Services.Configure<ForwardedHeadersOptions>(options =>
+    ForwardedProxySettings.Configure(options, builder.Configuration));
 
 // Хүсэлтийн тооны хязгаарлалт
 builder.Services.AddRateLimiter(options =>
@@ -209,6 +212,12 @@ using (var scope = app.Services.CreateScope())
 }
 
 // Middleware
+if (ForwardedProxySettings.Enabled(app.Configuration))
+    app.UseForwardedHeaders();
+
+if (!app.Environment.IsDevelopment())
+    app.UseHsts();
+
 app.UseHttpsRedirection();
 
 app.UseRouting();
