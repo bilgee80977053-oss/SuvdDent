@@ -39,8 +39,10 @@ Phase 2 migration in progress: the PostgreSQL provider package is installed and
 accepted **only** from the `ConnectionStrings__Default` environment variable,
 never from JSON configuration. Step 2 adds an independent PostgreSQL baseline;
 startup still intentionally rejects PostgreSQL pending a separately authorized
-database rollout. SQLite also requires a
-configured connection string; no database path is bundled in appsettings.json.
+database rollout. SQLite also requires a configured connection string; no database
+path is bundled in appsettings.json. Outside `Testing`, SQLite automatically applies
+pending migrations on startup. PostgreSQL startup remains blocked before migration
+or seeding. `Testing` skips application startup migration and seeding for both.
 
 Forwarded headers are disabled by default. When enabled, configure at least one
 trusted proxy IP or CIDR; unknown sources are never permitted to override the
@@ -56,6 +58,12 @@ own HSTS behavior during deployment.
 `Migrations/PostgreSql`; `AppDbContext` retains the unchanged SQLite migrations
 and snapshot. Runtime PostgreSQL registration resolves the dedicated context.
 Always specify `--context` for EF tooling now that both contexts exist.
+See [the migration workflow](Migrations/README.md) for provider-specific migration
+creation, SQL generation, historical fixtures and safety precautions.
+
+**SQLite SQL scripts must NEVER be applied to PostgreSQL.** C# migrations,
+designers and each provider's snapshot are the source of truth. Archived SQLite
+review SQL is not an alternative PostgreSQL baseline.
 
 Model-only review commands (no database connection or application startup):
 
@@ -81,3 +89,16 @@ required before any future import. No extension or credentials are embedded.
 Offline tests verify migration isolation, snapshot agreement, table coverage,
 provider mappings and generated idempotent SQL. Execution against PostgreSQL is
 reserved for a separately authorized isolated database rehearsal.
+
+
+## Offline cleanup validation (Phase 2, Step 5)
+
+Before running tests, verify that `NEXORA_PG_TEST_CONNECTION` is absent without
+printing its value. With it absent, all ten real PostgreSQL tests are skipped;
+only in-memory SQLite and offline tests execute. Do not configure the opt-in
+connection or run real PostgreSQL tests for this cleanup. No existing database
+connection, migration execution or schema change is authorized by these docs.
+
+The archived `Migrations/Archive/Sqlite/AddPatientUserTenantIntegrity.sql` retains
+its exact contents and has no test-file consumer. The scheduling, clinic location
+and platform SQL scripts stay in `Migrations/` as active SQLite test fixtures.

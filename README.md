@@ -11,7 +11,7 @@ Platform хэрэглэгчийн JWT нэвтрэлт тусдаа ажилла
 - Эмчийн ажлын цаг, үйлчилгээний хугацаа, өвчтөний боломжтой цагийн суурь
 - Монголын аймаг/сум, дүүрэг болон эмнэлгийн цагийн бүсийн баталгаажуулалт
 - Platform account-ийн тусдаа бүртгэл/нэвтрэлтийн суурь
-- SQLite + EF Core migrations, xUnit integration tests
+- SQLite and separate PostgreSQL EF Core migration histories, xUnit integration tests
 
 **Хараахан байхгүй:** цаг захиалгын `Appointment`, эмчилгээ/төлбөр, audit log,
 SMS reminder болон frontend. Эдгээрийг дараагийн үе шатуудад төлөвлөсөн.
@@ -23,7 +23,8 @@ SMS reminder болон frontend. Эдгээрийг дараагийн үе ш�
 | `backend/NexoraDental.sln` | .NET solution |
 | `backend/DentalApi/` | ASP.NET Core Web API (.NET 10) |
 | `backend/DentalApi.IntegrationTests/` | xUnit integration tests, тусгаарлагдсан SQLite in-memory өгөгдөл |
-| `backend/DentalApi/Migrations/` | EF Core migration-ийн үндсэн C# түүх болон SQL review artifacts |
+| `backend/DentalApi/Migrations/` | SQLite migrations, snapshot and SQL fixtures; [workflow](backend/DentalApi/Migrations/README.md) |
+| `backend/DentalApi/Migrations/PostgreSql/` | Separate PostgreSQL baseline and snapshot |
 
 ## Бэлтгэл
 
@@ -58,8 +59,8 @@ SMS reminder болон frontend. Эдгээрийг дараагийн үе ш�
 Repository-ийн үндсэн хавтаснаас:
 
 ```bash
-dotnet build backend/DentalApi.IntegrationTests/DentalApi.IntegrationTests.csproj -c Release
-dotnet test backend/DentalApi.IntegrationTests/DentalApi.IntegrationTests.csproj -c Release
+dotnet build backend/NexoraDental.sln
+dotnet test backend/NexoraDental.sln
 ```
 
 Тохиргоогоо өгч, **зөвхөн локал туршилтын өгөгдлийн сан** сонгосны дараа:
@@ -77,36 +78,46 @@ dotnet run --project backend/DentalApi
 - Reverse proxy forwarding нь default-оор идэвхгүй. Идэвхжүүлэхдээ зөвхөн
   итгэмжлэгдсэн IP/CIDR оруулна. HSTS нь Development-ээс бусад орчинд ажиллана.
 
-## EF Core migrations — маш чухал
+## EF Core migrations
 
-`Program.cs` одоогоор **Testing-ээс бусад орчинд startup хийхдээ**
-`db.Database.Migrate()` ажиллуулдаг. Энэ нь өгөгдлийн сангийн schema-г өөрчлөх
-учраас production DB рүү API-г шууд чиглүүлж асааж болохгүй.
+See the [provider-specific migration workflow](backend/DentalApi/Migrations/README.md)
+for migration creation, SQL generation, source-of-truth files and safety checks.
 
-Аюулгүй дараалал:
+- **SQLite:** outside `Testing`, application startup automatically applies pending
+  migrations. Starting the API can change the configured SQLite schema.
+- **PostgreSQL:** the startup migration guard remains enabled. Outside `Testing`,
+  startup rejects PostgreSQL before running migrations or seeding.
+- **Testing:** application startup skips migrations/seeding. Historical tests
+  explicitly apply SQLite migrations to their isolated in-memory databases.
 
-1. Migration C# файл, SQL review artifact, schema өөрчлөлтийг review хийнэ.
-2. Өгөгдлийн сангийн transaction-safe backup авна. SQLite WAL горимд байгаа
-   database-г ажиллаж байхад энгийн file copy-оор backup хийхээс зайлсхий;
-   SQLite-ийн backup механизм эсвэл бичилтийг зогсоосон copy хэрэглэнэ.
-3. Backup-аас тусгаарлагдсан staging copy сэргээнэ.
-4. Шинэ migration-ийг **зөвхөн тэр staging copy** дээр startup-аар ажиллуулж,
-   хүснэгтийн бүтэц, row count, foreign keys, data integrity-г шалгана.
-5. Production deployment болон downtime-г тусад нь зөвшөөрсний дараа л
-   live migration хийх шийдвэр гаргана.
+**SQLite SQL scripts must NEVER be applied to PostgreSQL.**
 
-Model болон migration түүхийг харахад `dotnet-ef` CLI ашиглаж болно:
+Inspect history and generate review SQL without connecting to a database:
 
 ```bash
-dotnet ef migrations list --project backend/DentalApi --startup-project backend/DentalApi
-dotnet ef migrations script --project backend/DentalApi --startup-project backend/DentalApi
+dotnet ef migrations list --no-connect --context AppDbContext --project backend/DentalApi --startup-project backend/DentalApi
+dotnet ef migrations list --no-connect --context PostgreSqlAppDbContext --project backend/DentalApi --startup-project backend/DentalApi
+dotnet ef migrations script 0 20261027132306_PostgreSqlBaseline --idempotent --context PostgreSqlAppDbContext --project backend/DentalApi --startup-project backend/DentalApi
 ```
 
-Энэ repository-ийн `AppDbContextDesignTimeFactory` **in-memory SQLite** ашигладаг.
-Тиймээс `dotnet ef database update`-ийг live database-д migration хийх арга
-гэж энд үзэхгүй. Миграцийг production-д хэрэглэх процесс нь backup, staging
-rehearsal, зөвшөөрөл шаардана. Хуучин EF migration-уудыг засах/устгахгүй;
-шинэ schema өөрчлөлт бүр шинэ migration байх ёстой.
+Always select `--context`. C# migrations, designers and each provider's snapshot
+are the source of truth; SQL files are derived review/test artifacts.
+`AddPatientUserTenantIntegrity.sql` is archived unchanged under
+`Migrations/Archive/Sqlite/`. The other three SQLite SQL files remain in place
+because historical integration tests depend on them. This cleanup changes no
+C# migration, snapshot, API contract or database schema.
+
+Design-time factories ignore application configuration: SQLite uses an in-memory
+connection; PostgreSQL uses credential-free model-only settings. Generating SQL
+does not authorize executing it. Do not treat `database update` with these
+factories as this repository's deployment workflow. A real rollout requires
+provider/range and SQL review, a consistent backup, rehearsal on an explicitly
+authorized isolated copy, and separate deployment authorization.
+
+For STEP 5 validation, verify that `NEXORA_PG_TEST_CONNECTION` is absent without
+printing its value. Only in-memory SQLite and offline checks may run; all ten
+real PostgreSQL tests should be skipped. See the
+[integration-test instructions](backend/DentalApi.IntegrationTests/README.md).
 
 ## Аюулгүй байдлын тэмдэглэл
 

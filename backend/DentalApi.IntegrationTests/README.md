@@ -48,14 +48,19 @@ synthetic rows in every application table. It verifies:
 
 The design-time AppDbContext factory intentionally uses only an in-memory
 connection; schema tooling does not start the web app or use real configuration.
-The generated AddPatientUserTenantIntegrity.sql is a review artifact, not applied
-to a real database. Users and Patients are rebuilt. The preflight CHECK rejects
+The generated `AddPatientUserTenantIntegrity.sql` is now preserved unchanged at
+`../DentalApi/Migrations/Archive/Sqlite/AddPatientUserTenantIntegrity.sql` as a
+historical review artifact. No integration test reads this file; TenantIntegrityTests
+runs the source C# migration `20261026100808_AddPatientUserTenantIntegrity` directly.
+The archived artifact has not been applied to a real database by this cleanup. Users and Patients are rebuilt. The preflight CHECK rejects
 bad legacy links. A helper unique index supports SQLite's copy phase and is
 removed when the old Users table is dropped.
 
 Before deploying, back up and rehearse against an authorized isolated copy.
-Normal non-Testing application startup still applies pending migrations, so do
-not start the changed app against a real database before that review.
+Outside `Testing`, SQLite application startup automatically applies pending
+migrations. PostgreSQL startup remains blocked by its migration guard before
+migration/seeding. Do not start the app against a real database as part of this
+cleanup.
 
 ## Scheduling foundations
 
@@ -214,3 +219,40 @@ Run both opt-in categories with the authorized target before accepting this
 step as database-validated. The harness bounds query-barrier waits and SQL command
 execution; overloaded machines may need a separate timing investigation if a
 concurrency test times out.
+
+
+## Historical SQL artifacts and offline cleanup validation (Phase 2, Step 5)
+
+See the [EF Core migration workflow](../DentalApi/Migrations/README.md) for
+provider-specific `--context` usage, migration creation and SQL generation.
+**SQLite SQL scripts must NEVER be applied to PostgreSQL.**
+
+Only the unreferenced tenant integrity review script was archived; its bytes are
+unchanged. Existing C# migrations, designers and both snapshots remain unchanged.
+The following SQLite scripts are active test fixtures and retain their paths:
+
+| File in `../DentalApi/Migrations/` | Consumer |
+| --- | --- |
+| `AddSchedulingFoundations.sql` | `SchedulingMigrationTests` |
+| `AddClinicLocationVerification.sql` | `ClinicLocationMigrationTests` |
+| `AddPlatformAccounts.sql` | `PlatformMigrationTests` |
+
+These tests compare the file to EF-generated SQL for its exact historical range
+and execute it only in an isolated SQLite in-memory database. No test-path changes
+are required. Do not regenerate the fixtures from the current model or overwrite
+them with PostgreSQL output.
+
+For this cleanup, require the opt-in environment variable to be absent. This
+PowerShell check prints no connection values and stops if it is configured:
+
+```powershell
+if (Test-Path Env:NEXORA_PG_TEST_CONNECTION) { throw 'Remove the PostgreSQL test opt-in before offline validation.' }
+dotnet build backend/NexoraDental.sln
+dotnet test backend/NexoraDental.sln
+git diff --check
+```
+
+Expect all ten real PostgreSQL tests to be skipped, not passed. The remaining
+suite uses in-memory SQLite or offline checks. Stop and investigate if any
+historical migration test fails; do not edit migration history or SQL contents
+to bypass the failure. This validation must not connect to an existing database.
