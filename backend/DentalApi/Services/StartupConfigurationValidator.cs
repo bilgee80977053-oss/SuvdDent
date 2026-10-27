@@ -19,7 +19,7 @@ public static class StartupConfigurationValidator
             config["Jwt:Audience"] == config["PlatformJwt:Audience"])
             throw new InvalidOperationException("Jwt болон PlatformJwt key, issuer, audience тусдаа байх ёстой.");
 
-        Require(config, "ConnectionStrings:Default");
+        DatabaseProviderSettings.ConnectionString(config);
 
         var allowedHosts = config["AllowedHosts"]?.Split(';',
             StringSplitOptions.TrimEntries | StringSplitOptions.RemoveEmptyEntries);

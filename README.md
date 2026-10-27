@@ -39,7 +39,8 @@ SMS reminder болон frontend. Эдгээрийг дараагийн үе ш�
 
 | Нэр | Тайлбар |
 | --- | --- |
-| `ConnectionStrings__Default` | Зөвшөөрөгдсөн SQLite холболт |
+| `Database__Provider` | `Sqlite` эсвэл `PostgreSQL`; одоогоор SQLite migration идэвхтэй |
+| `ConnectionStrings__Default` | Сонгосон өгөгдлийн сангийн холболт (PostgreSQL үед зөвхөн environment variable) |
 | `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience` | Эмнэлгийн JWT (key дор хаяж 32 UTF-8 байт) |
 | `PlatformJwt__Key`, `PlatformJwt__Issuer`, `PlatformJwt__Audience` | Тусдаа Platform JWT |
 | `Email__Host`, `Email__Port`, `Email__From`, `Email__Username`, `Email__Password` | SMTP тохиргоо |

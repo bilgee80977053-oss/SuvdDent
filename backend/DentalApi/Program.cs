@@ -41,10 +41,9 @@ builder.Services.AddSwaggerGen(options =>
         });
 });
 
-// SQLite өгөгдлийн сан
+// Өгөгдлийн сангийн provider-ийг тохиргооноос сонгоно.
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseSqlite(
-        builder.Configuration.GetConnectionString("Default")));
+    DatabaseProviderSettings.Configure(options, builder.Configuration));
 
 // Үйлчилгээний бүртгэл
 builder.Services.AddSingleton<JwtService>();
@@ -197,22 +196,25 @@ if (app.Environment.IsDevelopment())
 
 // Өгөгдлийн сангийн migration
 if (!app.Environment.IsEnvironment("Testing"))
-using (var scope = app.Services.CreateScope())
 {
-    var db = scope.ServiceProvider
-        .GetRequiredService<AppDbContext>();
+    DatabaseProviderSettings.EnsureMigrationsReady(app.Configuration);
+    using (var scope = app.Services.CreateScope())
+    {
+        var db = scope.ServiceProvider
+            .GetRequiredService<AppDbContext>();
 
-    db.Database.Migrate();
-    var seedPhone = app.Configuration["Seed:AdminPhone"];
-    var seedPassword = app.Configuration["Seed:AdminPassword"];
-    if (app.Environment.IsDevelopment() ||
-        (!string.IsNullOrWhiteSpace(seedPhone) && !string.IsNullOrWhiteSpace(seedPassword)))
-    {
-        DbSeeder.Seed(db, seedPhone, seedPassword, app.Logger);
-    }
-    else
-    {
-        app.Logger.LogWarning("Seed:AdminPhone болон Seed:AdminPassword тохиргоогүй тул seed алгаслаа.");
+        db.Database.Migrate();
+        var seedPhone = app.Configuration["Seed:AdminPhone"];
+        var seedPassword = app.Configuration["Seed:AdminPassword"];
+        if (app.Environment.IsDevelopment() ||
+            (!string.IsNullOrWhiteSpace(seedPhone) && !string.IsNullOrWhiteSpace(seedPassword)))
+        {
+            DbSeeder.Seed(db, seedPhone, seedPassword, app.Logger);
+        }
+        else
+        {
+            app.Logger.LogWarning("Seed:AdminPhone болон Seed:AdminPassword тохиргоогүй тул seed алгаслаа.");
+        }
     }
 }
 

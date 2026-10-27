@@ -6,7 +6,8 @@ double underscores (`__`) to `:` in configuration paths. Do not put credentials 
 
 | Environment variable | Purpose |
 | --- | --- |
-| `ConnectionStrings__Default` | SQLite database connection string |
+| `Database__Provider` | `Sqlite` (default) or `PostgreSQL` |
+| `ConnectionStrings__Default` | Selected provider's connection string; environment only for PostgreSQL |
 | `Jwt__Key` | Clinic JWT signing key (at least 32 UTF-8 bytes) |
 | `Jwt__Issuer`, `Jwt__Audience` | Clinic JWT issuer and audience |
 | `PlatformJwt__Key` | Separate Platform JWT signing key (at least 32 UTF-8 bytes) |
@@ -32,6 +33,14 @@ configuration, never by committing real values into the example.
 The default `AllowedHosts` is `localhost`; override it when deploying behind a
 real domain. CORS denies cross-origin browsers by default until permitted origins
 are configured. It never grants credentialed wildcard access.
+
+Phase 2 migration in progress: the PostgreSQL provider package is installed and
+`Database__Provider=PostgreSQL` selects it. PostgreSQL connection strings are
+accepted **only** from the `ConnectionStrings__Default` environment variable,
+never from JSON configuration. Startup intentionally rejects PostgreSQL until
+its independent migration baseline is committed, so the existing SQLite migration
+history cannot accidentally execute on PostgreSQL. SQLite also requires a
+configured connection string; no database path is bundled in appsettings.json.
 
 Forwarded headers are disabled by default. When enabled, configure at least one
 trusted proxy IP or CIDR; unknown sources are never permitted to override the
