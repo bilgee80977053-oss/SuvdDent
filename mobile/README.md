@@ -193,3 +193,15 @@ validation. Mock tests and web compilation do not establish live end-to-end or
 native Android success. Backend source, migrations, PostgreSQL startup protection,
 CORS policy and email infrastructure remain unchanged. STEP 5, commits and pushes
 require review and are not included here.
+
+## STEP 5 isolated development rehearsal
+
+The opt-in SQLite fixture utility and loopback-only launcher are prepared in
+[STEP5_REPORT.md](STEP5_REPORT.md), with exact target safety checks, private password
+entry, backend/Flutter startup steps and manual persistence/replay/conflict checks.
+The proposed new file is under `%LOCALAPPDATA%\NexoraDental\school-test`, never an
+existing local-dev.db. **Live end-to-end remains UNTESTED:** no file fixture was
+created because write opt-in/private patient password were absent; local execution
+policy also blocked the PowerShell launcher. Do not change that policy or infer
+write authorization from compilation/tests. The original Flutter implementation
+and DEMO remain unchanged. See the report before authorizing any database writes.
