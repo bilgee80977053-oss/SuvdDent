@@ -1,5 +1,5 @@
 name: nexora_dental_mobile
-description: "Nexora Dental offline university patient-flow prototype."
+description: "Nexora Dental demo and API-connected patient booking MVP."
 publish_to: 'none'
 version: 0.1.0+1
 
@@ -7,6 +7,8 @@ environment:
   sdk: ^3.13.5
 
 dependencies:
+  http: ^1.6.0
+  timezone: ^0.11.2
   flutter:
     sdk: flutter
 

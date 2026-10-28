@@ -494,3 +494,7 @@ $RECYCLE.BIN/
 # Build output
 **/bin/
 **/obj/
+
+# Flutter debug source manifest (development-only HTTP permission).
+!mobile/android/app/src/debug/
+!mobile/android/app/src/debug/AndroidManifest.xml
