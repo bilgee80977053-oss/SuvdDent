@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'dental_api.dart';
 import 'live_flow_controller.dart';
 import 'models.dart';
+import 'live_presentation.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
@@ -100,6 +101,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       Padding(
         padding: const EdgeInsets.symmetric(vertical: 6),
         child: FilledButton(
+          style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
           onPressed: !flow.busy && enabled ? action : null,
           child: Text(label),
         ),
@@ -125,9 +127,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   );
   String local(DateTime time, String zone) {
     try {
-      return ClinicClock.label(time, zone);
+      return LiveLabels.instant(time, zone);
     } on ApiFailure catch (e) {
-      return '${e.message} UTC: ${time.toIso8601String()}';
+      return e.message;
     }
   }
 
@@ -294,8 +296,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       if (flow.services.isEmpty) empty('Үйлчилгээ олдсонгүй.'),
       for (final s in flow.services)
         choice(
-          s.name,
-          '${s.description}\n${s.minPrice} – ${s.maxPrice ?? s.minPrice} ₮',
+          LiveLabels.serviceName(s),
+          '${LiveLabels.serviceDescription(s)}\n${s.minPrice} – ${s.maxPrice ?? s.minPrice} ₮',
           flow.service?.id == s.id,
           () => flow.selectService(s),
         ),
@@ -306,14 +308,26 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   Widget doctors() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      if (flow.doctors.isEmpty) empty('Энэ үйлчилгээнд эмч олдсонгүй.'),
-      for (final d in flow.doctors)
-        choice(
-          d.fullName,
-          '${d.specialty}\nАжиллаж эхэлсэн он: ${d.practiceStartYear}',
-          flow.doctor?.id == d.id,
-          () => flow.selectDoctor(d),
+      if (!flow.busy && flow.doctors.isEmpty)
+        empty('Энэ үйлчилгээнд эмч олдсонгүй.'),
+      LayoutBuilder(
+        builder: (context, c) => Wrap(
+          spacing: 12,
+          runSpacing: 12,
+          children: [
+            for (final d in flow.doctors)
+              SizedBox(
+                width: c.maxWidth >= 600 ? (c.maxWidth - 12) / 2 : c.maxWidth,
+                child: choice(
+                  LiveLabels.doctorName(d),
+                  'Эмч · ${LiveLabels.specialty(d)}\nАжиллаж эхэлсэн он: ${d.practiceStartYear}${LiveLabels.syntheticDoctor(d) ? '\nТуршилтын мэдээлэл' : ''}',
+                  flow.doctor?.id == d.id,
+                  () => flow.selectDoctor(d),
+                ),
+              ),
+          ],
         ),
+      ),
       button('Огноо, цаг сонгох', flow.openSlots, enabled: flow.doctor != null),
       button('Эмч нарыг шинэчлэх', flow.loadDoctors),
     ],
@@ -321,17 +335,19 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   Widget slots() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text('Эмнэлгийн орон нутгийн огноо: ${flow.date}'),
+      Text(
+        LiveLabels.date(flow.availability?.date ?? flow.date),
+        style: Theme.of(context).textTheme.titleLarge,
+      ),
+      const SizedBox(height: 8),
       const Text(
-        'Өнөөдрөөс дараагийн 30 хоногийн огноог сонгоно уу. Хүчинтэй хугацааг сервер шалгана.',
+        'Өнөөдрөөс дараагийн 30 хоногийн өдрөө сонгоод боломжит цагийг шинэчилнэ үү. Хүчинтэй хугацааг сервер шалгана.',
       ),
       button('Огноо сонгох', () async {
-        final initial = DateTime.tryParse(flow.date) ?? DateTime.now();
-        final result = await showDatePicker(
-          context: context,
-          initialDate: initial,
-          firstDate: DateTime(2020),
-          lastDate: DateTime(2100),
+        final result = await showMongolianDatePicker(
+          context,
+          flow.date,
+          timeZoneId: flow.availability?.timeZoneId,
         );
         if (result != null && mounted) flow.changeDate(calendarDate(result));
       }, enabled: !flow.uncertainBooking),
@@ -341,17 +357,32 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         enabled: !flow.uncertainBooking,
       ),
       if (flow.availability != null) ...[
-        Text('Эмнэлгийн цагийн бүс: ${flow.availability!.timeZoneId}'),
+        Text(LiveLabels.zone(flow.availability!.timeZoneId)),
+        const SizedBox(height: 16),
         if (flow.availability!.slots.isEmpty)
           empty('Энэ өдөр боломжит цаг алга. Өөр огноо сонгоно уу.'),
-        for (final s in flow.availability!.slots)
-          choice(
-            local(s.startUtc, flow.availability!.timeZoneId),
-            'Дуусах: ${local(s.endUtc, flow.availability!.timeZoneId)}',
-            flow.slot?.startUtc == s.startUtc,
-            () => flow.selectSlot(s),
+        LiveSlotChoices(
+          page: flow.availability!,
+          selected: flow.slot,
+          enabled: !flow.busy && !flow.uncertainBooking,
+          onSelected: flow.selectSlot,
+        ),
+        if (flow.slot != null) ...[
+          const SizedBox(height: 16),
+          Semantics(
+            liveRegion: true,
+            child: Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Text(
+                  'Сонгосон цаг: ${LiveLabels.interval(flow.slot!, flow.availability!.timeZoneId)}\nҮргэлжлэх хугацаа: ${LiveLabels.duration(flow.slot!)}',
+                ),
+              ),
+            ),
           ),
-      ],
+        ],
+      ] else if (!flow.busy && flow.error == null)
+        empty('Боломжит цагийг харахын тулд шинэчлэх товчийг дарна уу.'),
       button('Захиалгыг хянах', flow.review, enabled: flow.slot != null),
     ],
   );
@@ -362,14 +393,12 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Захиалга №${a.id} · ${a.status}',
+            LiveLabels.status(a.status),
             style: Theme.of(context).textTheme.titleMedium,
           ),
+          Text('Захиалгын дугаар: №${a.id}'),
           Text('Эхлэх: ${local(a.startUtc, a.clinicTimeZoneId)}'),
           Text('Дуусах: ${local(a.endUtc, a.clinicTimeZoneId)}'),
-          Text(
-            'Эмчийн дугаар: ${a.doctorProfileId} · Үйлчилгээний дугаар: ${a.serviceId}',
-          ),
         ],
       ),
     ),
@@ -391,7 +420,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         button('Боломжит цагийг шинэчлэх', flow.loadSlots),
       ] else if (flow.slot != null) ...[
         Text(
-          '${flow.service?.name}\n${flow.doctor?.fullName}\n${local(flow.slot!.startUtc, flow.availability!.timeZoneId)}',
+          '${flow.service == null ? '' : LiveLabels.serviceName(flow.service!)}\n${flow.doctor == null ? '' : LiveLabels.doctorName(flow.doctor!)}\n${local(flow.slot!.startUtc, flow.availability!.timeZoneId)}',
         ),
         const Text(
           'Захиалга илгээхэд сервер боломжит цаг болон таны эрхийг дахин шалгана.',
@@ -450,7 +479,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         const Text(
           'Тохируулсан туршилтын эмнэлэг. Энэ нь олон нийтэд нээлттэй эмнэлгийн жагсаалт биш.',
         ),
-        Text('Эмнэлгийн ID: ${widget.settings.clinicId}'),
+        const Text('Сонгосон туршилтын эмнэлэг'),
         button('Энэ эмнэлгээр үргэлжлүүлэх', flow.enterClinic),
       ],
     ),
@@ -518,7 +547,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                     borderRadius: BorderRadius.circular(14),
                   ),
                   child: const Text(
-                    'LIVE · Бодит API · Тохируулсан туршилтын эмнэлэг',
+                    'Онлайн захиалга · Туршилтын эмнэлэг',
                     style: TextStyle(fontWeight: FontWeight.bold),
                   ),
                 ),
@@ -536,7 +565,12 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                 ),
                 const SizedBox(height: 20),
                 if (flow.busy)
-                  const LinearProgressIndicator(semanticsLabel: 'Ачаалж байна'),
+                  const Column(
+                    children: [
+                      LinearProgressIndicator(semanticsLabel: 'Ачаалж байна'),
+                      Text('Мэдээллийг ачаалж байна…'),
+                    ],
+                  ),
                 if (flow.error != null)
                   Semantics(
                     liveRegion: true,

@@ -827,20 +827,27 @@ void main() {
       await tester.pumpAndSettle();
       await press('Огноо, цаг сонгох');
       await press('Боломжит цагийг шинэчлэх');
-      final slot = find.textContaining('2030-01-02 09:00');
+      final slot = find.text('09:00');
       await tester.ensureVisible(slot);
       await tester.tap(slot);
       await tester.pumpAndSettle();
+      expect(find.text('Улаанбаатарын цагаар'), findsOneWidget);
+      expect(
+        find.text('Сонгосон цаг: 09:00–09:30\nҮргэлжлэх хугацаа: 30 минут'),
+        findsOneWidget,
+      );
       await press('Захиалгыг хянах');
       expect(find.text('Захиалга амжилттай үүслээ.'), findsNothing);
       await press('Захиалга баталгаажуулах');
       expect(bookings, 1);
       expect(find.text('Захиалга амжилттай үүслээ.'), findsOneWidget);
-      expect(find.text('Захиалга №41 · Confirmed'), findsOneWidget);
+      expect(find.text('Баталгаажсан захиалга'), findsOneWidget);
+      expect(find.text('Захиалгын дугаар: №41'), findsOneWidget);
       await tester.tap(find.byTooltip('Миний захиалгууд'));
       await tester.pumpAndSettle();
       expect(find.text('Хуудас 1'), findsOneWidget);
-      expect(find.text('Захиалга №41 · Confirmed'), findsOneWidget);
+      expect(find.text('Баталгаажсан захиалга'), findsOneWidget);
+      expect(find.text('Захиалгын дугаар: №41'), findsOneWidget);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
     },
@@ -938,7 +945,7 @@ void main() {
     expect(first.authenticated, isFalse);
     expect(second.authenticated, isFalse);
     expect(requests, 0);
-    expect(find.text('Эмнэлгийн ID: 8'), findsOneWidget);
+    expect(find.text('Сонгосон туршилтын эмнэлэг'), findsOneWidget);
     expect(find.text('АЛХАМ 1 / 8'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
