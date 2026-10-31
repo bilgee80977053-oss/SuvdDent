@@ -156,6 +156,7 @@ public sealed class AppointmentApiTests
         foreach (var path in new[] { "/me", "/1", "/services", "/doctors?serviceId=51", "/slots?doctorProfileId=31&serviceId=51&date=2026-11-02" })
             await AssertStatus(await client.GetAsync(Url + path), (HttpStatusCode)expected);
         await AssertStatus(await client.PostAsJsonAsync(Url, Request()), (HttpStatusCode)expected);
+        Assert.Equal(0, await Count(app));
     }
 
     [Theory]
@@ -245,13 +246,40 @@ public sealed class AppointmentApiTests
     {
         using var app = await App(); using var client = await app.AsAsync(11);
         var request = Request(); var first = await Book(client, request);
+        using (var exactReplay = await client.PostAsJsonAsync(Url, request))
+        {
+            Assert.Equal(HttpStatusCode.OK, exactReplay.StatusCode);
+            Assert.Equal(first, await exactReplay.Content.ReadFromJsonAsync<AppointmentResponse>());
+        }
+        Assert.Equal(1, await Count(app));
         await Mutate(app, async db => { (await db.DoctorServices.SingleAsync(s => s.DoctorProfileId == 31)).DurationMinutes = 45; await db.SaveChangesAsync(); });
         using var replay = await client.PostAsJsonAsync(Url, request with { StartUtc = "2026-11-02T01:15:00Z" });
         Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
         Assert.Equal(first, await replay.Content.ReadFromJsonAsync<AppointmentResponse>());
         foreach (var different in new[] {request with {StartUtc = "2026-11-02T10:00:00+08:00"}, request with {DoctorProfileId = 36}, request with {ServiceId = 52}})
+        {
             await AssertStatus(await client.PostAsJsonAsync(Url, different), HttpStatusCode.Conflict);
+            Assert.Equal(1, await Count(app));
+        }
         Assert.Equal(1, await Count(app));
+    }
+
+    [Fact]
+    public async Task Another_patient_cannot_book_occupied_doctor_interval_with_a_new_request_key()
+    {
+        using var app = await App(); using var owner = await app.AsAsync(11);
+        using var other = await app.AsAsync(27);
+        var request = Request(); var first = await Book(owner, request);
+        await AssertStatus(await other.PostAsJsonAsync(Url, request with { RequestId = Guid.NewGuid() }), HttpStatusCode.Conflict);
+        await Mutate(app, async db =>
+        {
+            var stored = await db.Appointments.AsNoTracking().SingleAsync();
+            Assert.Equal(first.Id, stored.Id);
+            Assert.Equal(41, stored.PatientId);
+            Assert.Equal(request.RequestId, stored.RequestId);
+            Assert.Equal(first.StartUtc, stored.StartUtc);
+            Assert.Equal(first.OccupiedEndUtc, stored.OccupiedEndUtc);
+        });
     }
 
     [Theory]
