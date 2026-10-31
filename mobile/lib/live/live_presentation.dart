@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../core/widgets/flow_components.dart';
+import 'dental_api.dart';
 import 'live_flow_controller.dart';
 import 'models.dart';
 
@@ -43,7 +45,9 @@ abstract final class LiveLabels {
 
   static String zone(String zone) => zone == 'Asia/Ulaanbaatar'
       ? 'Улаанбаатарын цагаар'
-      : 'Эмнэлгийн орон нутгийн цагаар ($zone)';
+      : zone == 'Asia/Hovd'
+      ? 'Ховдын цагаар'
+      : 'Эмнэлгийн орон нутгийн цагаар';
   static String instant(DateTime value, String zoneId) =>
       '${date(calendarDate(local(value, zoneId)))} ${time(value, zoneId)} · ${zone(zoneId)}';
   static String duration(BookingSlot slot) =>
@@ -254,6 +258,120 @@ Future<DateTime?> showMongolianDatePicker(
           ],
         );
       },
+    ),
+  );
+}
+
+/// Uses appointment response values and optional, ID-matched server catalog names.
+class AppointmentDetailsCard extends StatelessWidget {
+  final Appointment appointment;
+  final String? doctorName, serviceName;
+  const AppointmentDetailsCard({
+    super.key,
+    required this.appointment,
+    this.doctorName,
+    this.serviceName,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final a = appointment;
+    String date, start, end, zone;
+    try {
+      final local = LiveLabels.local(a.startUtc, a.clinicTimeZoneId);
+      date = '${local.year} он · ${LiveLabels.date(calendarDate(local))}';
+      start = LiveLabels.time(a.startUtc, a.clinicTimeZoneId);
+      final endLocal = LiveLabels.local(a.endUtc, a.clinicTimeZoneId);
+      end = LiveLabels.time(a.endUtc, a.clinicTimeZoneId);
+      if (calendarDate(local) != calendarDate(endLocal)) {
+        end =
+            '${endLocal.year} он · ${LiveLabels.date(calendarDate(endLocal))} $end';
+      }
+      zone = LiveLabels.zone(a.clinicTimeZoneId);
+    } on ApiFailure {
+      date =
+          '${a.startUtc.year} он · ${LiveLabels.date(calendarDate(a.startUtc))}';
+      String utcTime(DateTime value) =>
+          '${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
+      start = utcTime(a.startUtc);
+      end =
+          '${a.endUtc.year} он · ${LiveLabels.date(calendarDate(a.endUtc))} ${utcTime(a.endUtc)}';
+      zone = 'Эмнэлгийн цагийн бүс тодорхойгүй. Доорх цагийг UTC цагаар харуулав. Эмнэлгээс лавлана уу.';
+    }
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 16),
+      child: InformationCard(
+        children: [
+          Text(
+            'Захиалгын дугаар: №${a.id}',
+            style: Theme.of(context).textTheme.titleLarge,
+          ),
+          DetailRow('Захиалгын төлөв', LiveLabels.status(a.status)),
+          const Divider(),
+          DetailRow(
+            'Эмч',
+            doctorName?.trim().isNotEmpty == true
+                ? doctorName!
+                : 'Эмчийн нэр ирээгүй. Эмнэлгээс лавлана уу.',
+          ),
+          DetailRow(
+            'Үйлчилгээ',
+            serviceName?.trim().isNotEmpty == true
+                ? serviceName!
+                : 'Үйлчилгээний нэр ирээгүй. Эмнэлгээс лавлана уу.',
+          ),
+          DetailRow('Огноо', date),
+          LayoutBuilder(
+            builder: (context, c) {
+              final children = [
+                DetailRow('Эхлэх цаг', start),
+                DetailRow('Дуусах цаг', end),
+              ];
+              return c.maxWidth < 400
+                  ? Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    )
+                  : Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (final child in children) Expanded(child: child),
+                      ],
+                    );
+            },
+          ),
+          Text(zone, style: Theme.of(context).textTheme.bodySmall),
+        ],
+      ),
+    );
+  }
+}
+
+class BookingTimeSummary extends StatelessWidget {
+  final BookingSlot slot;
+  final String date, timeZoneId;
+  const BookingTimeSummary({
+    super.key,
+    required this.slot,
+    required this.date,
+    required this.timeZoneId,
+  });
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 12),
+    child: InformationCard(
+      children: [
+        DetailRow(
+          'Сонгосон огноо',
+          '${DateTime.parse(date).year} он · ${LiveLabels.date(date)}',
+        ),
+        DetailRow('Эхлэх цаг', LiveLabels.time(slot.startUtc, timeZoneId)),
+        DetailRow('Үргэлжлэх хугацаа', LiveLabels.duration(slot)),
+        DetailRow(
+          'Дуусах цаг',
+          LiveLabels.interval(slot, timeZoneId).split('–').last,
+        ),
+      ],
     ),
   );
 }

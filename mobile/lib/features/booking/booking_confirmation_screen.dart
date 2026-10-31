@@ -46,7 +46,7 @@ class BookingConfirmationScreen extends StatelessWidget {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Бодит хувилбарт захиалгын transaction амжилттай commit болсны дараа баталгаажуулах имэйл илгээнэ.',
+        'Энэ нь зөвхөн сургалтын жишээ. Захиалга хадгалахгүй, имэйл илгээхгүй.',
       ),
     ],
   );

@@ -832,10 +832,7 @@ void main() {
       await tester.tap(slot);
       await tester.pumpAndSettle();
       expect(find.text('Улаанбаатарын цагаар'), findsOneWidget);
-      expect(
-        find.text('Сонгосон цаг: 09:00–09:30\nҮргэлжлэх хугацаа: 30 минут'),
-        findsOneWidget,
-      );
+      expect(find.text('30 минут'), findsOneWidget);
       await press('Захиалгыг хянах');
       expect(find.text('Захиалга амжилттай үүслээ.'), findsNothing);
       await press('Захиалга баталгаажуулах');

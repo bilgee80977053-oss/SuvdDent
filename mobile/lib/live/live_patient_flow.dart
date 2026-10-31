@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../core/widgets/flow_components.dart';
 import 'dental_api.dart';
 import 'live_flow_controller.dart';
 import 'models.dart';
@@ -97,15 +98,27 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       },
     ),
   );
-  Widget button(String label, VoidCallback action, {bool enabled = true}) =>
-      Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6),
-        child: FilledButton(
-          style: FilledButton.styleFrom(minimumSize: const Size(48, 48)),
-          onPressed: !flow.busy && enabled ? action : null,
-          child: Text(label),
-        ),
-      );
+  Widget button(
+    String label,
+    VoidCallback action, {
+    bool enabled = true,
+    bool secondary = false,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 6),
+    child: FilledButton(
+      style: FilledButton.styleFrom(
+        minimumSize: const Size(48, 48),
+        backgroundColor: secondary
+            ? Theme.of(context).colorScheme.surfaceContainerHighest
+            : null,
+        foregroundColor: secondary
+            ? Theme.of(context).colorScheme.onSurface
+            : null,
+      ),
+      onPressed: !flow.busy && enabled ? action : null,
+      child: Text(label),
+    ),
+  );
   Widget empty(String message) =>
       Padding(padding: const EdgeInsets.all(20), child: Text(message));
   Widget choice(
@@ -113,16 +126,25 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     String subtitle,
     bool selected,
     VoidCallback action,
-  ) => Card(
-    child: ListTile(
-      selected: selected,
-      title: Text(label),
-      subtitle: Text(subtitle),
-      trailing: Icon(
-        selected ? Icons.radio_button_checked : Icons.radio_button_off,
+  ) => Padding(
+    padding: const EdgeInsets.only(bottom: 12),
+    child: Card(
+      clipBehavior: Clip.antiAlias,
+      child: ListTile(
+        selected: selected,
+        selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 16,
+          vertical: 12,
+        ),
+        title: Text(label),
+        subtitle: Text(subtitle),
+        trailing: Icon(
+          selected ? Icons.radio_button_checked : Icons.radio_button_off,
+        ),
+        enabled: !flow.busy && !flow.uncertainBooking,
+        onTap: action,
       ),
-      enabled: !flow.busy && !flow.uncertainBooking,
-      onTap: action,
     ),
   );
   String local(DateTime time, String zone) {
@@ -287,7 +309,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             ],
           ),
         ),
-      button('Профайлыг шинэчлэх', flow.loadProfile),
+      button('Профайлыг шинэчлэх', flow.loadProfile, secondary: true),
     ],
   );
   Widget services() => Column(
@@ -302,7 +324,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           () => flow.selectService(s),
         ),
       button('Эмч сонгох', flow.loadDoctors, enabled: flow.service != null),
-      button('Үйлчилгээг шинэчлэх', flow.loadServices),
+      button('Үйлчилгээг шинэчлэх', flow.loadServices, secondary: true),
     ],
   );
   Widget doctors() => Column(
@@ -329,7 +351,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         ),
       ),
       button('Огноо, цаг сонгох', flow.openSlots, enabled: flow.doctor != null),
-      button('Эмч нарыг шинэчлэх', flow.loadDoctors),
+      button('Эмч нарыг шинэчлэх', flow.loadDoctors, secondary: true),
     ],
   );
   Widget slots() => Column(
@@ -367,42 +389,39 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           enabled: !flow.busy && !flow.uncertainBooking,
           onSelected: flow.selectSlot,
         ),
-        if (flow.slot != null) ...[
-          const SizedBox(height: 16),
+        if (flow.slot != null)
           Semantics(
             liveRegion: true,
-            child: Card(
-              child: Padding(
-                padding: const EdgeInsets.all(16),
-                child: Text(
-                  'Сонгосон цаг: ${LiveLabels.interval(flow.slot!, flow.availability!.timeZoneId)}\nҮргэлжлэх хугацаа: ${LiveLabels.duration(flow.slot!)}',
-                ),
-              ),
+            child: BookingTimeSummary(
+              slot: flow.slot!,
+              date: flow.availability!.date,
+              timeZoneId: flow.availability!.timeZoneId,
             ),
           ),
-        ],
       ] else if (!flow.busy && flow.error == null)
         empty('Боломжит цагийг харахын тулд шинэчлэх товчийг дарна уу.'),
       button('Захиалгыг хянах', flow.review, enabled: flow.slot != null),
     ],
   );
-  Widget details(Appointment a) => Card(
-    child: Padding(
-      padding: const EdgeInsets.all(16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            LiveLabels.status(a.status),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          Text('Захиалгын дугаар: №${a.id}'),
-          Text('Эхлэх: ${local(a.startUtc, a.clinicTimeZoneId)}'),
-          Text('Дуусах: ${local(a.endUtc, a.clinicTimeZoneId)}'),
-        ],
-      ),
-    ),
-  );
+  Widget details(Appointment a) {
+    String? doctorName, serviceName;
+    for (final doctor in flow.doctors) {
+      if (doctor.id == a.doctorProfileId) {
+        doctorName = LiveLabels.doctorName(doctor);
+      }
+    }
+    for (final service in flow.services) {
+      if (service.id == a.serviceId) {
+        serviceName = LiveLabels.serviceName(service);
+      }
+    }
+    return AppointmentDetailsCard(
+      appointment: a,
+      doctorName: doctorName,
+      serviceName: serviceName,
+    );
+  }
+
   Widget confirmation() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -421,6 +440,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ] else if (flow.slot != null) ...[
         Text(
           '${flow.service == null ? '' : LiveLabels.serviceName(flow.service!)}\n${flow.doctor == null ? '' : LiveLabels.doctorName(flow.doctor!)}\n${local(flow.slot!.startUtc, flow.availability!.timeZoneId)}',
+        ),
+        BookingTimeSummary(
+          slot: flow.slot!,
+          date: flow.availability!.date,
+          timeZoneId: flow.availability!.timeZoneId,
         ),
         const Text(
           'Захиалга илгээхэд сервер боломжит цаг болон таны эрхийг дахин шалгана.',
@@ -441,10 +465,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   Widget history() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      Text(
-        'Миний захиалгууд',
-        style: Theme.of(context).textTheme.headlineSmall,
-      ),
+      const Text('Өмнөх болон удахгүй болох захиалгаа эндээс харна уу.'),
+      const SizedBox(height: 16),
       if (flow.history != null) ...[
         Text('Хуудас ${flow.history!.page}'),
         if (flow.history!.items.isEmpty) empty('Энэ хуудсанд захиалга алга.'),
@@ -465,6 +487,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       button(
         'Хуудсыг шинэчлэх',
         () => flow.loadAppointments(flow.history?.page ?? 1),
+        secondary: true,
       ),
       button(
         'Захиалгын алхам руу буцах',
@@ -472,6 +495,17 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
     ],
   );
+  String get stepHint => const [
+    'Үйлчлүүлэх эмнэлгээ сонгоод үргэлжлүүлнэ үү.',
+    'Бүртгэлээрээ нэвтрэх эсвэл шинээр бүртгүүлнэ үү.',
+    'Нэвтэрсэн бол өөрийн профайлыг авна уу. Шинэ бүртгэлтэй бол имэйлээ баталгаажуулна уу.',
+    'Өөрийн мэдээллээ шалгаад үйлчилгээ сонгоно уу.',
+    'Авах үйлчилгээгээ сонгоод эмч сонгох товчийг дарна уу.',
+    'Эмчээ сонгоод боломжит огноо, цагийг харна уу.',
+    'Огноогоо шалгаж, боломжит цагаас сонгоно уу.',
+    'Мэдээллээ хянаад захиалгаа баталгаажуулна уу.',
+  ][flow.step];
+
   Widget screen() => switch (flow.step) {
     0 => Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -493,20 +527,30 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   };
   @override
   Widget build(BuildContext context) => PopScope(
-    canPop: flow.step == 0,
+    canPop: !showHistory && flow.step == 0,
     onPopInvokedWithResult: (didPop, result) {
-      if (!didPop) flow.back();
+      if (!didPop) {
+        if (showHistory) {
+          setState(() => showHistory = false);
+        } else {
+          flow.back();
+        }
+      }
     },
     child: Scaffold(
       appBar: AppBar(
-        title: const Text('NEXORA DENTAL'),
-        leading: flow.step > 0
+        title: const Text(
+          'NEXORA DENTAL',
+          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
+        ),
+        leading: showHistory || flow.step > 0
             ? IconButton(
                 tooltip: 'Буцах',
-                onPressed:
-                    !flow.busy &&
-                        !flow.uncertainBooking &&
-                        flow.appointment == null
+                onPressed: showHistory
+                    ? () => setState(() => showHistory = false)
+                    : !flow.busy &&
+                          !flow.uncertainBooking &&
+                          flow.appointment == null
                     ? flow.back
                     : null,
                 icon: const Icon(Icons.arrow_back),
@@ -538,7 +582,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
               key: ValueKey((flow.step, showHistory)),
-              padding: const EdgeInsets.all(24),
+              padding: EdgeInsets.all(
+                MediaQuery.sizeOf(context).width < 400 ? 16 : 24,
+              ),
               children: [
                 Container(
                   padding: const EdgeInsets.all(14),
@@ -556,14 +602,52 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                   'Нэвтрэлт зөвхөн санах ойд хадгалагдана. Апп дахин эхлэхэд дахин нэвтэрнэ.',
                 ),
                 const SizedBox(height: 20),
-                Text('АЛХАМ ${flow.step + 1} / 8'),
-                LinearProgressIndicator(value: (flow.step + 1) / 8),
+                if (!showHistory) ...[
+                  Text(
+                    'АЛХАМ ${flow.step + 1} / 8',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.primary,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  LinearProgressIndicator(
+                    value: (flow.step + 1) / 8,
+                    borderRadius: BorderRadius.circular(4),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Text(
-                  titles[flow.step],
+                  showHistory
+                      ? 'Миний захиалгууд'
+                      : flow.step == 2 && flow.session != null
+                      ? 'Нэвтрэлт амжилттай'
+                      : titles[flow.step],
+                  key: const ValueKey('screen-title'),
                   style: Theme.of(context).textTheme.headlineMedium,
                 ),
-                const SizedBox(height: 20),
+                const SizedBox(height: 12),
+                if (!showHistory) ...[
+                  Text(stepHint),
+                  if (flow.step >= 4 &&
+                      (flow.service != null || flow.doctor != null))
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: InformationCard(
+                        children: [
+                          if (flow.service != null)
+                            Text(
+                              'Сонгосон үйлчилгээ: ${LiveLabels.serviceName(flow.service!)}',
+                            ),
+                          if (flow.doctor != null)
+                            Text(
+                              'Сонгосон эмч: ${LiveLabels.doctorName(flow.doctor!)}',
+                            ),
+                        ],
+                      ),
+                    ),
+                ],
+                const SizedBox(height: 16),
                 if (flow.busy)
                   const Column(
                     children: [
