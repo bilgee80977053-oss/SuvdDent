@@ -168,6 +168,21 @@ class DentalApi {
     auth: false,
     body: {'userId': userId, 'code': code},
   );
+  Future<NotificationPreferences> notificationPreferences() => _request(
+    'GET',
+    '/api/notification-preferences/me',
+    (v) => NotificationPreferences.fromJson(object(v)),
+  );
+  Future<NotificationPreferences> saveNotificationPreferences(
+    bool email,
+    bool sms,
+  ) => _request(
+    'PUT',
+    '/api/notification-preferences/me',
+    (v) => NotificationPreferences.fromJson(object(v)),
+    body: {'emailEnabled': email, 'smsEnabled': sms},
+  );
+
   Future<PatientProfile> profile() => _request(
     'GET',
     '/api/Patients/me',

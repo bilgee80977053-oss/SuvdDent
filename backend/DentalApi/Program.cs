@@ -60,6 +60,7 @@ builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();
+builder.Services.AddScoped<NotificationPreferenceService>();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<MongoliaLocations>();
 builder.Services.AddScoped<ClinicLocationService>();

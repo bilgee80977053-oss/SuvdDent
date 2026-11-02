@@ -5,6 +5,7 @@ import 'dental_api.dart';
 import 'live_flow_controller.dart';
 import 'models.dart';
 import 'live_presentation.dart';
+import 'notification_settings_screen.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
@@ -280,6 +281,15 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     );
   }
 
+  void openNotificationSettings() {
+    if (flow.busy || flow.session == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => NotificationSettingsScreen(flow: flow),
+      ),
+    );
+  }
+
   Widget profile() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -312,6 +322,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           ),
         ),
       button('Профайлыг шинэчлэх', flow.loadProfile, secondary: true),
+      button('Мэдэгдлийн тохиргоо', openNotificationSettings, secondary: true),
     ],
   );
   Widget services() => Column(
@@ -611,6 +622,12 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
               )
             : null,
         actions: [
+          if (flow.session != null)
+            IconButton(
+              tooltip: 'Мэдэгдлийн тохиргоо',
+              onPressed: flow.busy ? null : openNotificationSettings,
+              icon: const Icon(Icons.notifications_outlined),
+            ),
           if (flow.session != null)
             IconButton(
               tooltip: 'Миний захиалгууд',

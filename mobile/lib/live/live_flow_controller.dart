@@ -68,6 +68,8 @@ class LiveFlowController extends ChangeNotifier {
   String? requestId;
   Appointment? appointment;
   AppointmentPage? history;
+  NotificationPreferences? notificationPreferences;
+  bool emailConsent = false, smsConsent = false;
   final Set<int> uncertainCancellations = {};
   String date = calendarDate(DateTime.now());
   LiveFlowController(this.api, {this.requestIdFactory = newRequestId}) {
@@ -127,6 +129,9 @@ class LiveFlowController extends ChangeNotifier {
     appointment = null;
     history = null;
     uncertainCancellations.clear();
+    notificationPreferences = null;
+    emailConsent = false;
+    smsConsent = false;
     error = null;
     notice = null;
     profileMissing = false;
@@ -372,6 +377,52 @@ class LiveFlowController extends ChangeNotifier {
     final result = await api.appointments(page);
     if (!current()) return;
     history = result;
+  });
+  void changeNotificationConsent({bool? email, bool? sms}) {
+    if (busy || notificationPreferences == null || session == null) return;
+    if (email != null) emailConsent = email;
+    if (sms != null) smsConsent = sms;
+    notice = null;
+    error = null;
+    changed();
+  }
+
+  void _acceptPreferences(NotificationPreferences value) {
+    notificationPreferences = value;
+    emailConsent = value.emailEnabled;
+    smsConsent = value.smsEnabled;
+  }
+
+  Future<void> loadNotificationPreferences() => run((current) async {
+    if (session == null) return;
+    notificationPreferences = null;
+    emailConsent = false;
+    smsConsent = false;
+    changed();
+    final result = await api.notificationPreferences();
+    if (!current()) return;
+    _acceptPreferences(result);
+  });
+
+  Future<void> saveNotificationPreferences() => run((current) async {
+    if (session == null || notificationPreferences == null) return;
+    try {
+      final result = await api.saveNotificationPreferences(
+        emailConsent,
+        smsConsent,
+      );
+      if (!current()) return;
+      _acceptPreferences(result);
+      notice = 'Мэдэгдлийн тохиргоо хадгалагдлаа.';
+    } on ApiFailure catch (failure) {
+      if (!current()) return;
+      if (failure.status == null || failure.status! >= 500) {
+        throw const ApiFailure(
+          'Хадгалагдсан эсэх тодорхойгүй байна. Тохиргоог шинэчилж шалгана уу.',
+        );
+      }
+      rethrow;
+    }
   });
   bool canCancel(Appointment value) =>
       value.status == 'Confirmed' &&

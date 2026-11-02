@@ -163,3 +163,12 @@ class AppointmentPage {
           .map((v) => Appointment.fromJson(object(v)))
           .toList();
 }
+
+class NotificationPreferences {
+  final bool emailEnabled, smsEnabled, isEmailVerified, isPhoneVerified;
+  NotificationPreferences.fromJson(Json j)
+    : emailEnabled = j['emailEnabled'] as bool,
+      smsEnabled = j['smsEnabled'] as bool,
+      isEmailVerified = j['isEmailVerified'] as bool,
+      isPhoneVerified = j['isPhoneVerified'] as bool;
+}

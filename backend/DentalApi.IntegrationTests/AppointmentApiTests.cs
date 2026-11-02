@@ -205,6 +205,37 @@ public sealed class AppointmentApiTests
         if (scenario == "email-only") Assert.Equal(NotificationChannel.Email, Assert.Single(rows).Channel);
         else Assert.Empty(rows);
     }
+    [Fact]
+    public async Task HTTP_consent_withdrawal_suppresses_already_queued_email_sms_and_reminder()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        using var response = await client.PutAsJsonAsync("/api/notification-preferences/me",
+            new { emailEnabled = false, smsEnabled = false });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        app.Time.Now = booked.StartUtc.AddHours(-24);
+        await Drain(app);
+        Assert.Empty(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+        Assert.All(await Outbox(app), x => Assert.Equal(NotificationState.Suppressed, x.State));
+    }
+
+    [Fact]
+    public async Task HTTP_consent_does_not_make_unverified_phone_eligible_for_queueing()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        await Mutate(app, async db =>
+        {
+            (await db.Users.SingleAsync(x => x.Id == 11)).IsPhoneVerified = false;
+            await db.SaveChangesAsync();
+        });
+        using var response = await client.PutAsJsonAsync("/api/notification-preferences/me",
+            new { emailEnabled = true, smsEnabled = true });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        await Book(client);
+        Assert.Equal(NotificationChannel.Email, Assert.Single(await Outbox(app)).Channel);
+        await Drain(app);
+        Assert.Single(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+    }
     private static async Task Drain(Factory app)
     {
         for (var i = 0; i < 20; i++)
