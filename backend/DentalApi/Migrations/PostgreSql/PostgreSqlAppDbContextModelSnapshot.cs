@@ -532,6 +532,78 @@ namespace DentalApi.Migrations.PostgreSql
                     b.ToTable("PatientAvailabilitySchedules");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.PhoneVerificationChallenge", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("CodeHash")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("character varying(100)");
+
+                    b.Property<long>("CreatedUtcTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("DeliveryState")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("character varying(20)");
+
+                    b.Property<string>("Destination")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("character varying(12)");
+
+                    b.Property<long>("ExpiresUtcTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<int>("FailedAttempts")
+                        .HasColumnType("integer");
+
+                    b.Property<bool>("IsConsumed")
+                        .HasColumnType("boolean");
+
+                    b.Property<bool>("IsInvalidated")
+                        .HasColumnType("boolean");
+
+                    b.Property<long?>("LastFailedUtcTicks")
+                        .HasColumnType("bigint");
+
+                    b.Property<string>("PhoneSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(32)
+                        .HasColumnType("character varying(32)");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("integer");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "UserId")
+                        .IsUnique()
+                        .HasFilter("NOT \"IsConsumed\" AND NOT \"IsInvalidated\"");
+
+                    b.HasIndex("ClinicId", "UserId", "CreatedUtcTicks");
+
+                    b.HasIndex("ClinicId", "UserId", "LastFailedUtcTicks");
+
+                    b.ToTable("PhoneVerificationChallenge", t =>
+                        {
+                            t.HasCheckConstraint("CK_PhoneVerificationChallenge_Attempts", "\"FailedAttempts\" BETWEEN 0 AND 5");
+
+                            t.HasCheckConstraint("CK_PhoneVerificationChallenge_Consumed", "NOT \"IsConsumed\" OR \"DeliveryState\" = 'Accepted'");
+
+                            t.HasCheckConstraint("CK_PhoneVerificationChallenge_Delivery", "\"DeliveryState\" IN ('Pending','Accepted','Failed')");
+
+                            t.HasCheckConstraint("CK_PhoneVerificationChallenge_Expiry", "\"CreatedUtcTicks\" >= 0 AND \"ExpiresUtcTicks\" - \"CreatedUtcTicks\" = 1200000000");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.PlatformAccount", b =>
                 {
                     b.Property<int>("Id")
@@ -913,6 +985,22 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasOne("DentalApi.Models.Patient", null)
                         .WithMany()
                         .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PhoneVerificationChallenge", b =>
+                {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "UserId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

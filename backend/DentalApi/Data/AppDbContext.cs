@@ -37,6 +37,7 @@ public class AppDbContext : DbContext
         base.OnModelCreating(b);
         AppointmentModelConfiguration.Configure(b, Database.IsSqlite());
         NotificationModelConfiguration.Configure(b);
+        PhoneVerificationModelConfiguration.Configure(b);
 
         // Preserve the TokenVersion default introduced by its SQLite migration
         // when rebuilding Users for its tenant alternate key.
