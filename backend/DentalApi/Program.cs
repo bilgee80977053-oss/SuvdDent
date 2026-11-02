@@ -53,6 +53,7 @@ else
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<IAppointmentEmailSender, SmtpAppointmentEmailSender>();
 builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();

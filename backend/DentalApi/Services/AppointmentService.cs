@@ -4,12 +4,14 @@ using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 
 namespace DentalApi.Services;
 
 public record AppointmentResult(int Status, object Data);
 
-public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy policy, TimeProvider clock)
+public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy policy, TimeProvider clock,
+    IAppointmentEmailSender? emailSender = null, ILogger<AppointmentService>? logger = null)
 {
     private static AppointmentResult Error(int status, string message) => new(status, new { message });
     private static AppointmentResult Conflict() => Error(409, "Сонгосон цаг боломжгүй эсвэл захиалга давхацлаа.");
@@ -153,8 +155,10 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
         try
         {
             await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
-            if (!await db.Users.AnyAsync(u => u.Id == user && u.ClinicId == clinic && u.IsActive && u.Role == Role.Patient &&
-                u.IsEmailVerified && u.Email != null && u.Email.Trim() != "")) return Error(403, "Баталгаажсан цахим шуудан шаардлагатай.");
+            var recipient = await db.Users.AsNoTracking().Where(u => u.Id == user && u.ClinicId == clinic &&
+                u.IsActive && u.Role == Role.Patient && u.IsEmailVerified && u.Email != null && u.Email.Trim() != "")
+                .Select(u => u.Email).SingleOrDefaultAsync();
+            if (string.IsNullOrWhiteSpace(recipient)) return Error(403, "Баталгаажсан цахим шуудан шаардлагатай.");
             var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
             if (patient is null) return Error(404, "Өвчтөний бүртгэл олдсонгүй.");
             validatedPatient = patient;
@@ -185,7 +189,24 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             };
             db.Appointments.Add(appointment);
             await db.SaveChangesAsync();
+            var clinicName = await db.Clinics.AsNoTracking().Where(c => c.Id == clinic)
+                .Select(c => c.Name).SingleAsync();
+            var serviceName = await db.Services.AsNoTracking().Where(s => s.ClinicId == clinic && s.Id == request.ServiceId)
+                .Select(s => s.Name).SingleAsync();
+            var doctorName = await Doctors(clinic).Where(d => d.Id == request.DoctorProfileId)
+                .Select(d => d.User.FullName).SingleAsync();
+            var notification = new AppointmentEmailNotification(appointment.Id, recipient,
+                clinicName, serviceName, doctorName, TimeZoneInfo.ConvertTime(slot.StartUtc, decision.TimeZone), decision.TimeZone.Id);
             await tx.CommitAsync();
+            if (emailSender is not null)
+            {
+                try { await emailSender.SendConfirmedAsync(notification); }
+                catch (Exception failure)
+                {
+                    // The booking is already committed: SMTP failure must not turn it into an apparent failed booking.
+                    logger?.LogWarning("Appointment email failed after commit ({FailureType}).", failure.GetType().Name);
+                }
+            }
             return new(201, Response(appointment));
         }
         catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true))

@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Data.Common;
 using System.Net;
 using System.Net.Http.Json;
@@ -5,6 +6,7 @@ using System.Text.Json;
 using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
+using DentalApi.Services;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
@@ -35,16 +37,30 @@ public sealed class AppointmentApiTests
             return ValueTask.FromResult(result);
         }
     }
+    private sealed class RecordingEmailSender : IAppointmentEmailSender
+    {
+        internal readonly ConcurrentQueue<AppointmentEmailNotification> Sent = new();
+        internal bool Fail;
+
+        public Task SendConfirmedAsync(AppointmentEmailNotification notification)
+        {
+            if (Fail) throw new InvalidOperationException("synthetic-notification-failure");
+            Sent.Enqueue(notification);
+            return Task.CompletedTask;
+        }
+    }
     private sealed class Factory : DoctorApiFactory
     {
         internal readonly FailCommit Failure = new();
         internal readonly Clock Time = new();
+        internal readonly RecordingEmailSender Mail = new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider>(Time);
+                services.RemoveAll<IAppointmentEmailSender>(); services.AddSingleton<IAppointmentEmailSender>(Mail);
                 services.AddDbContext<AppDbContext>(o => o.AddInterceptors(Failure));
             });
         }
@@ -105,6 +121,42 @@ public sealed class AppointmentApiTests
     {
         using var scope = app.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
+    }
+
+    [Fact]
+    public async Task Confirmation_email_is_prepared_once_for_new_booking_not_for_replay_or_conflict()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var request = Request(); var booked = await Book(client, request);
+
+        var mail = Assert.Single(app.Mail.Sent);
+        Assert.Equal(booked.Id, mail.AppointmentId);
+        Assert.Equal("user11@example.invalid", mail.Recipient);
+        Assert.Equal("Clinic A", mail.Clinic);
+        Assert.Equal("Synthetic treatment", mail.Service);
+        Assert.Equal("Synthetic user 13", mail.Doctor);
+        Assert.Equal("Asia/Ulaanbaatar", mail.TimeZoneId);
+        Assert.Equal(new DateTimeOffset(2026,11,2,9,15,0,TimeSpan.FromHours(8)), mail.LocalStart);
+
+        await AssertStatus(await client.PostAsJsonAsync(Url, request), HttpStatusCode.OK);
+        await AssertStatus(await client.PostAsJsonAsync(Url, request with {DoctorProfileId = 36}), HttpStatusCode.Conflict);
+        Assert.Single(app.Mail.Sent);
+        Assert.Equal(1, await Count(app));
+    }
+
+    [Fact]
+    public async Task Email_failure_after_commit_does_not_fail_booking_or_create_duplicate()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        app.Mail.Fail = true;
+        var request = Request();
+        await Book(client, request);
+        Assert.Equal(1, await Count(app));
+        Assert.Empty(app.Mail.Sent);
+        app.Mail.Fail = false;
+        await AssertStatus(await client.PostAsJsonAsync(Url, request), HttpStatusCode.OK);
+        Assert.Equal(1, await Count(app));
+        Assert.Empty(app.Mail.Sent);
     }
 
     [Fact]
@@ -318,6 +370,7 @@ public sealed class AppointmentApiTests
         Assert.DoesNotContain("synthetic-private", await failed.Content.ReadAsStringAsync());
         app.Failure.Enabled = false;
         Assert.Equal(0, await Count(app));
+        Assert.Empty(app.Mail.Sent);
         await Book(client);
     }
 
