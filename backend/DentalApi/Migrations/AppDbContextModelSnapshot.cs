@@ -327,6 +327,95 @@ namespace DentalApi.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DentalApi.Models.NotificationOutbox", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Attempts")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("DueUtcTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Event")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("NextAttemptUtcTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Recipient")
+                        .IsRequired()
+                        .HasMaxLength(320)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("SentUtcTicks")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("State")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("State", "NextAttemptUtcTicks");
+
+                    b.HasIndex("ClinicId", "AppointmentId", "Event", "Channel")
+                        .IsUnique();
+
+                    b.ToTable("NotificationOutbox", t =>
+                        {
+                            t.HasCheckConstraint("CK_NotificationOutbox_Attempts", "\"Attempts\" BETWEEN 0 AND 8");
+
+                            t.HasCheckConstraint("CK_NotificationOutbox_Channel", "\"Channel\" IN ('Email','Sms')");
+
+                            t.HasCheckConstraint("CK_NotificationOutbox_Event", "\"Event\" IN ('Confirmed','Cancelled','Reminder')");
+
+                            t.HasCheckConstraint("CK_NotificationOutbox_Reminder", "\"Event\" <> 'Reminder' OR \"Channel\" = 'Sms'");
+
+                            t.HasCheckConstraint("CK_NotificationOutbox_State", "\"State\" IN ('Pending','Sent','Suppressed','Failed')");
+                        });
+                });
+
+            modelBuilder.Entity("DentalApi.Models.NotificationPreference", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("EmailEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("SmsEnabled")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ClinicId", "UserId");
+
+                    b.ToTable("NotificationPreference");
+                });
+
             modelBuilder.Entity("DentalApi.Models.Patient", b =>
                 {
                     b.Property<int>("Id")
@@ -743,6 +832,28 @@ namespace DentalApi.Migrations
                     b.HasOne("DentalApi.Models.DoctorProfile", null)
                         .WithMany("WorkingHours")
                         .HasForeignKey("ClinicId", "DoctorProfileId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.NotificationOutbox", b =>
+                {
+                    b.HasOne("DentalApi.Models.Appointment", "Appointment")
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Appointment");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.NotificationPreference", b =>
+                {
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "UserId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

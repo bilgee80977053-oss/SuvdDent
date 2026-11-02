@@ -4,14 +4,12 @@ using DentalApi.Contracts;
 using DentalApi.Data;
 using DentalApi.Models;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.Logging;
 
 namespace DentalApi.Services;
 
 public record AppointmentResult(int Status, object Data);
 
-public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy policy, TimeProvider clock,
-    IAppointmentEmailSender? emailSender = null, ILogger<AppointmentService>? logger = null)
+public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy policy, TimeProvider clock)
 {
     private static AppointmentResult Error(int status, string message) => new(status, new { message });
     private static AppointmentResult Conflict() => Error(409, "Сонгосон цаг боломжгүй эсвэл захиалга давхацлаа.");
@@ -189,24 +187,10 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             };
             db.Appointments.Add(appointment);
             await db.SaveChangesAsync();
-            var clinicName = await db.Clinics.AsNoTracking().Where(c => c.Id == clinic)
-                .Select(c => c.Name).SingleAsync();
-            var serviceName = await db.Services.AsNoTracking().Where(s => s.ClinicId == clinic && s.Id == request.ServiceId)
-                .Select(s => s.Name).SingleAsync();
-            var doctorName = await Doctors(clinic).Where(d => d.Id == request.DoctorProfileId)
-                .Select(d => d.User.FullName).SingleAsync();
-            var notification = new AppointmentEmailNotification(appointment.Id, recipient,
-                clinicName, serviceName, doctorName, TimeZoneInfo.ConvertTime(slot.StartUtc, decision.TimeZone), decision.TimeZone.Id);
+            await NotificationQueue.EnqueueAsync(db, appointment, NotificationEvent.Confirmed, now);
+            await NotificationQueue.EnqueueAsync(db, appointment, NotificationEvent.Reminder, now);
+            await db.SaveChangesAsync();
             await tx.CommitAsync();
-            if (emailSender is not null)
-            {
-                try { await emailSender.SendConfirmedAsync(notification); }
-                catch (Exception failure)
-                {
-                    // The booking is already committed: SMTP failure must not turn it into an apparent failed booking.
-                    logger?.LogWarning("Appointment email failed after commit ({FailureType}).", failure.GetType().Name);
-                }
-            }
             return new(201, Response(appointment));
         }
         catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true))
@@ -224,6 +208,36 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
                 }
             }
             catch (Exception lookup) when (DatabaseCompatibility.IsConflict(lookup)) { }
+            return Conflict();
+        }
+    }
+
+    // Internal application operation only: no new HTTP contract in STEP 7.2A.
+    public async Task<AppointmentResult> Cancel(int clinic, int user, int id)
+    {
+        if (id <= 0) return Error(400, "Захиалгын дугаар буруу байна.");
+        try
+        {
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
+            var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
+            if (patient is null) return Error(404, "Захиалга олдсонгүй.");
+            var appointment = db.Database.IsNpgsql()
+                ? (await db.Appointments.FromSqlInterpolated($"""
+                    SELECT * FROM "Appointments" WHERE "ClinicId" = {clinic} AND "PatientId" = {patient.Value} AND "Id" = {id} FOR UPDATE
+                    """).ToListAsync()).SingleOrDefault()
+                : await db.Appointments.SingleOrDefaultAsync(a => a.ClinicId == clinic && a.PatientId == patient.Value && a.Id == id);
+            if (appointment is null) return Error(404, "Захиалга олдсонгүй.");
+            if (appointment.Status == AppointmentStatus.Cancelled) return new(200, Response(appointment));
+            if (appointment.StartUtc <= clock.GetUtcNow()) return Conflict();
+            appointment.Status = AppointmentStatus.Cancelled;
+            await NotificationQueue.EnqueueAsync(db, appointment, NotificationEvent.Cancelled, clock.GetUtcNow());
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return new(200, Response(appointment));
+        }
+        catch (Exception error) when (DatabaseCompatibility.IsConflict(error, sqliteUnique: true))
+        {
+            db.ChangeTracker.Clear();
             return Conflict();
         }
     }

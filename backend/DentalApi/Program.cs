@@ -53,7 +53,10 @@ else
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
-builder.Services.AddScoped<IAppointmentEmailSender, SmtpAppointmentEmailSender>();
+builder.Services.AddScoped<INotificationEmailSender, NotificationEmailSender>();
+builder.Services.AddHttpClient<ISmsSender, GatewaySmsSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
+builder.Services.AddScoped<NotificationProcessor>();
+builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();

@@ -119,7 +119,8 @@ public sealed class AppointmentPersistenceTests
         foreach (var table in tables) Assert.Equal(before[table], await Query(test.Connection, $"SELECT * FROM \"{table}\" ORDER BY rowid"));
         Assert.Equal(schema, await Query(test.Connection, schemaQuery));
         Assert.Empty(await test.Db.Appointments.ToArrayAsync());
-        Assert.Empty(await test.Db.Database.GetPendingMigrationsAsync());
+        Assert.Equal(test.Db.Database.GetMigrations().SkipWhile(m => m != test.Target).Skip(1),
+            await test.Db.Database.GetPendingMigrationsAsync());
         Assert.False(test.Db.Database.HasPendingModelChanges());
         Assert.Equal("[]", await Query(test.Connection, "PRAGMA foreign_key_check"));
         Assert.Equal("[[\"ok\"]]", await Query(test.Connection, "PRAGMA integrity_check"));

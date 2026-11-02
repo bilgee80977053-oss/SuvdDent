@@ -37,30 +37,20 @@ public sealed class AppointmentApiTests
             return ValueTask.FromResult(result);
         }
     }
-    private sealed class RecordingEmailSender : IAppointmentEmailSender
-    {
-        internal readonly ConcurrentQueue<AppointmentEmailNotification> Sent = new();
-        internal bool Fail;
-
-        public Task SendConfirmedAsync(AppointmentEmailNotification notification)
-        {
-            if (Fail) throw new InvalidOperationException("synthetic-notification-failure");
-            Sent.Enqueue(notification);
-            return Task.CompletedTask;
-        }
-    }
     private sealed class Factory : DoctorApiFactory
     {
         internal readonly FailCommit Failure = new();
         internal readonly Clock Time = new();
-        internal readonly RecordingEmailSender Mail = new();
+        internal readonly FakeNotificationEmailSender Mail = new();
+        internal readonly FakeSmsSender Sms = new();
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider>(Time);
-                services.RemoveAll<IAppointmentEmailSender>(); services.AddSingleton<IAppointmentEmailSender>(Mail);
+                services.RemoveAll<INotificationEmailSender>(); services.AddSingleton<INotificationEmailSender>(Mail);
+                services.RemoveAll<ISmsSender>(); services.AddSingleton<ISmsSender>(Sms);
                 services.AddDbContext<AppDbContext>(o => o.AddInterceptors(Failure));
             });
         }
@@ -77,6 +67,9 @@ public sealed class AppointmentApiTests
         await app.SeedAsync();
         await Mutate(app, async db =>
         {
+            var user = await db.Users.SingleAsync(u => u.Id == 11 && u.ClinicId == 101);
+            user.IsPhoneVerified = true;
+            db.Add(new NotificationPreference { ClinicId = 101, UserId = 11, EmailEnabled = true, SmsEnabled = true });
             var clinic = await db.Clinics.SingleAsync(c => c.Id == 101);
             clinic.CountryCode = "MN"; clinic.ProvinceOrCapitalCode = "11"; clinic.SoumOrDistrictCode = "1101";
             clinic.AddressLine = "Synthetic address"; clinic.TimeZoneId = "Asia/Ulaanbaatar";
@@ -123,42 +116,228 @@ public sealed class AppointmentApiTests
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
     }
 
+    private static async Task Drain(Factory app)
+    {
+        for (var i = 0; i < 20; i++)
+        {
+            using var scope = app.Services.CreateScope();
+            if (!await scope.ServiceProvider.GetRequiredService<NotificationProcessor>().ProcessOneAsync()) return;
+        }
+        throw new InvalidOperationException("Unexpected notification loop.");
+    }
+
+    private static async Task<NotificationOutbox[]> Outbox(Factory app)
+    {
+        using var scope = app.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Set<NotificationOutbox>()
+            .AsNoTracking().ToArrayAsync();
+    }
+
+    private static async Task<AppointmentResult> Cancel(Factory app, int id, int clinic = 101, int user = 11)
+    {
+        using var scope = app.Services.CreateScope();
+        return await scope.ServiceProvider.GetRequiredService<AppointmentService>().Cancel(clinic, user, id);
+    }
+
     [Fact]
-    public async Task Confirmation_email_is_prepared_once_for_new_booking_not_for_replay_or_conflict()
+    public async Task Confirmation_outbox_is_transactional_unique_and_sends_both_channels()
     {
         using var app = await App(); using var client = await app.AsAsync(11);
         var request = Request(); var booked = await Book(client, request);
-
-        var mail = Assert.Single(app.Mail.Sent);
-        Assert.Equal(booked.Id, mail.AppointmentId);
-        Assert.Equal("user11@example.invalid", mail.Recipient);
-        Assert.Equal("Clinic A", mail.Clinic);
-        Assert.Equal("Synthetic treatment", mail.Service);
-        Assert.Equal("Synthetic user 13", mail.Doctor);
-        Assert.Equal("Asia/Ulaanbaatar", mail.TimeZoneId);
-        Assert.Equal(new DateTimeOffset(2026,11,2,9,15,0,TimeSpan.FromHours(8)), mail.LocalStart);
-
+        Assert.Empty(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+        var rows = await Outbox(app);
+        Assert.Equal(3, rows.Length);
+        Assert.All(rows, x => Assert.Equal(booked.Id, x.AppointmentId));
+        var reminder = Assert.Single(rows, x => x.Event == NotificationEvent.Reminder);
+        Assert.Equal(booked.StartUtc.AddHours(-24).UtcTicks, reminder.DueUtcTicks);
         await AssertStatus(await client.PostAsJsonAsync(Url, request), HttpStatusCode.OK);
         await AssertStatus(await client.PostAsJsonAsync(Url, request with {DoctorProfileId = 36}), HttpStatusCode.Conflict);
-        Assert.Single(app.Mail.Sent);
-        Assert.Equal(1, await Count(app));
+        Assert.Equal(3, (await Outbox(app)).Length);
+        await Drain(app);
+        Assert.Equal("user11@example.invalid", Assert.Single(app.Mail.Sent).Recipient);
+        var sms = Assert.Single(app.Sms.Sent);
+        Assert.Equal("00000011", sms.Recipient);
+        Assert.Contains("Таны захиалга баталгаажлаа.\nДэлгэрэнгүй мэдээллийг харах бол\nапп руу нэвтэрнэ үү.", sms.Body);
+        Assert.Contains("2026-11-02 09:15 (Asia/Ulaanbaatar)", sms.Body);
+        await Drain(app);
+        Assert.Single(app.Mail.Sent); Assert.Single(app.Sms.Sent);
     }
 
     [Fact]
-    public async Task Email_failure_after_commit_does_not_fail_booking_or_create_duplicate()
+    public async Task Failed_transport_retries_with_stable_key_without_rebooking()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        app.Mail.Fail = true; app.Sms.Fail = true;
+        var request = Request(); await Book(client, request);
+        await Drain(app);
+        Assert.Empty(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+        Assert.Equal(2, (await Outbox(app)).Count(x => x.Attempts == 1));
+        await Drain(app); // backoff has not elapsed
+        Assert.Single(app.Mail.AttemptKeys);
+        app.Mail.Fail = false; app.Sms.Fail = false;
+        app.Time.Now = app.Time.Now.AddMinutes(1);
+        await Drain(app);
+        Assert.Single(app.Mail.Sent); Assert.Single(app.Sms.Sent);
+        Assert.Single(app.Mail.AttemptKeys.Distinct()); Assert.Single(app.Sms.AttemptKeys.Distinct());
+        await AssertStatus(await client.PostAsJsonAsync(Url, request), HttpStatusCode.OK);
+        Assert.Equal(1, await Count(app));
+        Assert.Equal(3, (await Outbox(app)).Length);
+    }
+
+    [Fact]
+    public async Task Successful_cancellation_queues_once_and_suppresses_confirmation_and_reminder()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        Assert.Equal(200, (await Cancel(app, booked.Id)).Status);
+        Assert.Equal(200, (await Cancel(app, booked.Id)).Status);
+        Assert.Equal(5, (await Outbox(app)).Length);
+        await Drain(app);
+        Assert.Contains("Таны захиалга амжилттай цуцлагдлаа.\nШинээр цаг захиалах бол\nманай аппыг ашиглана уу.", Assert.Single(app.Sms.Sent).Body);
+        Assert.Contains("2026-11-02 09:15", Assert.Single(app.Mail.Sent).Body);
+        app.Time.Now = booked.StartUtc.AddHours(-24);
+        await Drain(app);
+        Assert.Equal(3, (await Outbox(app)).Count(x => x.State == NotificationState.Suppressed));
+        Assert.Single(app.Sms.Sent);
+    }
+
+    [Fact]
+    public async Task Failed_or_foreign_cancellation_never_queues_notifications()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        Assert.Equal(404, (await Cancel(app, booked.Id, 202, 12)).Status);
+        Assert.Equal(404, (await Cancel(app, booked.Id, 101, 27)).Status);
+        Assert.Equal(404, (await Cancel(app, int.MaxValue)).Status);
+        app.Failure.Enabled = true;
+        Assert.Equal(409, (await Cancel(app, booked.Id)).Status);
+        app.Failure.Enabled = false;
+        Assert.DoesNotContain(await Outbox(app), x => x.Event == NotificationEvent.Cancelled);
+        await Mutate(app, async db => Assert.Equal(AppointmentStatus.Confirmed, (await db.Appointments.SingleAsync()).Status));
+    }
+
+    [Fact]
+    public async Task Reminder_sends_only_when_due()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client); await Drain(app);
+        app.Time.Now = booked.StartUtc.AddHours(-24).AddTicks(-1); await Drain(app);
+        Assert.Single(app.Sms.Sent);
+        app.Time.Now = booked.StartUtc.AddHours(-24); await Drain(app);
+        Assert.Equal(2, app.Sms.Sent.Count);
+        Assert.Contains("24 цагийн дараа", app.Sms.Sent.Last().Body);
+        await Drain(app); Assert.Equal(2, app.Sms.Sent.Count);
+    }
+
+    [Fact]
+    public async Task Overdue_reminder_is_suppressed_after_appointment_starts()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client); await Drain(app);
+        app.Time.Now = booked.StartUtc;
+        await Drain(app);
+        Assert.Single(app.Sms.Sent);
+        Assert.Equal(NotificationState.Suppressed,
+            Assert.Single(await Outbox(app), x => x.Event == NotificationEvent.Reminder).State);
+    }
+
+    [Fact]
+    public async Task Started_appointment_cannot_be_cancelled_or_queue_cancellation()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        app.Time.Now = booked.StartUtc;
+        Assert.Equal(409, (await Cancel(app, booked.Id)).Status);
+        Assert.DoesNotContain(await Outbox(app), x => x.Event == NotificationEvent.Cancelled);
+    }
+    [Fact]
+    public async Task Late_booking_has_no_twenty_four_hour_reminder()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        app.Time.Now = new(2026,11,2,0,0,0,TimeSpan.Zero);
+        await Book(client);
+        Assert.Equal(2, (await Outbox(app)).Length);
+        Assert.DoesNotContain(await Outbox(app), x => x.Event == NotificationEvent.Reminder);
+    }
+
+    [Theory]
+    [InlineData("optout")] [InlineData("unverified")] [InlineData("changed")] [InlineData("inactive")]
+    public async Task Delivery_rechecks_consent_contact_and_user(string scenario)
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        await Book(client);
+        await Mutate(app, async db =>
+        {
+            var user = await db.Users.SingleAsync(x => x.Id == 11);
+            if (scenario == "optout")
+            {
+                var consent = await db.Set<NotificationPreference>().SingleAsync();
+                consent.EmailEnabled = false; consent.SmsEnabled = false;
+            }
+            if (scenario == "unverified") { user.IsEmailVerified = false; user.IsPhoneVerified = false; }
+            if (scenario == "changed") { user.Email = "changed@example.invalid"; user.Phone = "99999999"; }
+            if (scenario == "inactive") user.IsActive = false;
+            await db.SaveChangesAsync();
+        });
+        app.Time.Now = app.Time.Now.AddHours(2);
+        await Drain(app);
+        Assert.Empty(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+        Assert.All(await Outbox(app), x => Assert.Equal(NotificationState.Suppressed, x.State));
+    }
+
+    [Theory]
+    [InlineData(false)] [InlineData(true)]
+    public async Task Queue_requires_consent_and_verified_phone(bool missingConsent)
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        await Mutate(app, async db =>
+        {
+            if (missingConsent) db.Remove(await db.Set<NotificationPreference>().SingleAsync());
+            else (await db.Users.SingleAsync(x => x.Id == 11)).IsPhoneVerified = false;
+            await db.SaveChangesAsync();
+        });
+        await Book(client);
+        var rows = await Outbox(app);
+        if (missingConsent) Assert.Empty(rows);
+        else Assert.Equal(NotificationChannel.Email, Assert.Single(rows).Channel);
+    }
+
+    [Fact]
+    public async Task Email_failure_does_not_block_sms_delivery()
     {
         using var app = await App(); using var client = await app.AsAsync(11);
         app.Mail.Fail = true;
-        var request = Request();
-        await Book(client, request);
-        Assert.Equal(1, await Count(app));
-        Assert.Empty(app.Mail.Sent);
-        app.Mail.Fail = false;
-        await AssertStatus(await client.PostAsJsonAsync(Url, request), HttpStatusCode.OK);
-        Assert.Equal(1, await Count(app));
-        Assert.Empty(app.Mail.Sent);
+        await Book(client); await Drain(app);
+        Assert.Empty(app.Mail.Sent); Assert.Single(app.Sms.Sent);
+        Assert.Equal(NotificationState.Pending, Assert.Single(await Outbox(app),
+            x => x.Event == NotificationEvent.Confirmed && x.Channel == NotificationChannel.Email).State);
+    }
+    [Fact]
+    public async Task Exhausted_delivery_stops_retrying()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        app.Mail.Fail = true; app.Sms.Fail = true;
+        await Book(client);
+        for (var i = 0; i < 8; i++)
+        {
+            await Drain(app);
+            app.Time.Now = app.Time.Now.AddHours(2);
+        }
+        var immediate = (await Outbox(app)).Where(x => x.Event == NotificationEvent.Confirmed).ToArray();
+        Assert.All(immediate, x => { Assert.Equal(NotificationState.Failed, x.State); Assert.Equal(8, x.Attempts); });
+        var attempts = app.Mail.AttemptKeys.Count;
+        await Drain(app); Assert.Equal(attempts, app.Mail.AttemptKeys.Count);
     }
 
+    [Fact]
+    public async Task Two_processors_do_not_deliver_the_same_record()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        await Book(client);
+        await Task.WhenAll(Task.Run(() => Drain(app)), Task.Run(() => Drain(app)));
+        Assert.Single(app.Mail.Sent); Assert.Single(app.Sms.Sent);
+        Assert.Equal(2, (await Outbox(app)).Count(x => x.State == NotificationState.Sent));
+    }
     [Fact]
     public async Task Valid_booking_uses_trusted_snapshots_and_UTC_and_is_readable_with_pagination()
     {
@@ -371,6 +550,7 @@ public sealed class AppointmentApiTests
         app.Failure.Enabled = false;
         Assert.Equal(0, await Count(app));
         Assert.Empty(app.Mail.Sent);
+        Assert.Empty(await Outbox(app));
         await Book(client);
     }
 

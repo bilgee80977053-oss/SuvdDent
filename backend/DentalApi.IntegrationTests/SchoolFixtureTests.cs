@@ -69,7 +69,7 @@ public sealed class SchoolFixtureTests
         await db.Database.MigrateAsync();
         var password = Convert.ToBase64String(RandomNumberGenerator.GetBytes(24));
         await SchoolData.SeedAsync(db, Guid.NewGuid(), password);
-        Assert.Equal(11, (await db.Database.GetAppliedMigrationsAsync()).Count());
+        Assert.Equal(db.Database.GetMigrations(), await db.Database.GetAppliedMigrationsAsync());
         Assert.Equal(3, await db.Users.CountAsync());
         var user = await db.Users.SingleAsync(u => u.Email == SchoolData.PatientEmail);
         Assert.True(user.IsActive && user.IsEmailVerified);
