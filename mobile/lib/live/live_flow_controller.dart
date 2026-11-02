@@ -68,6 +68,7 @@ class LiveFlowController extends ChangeNotifier {
   String? requestId;
   Appointment? appointment;
   AppointmentPage? history;
+  final Set<int> uncertainCancellations = {};
   String date = calendarDate(DateTime.now());
   LiveFlowController(this.api, {this.requestIdFactory = newRequestId}) {
     api.onUnauthorized = _unauthorized;
@@ -125,6 +126,7 @@ class LiveFlowController extends ChangeNotifier {
     requestId = null;
     appointment = null;
     history = null;
+    uncertainCancellations.clear();
     error = null;
     notice = null;
     profileMissing = false;
@@ -370,6 +372,87 @@ class LiveFlowController extends ChangeNotifier {
     final result = await api.appointments(page);
     if (!current()) return;
     history = result;
+  });
+  bool canCancel(Appointment value) =>
+      value.status == 'Confirmed' &&
+      value.startUtc.isAfter(DateTime.now().toUtc());
+
+  void _replaceAppointment(Appointment value) {
+    if (appointment?.id == value.id) appointment = value;
+    final items = history?.items;
+    if (items != null) {
+      final index = items.indexWhere((a) => a.id == value.id);
+      if (index >= 0) items[index] = value;
+    }
+  }
+
+  Future<void> _finishCancellation(
+    Appointment value,
+    bool Function() current,
+  ) async {
+    uncertainCancellations.remove(value.id);
+    _replaceAppointment(value);
+    notice = 'Таны захиалга амжилттай цуцлагдлаа.';
+    try {
+      final page = await api.appointments(
+        history?.page ?? 1,
+        pageSize: history?.pageSize ?? 20,
+      );
+      if (!current()) return;
+      history = page;
+      _replaceAppointment(value);
+    } on ApiFailure {
+      if (!current()) return;
+      error = 'Захиалга цуцлагдсан. Жагсаалтыг шинэчилж чадсангүй. Дахин шинэчилнэ үү.';
+    }
+  }
+
+  Future<void> _reconcileCancellation(int id, bool Function() current) async {
+    try {
+      final result = await api.appointment(id);
+      if (!current()) return;
+      _replaceAppointment(result);
+      if (result.status == 'Cancelled') {
+        await _finishCancellation(result, current);
+      } else {
+        // An earlier timed-out POST may still be in flight. A Confirmed GET
+        // does not establish failure, and never triggers an automatic POST.
+        notice = 'Цуцлалт баталгаажаагүй байна. Төлөвийг дахин шалгах эсвэл цуцлахыг дахин оролдоно уу.';
+      }
+    } on ApiFailure {
+      if (!current()) return;
+      error = 'Цуцлалтын үр дүн тодорхойгүй байна. Холболтоо шалгаад төлөвийг дахин шалгана уу.';
+    }
+  }
+
+  Future<void> reconcileCancellation(int id) => run((current) async {
+    if (!uncertainCancellations.contains(id)) return;
+    await _reconcileCancellation(id, current);
+  });
+
+  Future<void> cancelAppointment(Appointment value) => run((current) async {
+    if (!canCancel(value)) {
+      error = 'Энэ захиалгыг цуцлах боломжгүй.';
+      return;
+    }
+    try {
+      final result = await api.cancelAppointment(value.id);
+      if (!current()) return;
+      await _finishCancellation(result, current);
+    } on ApiFailure catch (failure) {
+      if (!current()) return;
+      if (failure.status != null &&
+          failure.status! >= 400 &&
+          failure.status! < 500) {
+        // A previous uncertain request can still finish independently.
+        error = failure.status == 409
+            ? 'Захиалгыг цуцлах боломжгүй болсон. Төлөвийг шинэчилнэ үү.'
+            : failure.message;
+        return;
+      }
+      uncertainCancellations.add(value.id);
+      await _reconcileCancellation(value.id, current);
+    }
   });
   void newBooking() {
     if (busy || uncertainBooking) return;

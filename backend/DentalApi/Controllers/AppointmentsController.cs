@@ -31,6 +31,10 @@ public sealed class AppointmentsController(AppointmentService appointments) : Co
             ? CreatedAtAction(nameof(Get), new { id = appointment.Id }, appointment) : Respond(result);
     }
 
+    [HttpPost("{id:int}/cancel")]
+    public async Task<IActionResult> Cancel(int id) =>
+        Respond(await appointments.Cancel(ClinicId, UserId, id));
+
     [HttpGet("me")]
     public async Task<IActionResult> Mine([FromQuery] int page = 1, [FromQuery] int pageSize = 20) =>
         Respond(await appointments.Read(ClinicId, UserId, null, page, pageSize));

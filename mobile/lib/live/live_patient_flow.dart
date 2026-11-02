@@ -16,6 +16,7 @@ class LivePatientFlow extends StatefulWidget {
 
 class _LivePatientFlowState extends State<LivePatientFlow> {
   late final LiveFlowController flow;
+  final historyScroll = ScrollController();
   final identifier = TextEditingController(),
       password = TextEditingController(),
       name = TextEditingController(),
@@ -67,6 +68,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   void dispose() {
     flow.removeListener(onChange);
     flow.dispose();
+    historyScroll.dispose();
     for (final c in [identifier, password, name, email, phone, code]) {
       c.dispose();
     }
@@ -462,6 +464,58 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ],
     ],
   );
+  Future<void> confirmCancellation(Appointment value) async {
+    final activeApi = flow.api;
+    final activeSession = flow.session;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Захиалга цуцлах уу?'),
+        content: Text(
+          '${local(value.startUtc, value.clinicTimeZoneId)}\nЭнэ захиалгыг цуцлахдаа итгэлтэй байна уу?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Буцах'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Тийм, цуцлах'),
+          ),
+        ],
+      ),
+    );
+    if (!mounted ||
+        confirmed != true ||
+        flow.api != activeApi ||
+        flow.session != activeSession ||
+        flow.busy) {
+      return;
+    }
+    // Bring loading/result feedback into view after confirming a card near the
+    // bottom of a long history page.
+    if (historyScroll.hasClients) historyScroll.jumpTo(0);
+    await flow.cancelAppointment(value);
+  }
+
+  Widget historyAppointment(Appointment value) => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      details(value),
+      if (flow.uncertainCancellations.contains(value.id)) ...[
+        const Text('Цуцлалтын үр дүнг шалгана уу.'),
+        button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
+      ],
+      if (flow.canCancel(value))
+        button(
+          flow.uncertainCancellations.contains(value.id)
+              ? 'Цуцлахыг дахин оролдох'
+              : 'Захиалга цуцлах',
+          () => confirmCancellation(value),
+        ),
+    ],
+  );
   Widget history() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -470,7 +524,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       if (flow.history != null) ...[
         Text('Хуудас ${flow.history!.page}'),
         if (flow.history!.items.isEmpty) empty('Энэ хуудсанд захиалга алга.'),
-        for (final a in flow.history!.items) details(a),
+        for (final a in flow.history!.items) historyAppointment(a),
         button(
           'Өмнөх хуудас',
           () => flow.loadAppointments(flow.history!.page - 1),
@@ -581,6 +635,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 760),
             child: ListView(
+              controller: historyScroll,
               key: ValueKey((flow.step, showHistory)),
               padding: EdgeInsets.all(
                 MediaQuery.sizeOf(context).width < 400 ? 16 : 24,

@@ -116,6 +116,95 @@ public sealed class AppointmentApiTests
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
     }
 
+    [Theory]
+    [InlineData(0, 401)] [InlineData(13, 403)] [InlineData(15, 403)] [InlineData(16, 403)]
+    public async Task Cancellation_HTTP_requires_authenticated_patient(int user, int expected)
+    {
+        using var app = await App();
+        using var client = user == 0 ? app.Client() : await app.AsAsync(user);
+        await AssertStatus(await client.PostAsync(Url + "/1/cancel", null), (HttpStatusCode)expected);
+        Assert.Empty(await Outbox(app));
+    }
+
+    [Fact]
+    public async Task Cancellation_HTTP_returns_existing_DTO_replays_and_queues_once()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        // Arbitrary body/query identities must not replace authenticated claims.
+        using var response = await client.PostAsJsonAsync(Url + "/" + booked.Id + "/cancel?clinicId=202&userId=12",
+            new { clinicId = 202, userId = 12, patientId = 42 });
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var cancelled = await response.Content.ReadFromJsonAsync<AppointmentResponse>();
+        Assert.Equal(booked with { Status = "Cancelled" }, cancelled);
+        using var retry = await client.PostAsync(Url + "/" + booked.Id + "/cancel", null);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal(cancelled, await retry.Content.ReadFromJsonAsync<AppointmentResponse>());
+        Assert.Equal(cancelled, await client.GetFromJsonAsync<AppointmentResponse>(Url + "/" + booked.Id));
+        var rows = await Outbox(app);
+        Assert.Equal(5, rows.Length);
+        var cancellation = rows.Where(x => x.Event == NotificationEvent.Cancelled).ToArray();
+        Assert.Equal(2, cancellation.Length);
+        Assert.Contains(cancellation, x => x.Channel == NotificationChannel.Email);
+        Assert.Contains(cancellation, x => x.Channel == NotificationChannel.Sms);
+        Assert.All(cancellation, x => { Assert.Equal(101, x.ClinicId); Assert.Equal(booked.Id, x.AppointmentId); });
+        Assert.Empty(app.Mail.Sent); Assert.Empty(app.Sms.Sent);
+    }
+
+    [Fact]
+    public async Task Cancellation_HTTP_enforces_owner_and_clinic_even_with_spoofed_identity()
+    {
+        using var app = await App(); using var owner = await app.AsAsync(11);
+        using var other = await app.AsAsync(27); using var foreign = await app.AsAsync(12, 202);
+        var booked = await Book(owner);
+        foreach (var client in new[] { other, foreign })
+            await AssertStatus(await client.PostAsJsonAsync(Url + "/" + booked.Id + "/cancel?clinicId=101&userId=11",
+                new { clinicId = 101, userId = 11, patientId = 41 }), HttpStatusCode.NotFound);
+        Assert.Equal(3, (await Outbox(app)).Length);
+        await Mutate(app, async db => Assert.Equal(AppointmentStatus.Confirmed, (await db.Appointments.SingleAsync()).Status));
+    }
+
+    [Fact]
+    public async Task Cancellation_HTTP_preserves_invalid_missing_started_and_rollback_results()
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        await AssertStatus(await client.PostAsync(Url + "/0/cancel", null), HttpStatusCode.BadRequest);
+        await AssertStatus(await client.PostAsync(Url + "/-1/cancel", null), HttpStatusCode.BadRequest);
+        await AssertStatus(await client.PostAsync(Url + "/2147483647/cancel", null), HttpStatusCode.NotFound);
+        var booked = await Book(client);
+        app.Failure.Enabled = true;
+        await AssertStatus(await client.PostAsync(Url + "/" + booked.Id + "/cancel", null), HttpStatusCode.Conflict);
+        app.Failure.Enabled = false;
+        app.Time.Now = booked.StartUtc;
+        await AssertStatus(await client.PostAsync(Url + "/" + booked.Id + "/cancel", null), HttpStatusCode.Conflict);
+        app.Time.Now = booked.StartUtc.AddMinutes(1);
+        await AssertStatus(await client.PostAsync(Url + "/" + booked.Id + "/cancel", null), HttpStatusCode.Conflict);
+        Assert.DoesNotContain(await Outbox(app), x => x.Event == NotificationEvent.Cancelled);
+    }
+
+    [Theory]
+    [InlineData("no-consent")] [InlineData("unverified")] [InlineData("email-only")]
+    public async Task Cancellation_HTTP_preserves_notification_consent_and_contact_rules(string scenario)
+    {
+        using var app = await App(); using var client = await app.AsAsync(11);
+        var booked = await Book(client);
+        await Mutate(app, async db =>
+        {
+            var preference = await db.Set<NotificationPreference>().SingleAsync();
+            if (scenario == "no-consent") db.Remove(preference);
+            if (scenario == "email-only") preference.SmsEnabled = false;
+            if (scenario == "unverified")
+            {
+                var user = await db.Users.SingleAsync(x => x.Id == 11);
+                user.IsEmailVerified = false; user.IsPhoneVerified = false;
+            }
+            await db.SaveChangesAsync();
+        });
+        await AssertStatus(await client.PostAsync(Url + "/" + booked.Id + "/cancel", null), HttpStatusCode.OK);
+        var rows = (await Outbox(app)).Where(x => x.Event == NotificationEvent.Cancelled).ToArray();
+        if (scenario == "email-only") Assert.Equal(NotificationChannel.Email, Assert.Single(rows).Channel);
+        else Assert.Empty(rows);
+    }
     private static async Task Drain(Factory app)
     {
         for (var i = 0; i < 20; i++)

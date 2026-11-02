@@ -228,6 +228,24 @@ class DentalApi {
       'requestId': requestId,
     },
   );
+  Future<Appointment> appointment(int id) =>
+      _request('GET', '/api/appointments/$id', (v) {
+        final result = Appointment.fromJson(object(v));
+        if (result.id != id) {
+          throw const ApiFailure('Захиалгын хариу буруу байна.');
+        }
+        return result;
+      });
+
+  Future<Appointment> cancelAppointment(int id) =>
+      _request('POST', '/api/appointments/$id/cancel', (v) {
+        final result = Appointment.fromJson(object(v));
+        if (result.id != id || result.status != 'Cancelled') {
+          throw const ApiFailure('Цуцлалтын хариу тодорхойгүй байна.');
+        }
+        return result;
+      });
+
   Future<AppointmentPage> appointments(int page, {int pageSize = 20}) =>
       _request(
         'GET',
