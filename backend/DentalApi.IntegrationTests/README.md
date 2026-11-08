@@ -99,3 +99,34 @@ replay/expiry/attempt limits and ClinicPatientLink tenant FKs. PlatformMigration
 checks both EF migration and generated SQL preserve legacy rows/schema/indexes/FKs.
 No public auto-link flow, real transport, real database or credential backfill exists.
 See ../DentalApi/PlatformAccountApi.md for configuration and deployment limitations.
+
+
+## Appointment booking phase 1
+
+AppointmentTests uses PlatformApiFactory with a separate in-memory database,
+synthetic verified accounts/clinics, the real Platform JWT service and middleware,
+and fake transport. It verifies consent, no matching-based legacy linking,
+transactional rollback, multiple clinic cards, snapshot retention, role/ownership,
+UTC timezone conversion, buffers, adjacency, idempotency and concurrent requests.
+AppointmentMigrationTests starts at AddPlatformAccounts with an existing synthetic
+link and rehearses both EF and generated SQL, checking old data/schema/sequences,
+new FK/CHECK/trigger presence, history and integrity. See ../DentalApi/AppointmentApi.md.
+
+## DEMO appointment notification outbox
+
+NotificationTests covers atomic Email/SMS intents, exact replay deduplication, failed
+bookings/outbox writes, provider failure and retry exhaustion, account/clinic FK
+isolation, unchanged public DTOs, retention and concurrent processing/lease recovery.
+NotificationMigrationTests rehearses EF and checked-in SQL on in-memory SQLite with
+an existing appointment, preserving old schema/data/sequences and overlap triggers.
+See ../DentalApi/AppointmentNotifications.md for opt-in processing and 24h cleanup.
+
+## Isolated university DEMO preparation
+
+DemoPreparationTests verifies exact fictional dataset counts, real Clinic/Platform
+JWT login, new bookings and replay deduplication, timezone-based future working
+days, path/no-overwrite guards, SMTP rejection and incomplete-schema startup refusal.
+Only brand-new uniquely named DEMO test databases under the OS temporary directory
+are provisioned. Existing development/production databases are never accessed.
+Artifacts are retained. See ../demo/README.md for preparation, private DPAPI settings
+and startup without automatic migrations or the legacy seeder.

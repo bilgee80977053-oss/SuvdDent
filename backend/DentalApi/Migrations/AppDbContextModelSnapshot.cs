@@ -17,6 +17,187 @@ namespace DentalApi.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "10.0.13");
 
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferAfterMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("BufferBeforeMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("ClinicVersionSnapshot")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("DoctorNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DoctorProfileId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("DoctorVersionSnapshot")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DurationMinutesSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("EndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("IdempotencyKey")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long?>("MaxPriceSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("MinPriceSnapshot")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OccupiedEndUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("OccupiedStartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("PatientCreationConsentAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("PatientCreationConsentVersion")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PatientId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PlatformAccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("RequestHash")
+                        .IsRequired()
+                        .HasMaxLength(64)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ServiceNameSnapshot")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("StartUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TimeZoneIdSnapshot")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ServiceId");
+
+                    b.HasIndex("PlatformAccountId", "IdempotencyKey")
+                        .IsUnique();
+
+                    b.HasIndex("ClinicId", "PatientId", "PlatformAccountId");
+
+                    b.HasIndex("PlatformAccountId", "Status", "StartUtc");
+
+                    b.HasIndex("ClinicId", "DoctorProfileId", "Status", "OccupiedStartUtc");
+
+                    b.ToTable("Appointments", t =>
+                        {
+                            t.HasCheckConstraint("CK_Appointments_Snapshot", "\"Status\" IN ('Confirmed','Cancelled') AND \"StartUtc\" >= 0 AND \"StartUtc\" < \"EndUtc\" AND \"OccupiedStartUtc\" >= 0 AND \"OccupiedStartUtc\" <= \"StartUtc\" AND \"OccupiedEndUtc\" >= \"EndUtc\" AND \"OccupiedEndUtc\" <= 3155378975999999999 AND \"DurationMinutesSnapshot\" > 0 AND \"BufferBeforeMinutesSnapshot\" >= 0 AND \"BufferAfterMinutesSnapshot\" >= 0 AND \"DurationMinutesSnapshot\" + \"BufferBeforeMinutesSnapshot\" + \"BufferAfterMinutesSnapshot\" <= 1440 AND \"EndUtc\" - \"StartUtc\" = \"DurationMinutesSnapshot\" * 600000000 AND \"StartUtc\" - \"OccupiedStartUtc\" = \"BufferBeforeMinutesSnapshot\" * 600000000 AND \"OccupiedEndUtc\" - \"EndUtc\" = \"BufferAfterMinutesSnapshot\" * 600000000 AND \"TimeZoneIdSnapshot\" IN ('Asia/Ulaanbaatar','Asia/Hovd')");
+                        });
+                });
+
+            modelBuilder.Entity("DentalApi.Models.AppointmentNotification", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AttemptCount")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Body")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Channel")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("LastErrorCode")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("LeaseExpiresAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<Guid?>("LeaseToken")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Mode")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("NextAttemptAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PlatformAccountId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime?>("ProcessedAtUtc")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("Subject")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("TemplateVersion")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CreatedAtUtc");
+
+                    b.HasIndex("AppointmentId", "Channel")
+                        .IsUnique();
+
+                    b.HasIndex("Status", "NextAttemptAtUtc");
+
+                    b.HasIndex("ClinicId", "PlatformAccountId", "AppointmentId");
+
+                    b.ToTable("AppointmentNotificationOutbox", null, t =>
+                        {
+                            t.HasCheckConstraint("CK_AppointmentNotificationOutbox_State", "\"Mode\" = 'Demo' AND \"Channel\" IN ('Email','Sms') AND \"Status\" IN ('Pending','Processing','DemoGenerated','Failed') AND \"AttemptCount\" BETWEEN 0 AND 3 AND ((\"Status\" = 'Processing' AND \"LeaseToken\" IS NOT NULL AND \"LeaseExpiresAtUtc\" IS NOT NULL) OR (\"Status\" <> 'Processing' AND \"LeaseToken\" IS NULL AND \"LeaseExpiresAtUtc\" IS NULL))");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>
                 {
                     b.Property<int>("Id")
@@ -560,6 +741,40 @@ namespace DentalApi.Migrations
                     b.HasIndex("UserId");
 
                     b.ToTable("VerificationCodes");
+                });
+
+            modelBuilder.Entity("DentalApi.Models.Appointment", b =>
+                {
+                    b.HasOne("DentalApi.Models.DoctorProfile", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.ClinicPatientLink", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PatientId", "PlatformAccountId")
+                        .HasPrincipalKey("ClinicId", "PatientId", "PlatformAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.AppointmentNotification", b =>
+                {
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "PlatformAccountId", "AppointmentId")
+                        .HasPrincipalKey("ClinicId", "PlatformAccountId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>

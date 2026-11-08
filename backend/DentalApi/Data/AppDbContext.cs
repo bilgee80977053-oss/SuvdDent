@@ -30,6 +30,9 @@ public class AppDbContext(
     public DbSet<PlatformVerificationCode> PlatformVerificationCodes => Set<PlatformVerificationCode>();
     public DbSet<ClinicPatientLink> ClinicPatientLinks => Set<ClinicPatientLink>();
 
+    public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<AppointmentNotification> AppointmentNotificationOutbox => Set<AppointmentNotification>();
+
     protected override void OnModelCreating(ModelBuilder b)
     {
         base.OnModelCreating(b);
@@ -161,5 +164,47 @@ public class AppDbContext(
             .HasPrincipalKey(x => new { x.ClinicId, x.Id }).OnDelete(DeleteBehavior.Restrict);
         b.Entity<ClinicPatientLink>().HasIndex(x => new { x.PlatformAccountId, x.ClinicId }).IsUnique();
         b.Entity<ClinicPatientLink>().HasIndex(x => new { x.ClinicId, x.PatientId }).IsUnique();
+        b.Entity<Appointment>().HasOne<DoctorProfile>().WithMany()
+            .HasForeignKey(x => new { x.ClinicId, x.DoctorProfileId })
+            .HasPrincipalKey(x => new { x.ClinicId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Appointment>().HasOne<Service>().WithMany()
+            .HasForeignKey(x => new { x.ClinicId, x.ServiceId })
+            .HasPrincipalKey(x => new { x.ClinicId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Appointment>().HasOne<ClinicPatientLink>().WithMany()
+            .HasForeignKey(x => new { x.ClinicId, x.PatientId, x.PlatformAccountId })
+            .HasPrincipalKey(x => new { x.ClinicId, x.PatientId, x.PlatformAccountId }).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<Appointment>().HasAlternateKey(x => new { x.ClinicId, x.PlatformAccountId, x.Id });
+        b.Entity<AppointmentNotification>().ToTable("AppointmentNotificationOutbox", t =>
+        {
+            t.HasCheckConstraint("CK_AppointmentNotificationOutbox_State",
+                "\"Mode\" = 'Demo' AND \"Channel\" IN ('Email','Sms') AND " +
+                "\"Status\" IN ('Pending','Processing','DemoGenerated','Failed') AND \"AttemptCount\" BETWEEN 0 AND 3 AND " +
+                "((\"Status\" = 'Processing' AND \"LeaseToken\" IS NOT NULL AND \"LeaseExpiresAtUtc\" IS NOT NULL) OR " +
+                "(\"Status\" <> 'Processing' AND \"LeaseToken\" IS NULL AND \"LeaseExpiresAtUtc\" IS NULL))");
+        });
+        b.Entity<AppointmentNotification>().HasOne<Appointment>().WithMany()
+            .HasForeignKey(x => new { x.ClinicId, x.PlatformAccountId, x.AppointmentId })
+            .HasPrincipalKey(x => new { x.ClinicId, x.PlatformAccountId, x.Id }).OnDelete(DeleteBehavior.Restrict);
+        b.Entity<AppointmentNotification>().HasIndex(x => new { x.AppointmentId, x.Channel }).IsUnique();
+        b.Entity<AppointmentNotification>().HasIndex(x => new { x.Status, x.NextAttemptAtUtc });
+        b.Entity<AppointmentNotification>().HasIndex(x => x.CreatedAtUtc);
+        b.Entity<Appointment>().Property(x => x.Status).HasConversion<string>();
+        b.Entity<Appointment>().HasIndex(x => new { x.PlatformAccountId, x.IdempotencyKey }).IsUnique();
+        b.Entity<Appointment>().HasIndex(x => new { x.ClinicId, x.DoctorProfileId, x.Status, x.OccupiedStartUtc });
+        b.Entity<Appointment>().HasIndex(x => new { x.PlatformAccountId, x.Status, x.StartUtc });
+        foreach (var property in new[] { nameof(Appointment.StartUtc), nameof(Appointment.EndUtc),
+            nameof(Appointment.OccupiedStartUtc), nameof(Appointment.OccupiedEndUtc) })
+            b.Entity<Appointment>().Property<DateTimeOffset>(property)
+                .HasConversion(x => x.UtcDateTime.Ticks, x => new DateTimeOffset(x, TimeSpan.Zero));
+        b.Entity<Appointment>().Property(x => x.RequestHash).HasMaxLength(64);
+        b.Entity<Appointment>().ToTable(t => t.HasCheckConstraint("CK_Appointments_Snapshot",
+            "\"Status\" IN ('Confirmed','Cancelled') AND \"StartUtc\" >= 0 AND \"StartUtc\" < \"EndUtc\" AND " +
+            "\"OccupiedStartUtc\" >= 0 AND \"OccupiedStartUtc\" <= \"StartUtc\" AND \"OccupiedEndUtc\" >= \"EndUtc\" AND \"OccupiedEndUtc\" <= 3155378975999999999 AND " +
+            "\"DurationMinutesSnapshot\" > 0 AND \"BufferBeforeMinutesSnapshot\" >= 0 AND \"BufferAfterMinutesSnapshot\" >= 0 AND " +
+            "\"DurationMinutesSnapshot\" + \"BufferBeforeMinutesSnapshot\" + \"BufferAfterMinutesSnapshot\" <= 1440 AND " +
+            "\"EndUtc\" - \"StartUtc\" = \"DurationMinutesSnapshot\" * 600000000 AND " +
+            "\"StartUtc\" - \"OccupiedStartUtc\" = \"BufferBeforeMinutesSnapshot\" * 600000000 AND " +
+            "\"OccupiedEndUtc\" - \"EndUtc\" = \"BufferAfterMinutesSnapshot\" * 600000000 AND " +
+            "\"TimeZoneIdSnapshot\" IN ('Asia/Ulaanbaatar','Asia/Hovd')"));
     }
 }
