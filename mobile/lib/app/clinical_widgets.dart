@@ -316,6 +316,107 @@ class ClinicalChoiceCard extends StatelessWidget {
   );
 }
 
+/// A two-week date grid based on today's device calendar. Server-side
+/// availability still validates the clinic's timezone and allowable horizon.
+class ClinicalCalendarPicker extends StatelessWidget {
+  const ClinicalCalendarPicker({
+    super.key,
+    required this.selectedDate,
+    required this.onSelected,
+    this.enabled = true,
+  });
+
+  final DateTime selectedDate;
+  final ValueChanged<DateTime> onSelected;
+  final bool enabled;
+
+  static const _weekdays = ['Да', 'Мя', 'Лх', 'Пү', 'Ба', 'Бя', 'Ня'];
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final monday = today.subtract(Duration(days: today.weekday - 1));
+    final last = today.add(const Duration(days: 30));
+    final selected = DateTime(
+        selectedDate.year, selectedDate.month, selectedDate.day);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              '${selected.year} оны ${selected.month}-р сар',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            const SizedBox(height: 18),
+            Row(
+              children: [
+                for (final label in _weekdays)
+                  Expanded(
+                    child: Center(
+                      child: Text(label,
+                          style: const TextStyle(
+                              color: AppColors.muted,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600)),
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: 14,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 8,
+                crossAxisSpacing: 5,
+                childAspectRatio: 1,
+              ),
+              itemBuilder: (context, index) {
+                final date = monday.add(Duration(days: index));
+                final selectable = enabled &&
+                    !date.isBefore(today) &&
+                    !date.isAfter(last);
+                final isSelected = date == selected;
+                return Semantics(
+                  selected: isSelected,
+                  button: true,
+                  label: '${date.year}-${date.month}-${date.day}',
+                  child: Material(
+                    color: isSelected ? AppColors.navy : AppColors.paper,
+                    borderRadius: BorderRadius.circular(11),
+                    child: InkWell(
+                      onTap: selectable ? () => onSelected(date) : null,
+                      borderRadius: BorderRadius.circular(11),
+                      child: Center(
+                        child: Text(
+                          '${date.day}',
+                          style: TextStyle(
+                            fontWeight: isSelected
+                                ? FontWeight.w800
+                                : FontWeight.w500,
+                            color: isSelected
+                                ? Colors.white
+                                : selectable ? AppColors.ink : AppColors.muted,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class ClinicalInfoPanel extends StatelessWidget {
   const ClinicalInfoPanel({
     super.key,
