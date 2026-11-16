@@ -317,8 +317,9 @@ void main() {
       );
       await press('Нэвтрэх');
       await press('Миний профайлыг авах');
+      // Clinical Premium uses an outlined secondary action on the profile.
       final profileSettings = find.widgetWithText(
-        FilledButton,
+        OutlinedButton,
         'Мэдэгдлийн тохиргоо',
       );
       await tester.ensureVisible(profileSettings);
