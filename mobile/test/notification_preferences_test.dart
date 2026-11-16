@@ -306,7 +306,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await press('Энэ эмнэлгээр үргэлжлүүлэх');
+      await press('Цаг сонгох');
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'synthetic@example.invalid',
