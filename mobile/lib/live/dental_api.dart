@@ -243,6 +243,13 @@ class DentalApi {
       'requestId': requestId,
     },
   );
+  Future<PaymentEstimate> paymentEstimate(int appointmentId) =>
+      _request(
+        'GET',
+        '/api/appointments/$appointmentId/payment-estimate',
+        (v) => PaymentEstimate.fromJson(object(v)),
+      );
+
   Future<Appointment> appointment(int id) =>
       _request('GET', '/api/appointments/$id', (v) {
         final result = Appointment.fromJson(object(v));
