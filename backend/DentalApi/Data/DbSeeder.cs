@@ -16,7 +16,12 @@ public static class DbSeeder
 
         using var transaction = db.Database.BeginTransaction();
 
-        var clinic = new Clinic { Name = "Сувд дент", WorkHours = "08:00-18:00" };
+        // Do not claim unverified opening hours in a LIVE clinic record.
+        var clinic = new Clinic
+        {
+            Name = includeSampleServices ? "Сувд дент" : "Suvd Dent",
+            WorkHours = includeSampleServices ? "08:00-18:00" : null
+        };
         db.Clinics.Add(clinic);
         db.SaveChanges();
 
@@ -33,17 +38,17 @@ public static class DbSeeder
         // prices. Direct legacy test fixtures can still explicitly opt in.
         if (includeSampleServices)
         {
-        db.Services.AddRange(
-            new Service {
+            db.Services.AddRange(
+                new Service {
                 ClinicId = clinic.Id, Name = "Ломбо",
                 Description = "Цоорсон шүдийг нөхөж, шүдний хэлбэр, үйл ажиллагааг сэргээх эмчилгээ.",
                 MinPrice = 95000, MaxPrice = 210000 },
-            new Service {
+                new Service {
                 ClinicId = clinic.Id, Name = "Шүд авалт",
                 Description = "Эмчилгээгээр аврах боломжгүй шүдийг эрүүнээс авах мэс засал.",
                 MinPrice = 50000,
                 AftercareText = "Марльыг 20 минут тасралтгүй зуу. 2 цагийн дараа хоол идэнэ. Халуун хоол, тамхи, архинаас 1-2 хоног зайлсхий." },
-            new Service {
+                new Service {
                 ClinicId = clinic.Id, Name = "Цайруулалт",
                 Description = "Шүдний өнгийг цайруулах үйлчилгээ.",
                 MinPrice = 300000, MaxPrice = 300000 });
