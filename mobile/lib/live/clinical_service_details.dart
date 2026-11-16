@@ -65,6 +65,15 @@ class ClinicalServiceDetails {
                   Text(content.summary,
                       style: const TextStyle(color: AppColors.muted,
                           fontSize: 14, height: 1.55)),
+                  if (service != null &&
+                      service.description.trim().isNotEmpty) ...[
+                    const SizedBox(height: 15),
+                    _CompactInfo(
+                      icon: Icons.info_outline,
+                      heading: 'Эмнэлгийн үйлчилгээний тайлбар',
+                      text: service.description,
+                    ),
+                  ],
                   const SizedBox(height: 17),
                   _PricePanel(service: service),
                   const SizedBox(height: 20),
@@ -78,6 +87,15 @@ class ClinicalServiceDetails {
                   const SizedBox(height: 11),
                   _CompactInfo(icon: Icons.health_and_safety_outlined,
                       heading: 'Дараах арчилгаа', text: content.aftercare),
+                  if (service?.aftercareText != null &&
+                      service!.aftercareText!.trim().isNotEmpty) ...[
+                    const SizedBox(height: 11),
+                    _CompactInfo(
+                      icon: Icons.medical_information_outlined,
+                      heading: 'Suvd Dent-ийн дараах арчилгааны заавар',
+                      text: service.aftercareText!,
+                    ),
+                  ],
                   const SizedBox(height: 11),
                   _CompactInfo(icon: Icons.payments_outlined,
                       heading: 'Үнэ юунаас хамаарах вэ?', text: content.priceFactors),
