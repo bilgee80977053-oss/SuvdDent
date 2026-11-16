@@ -128,6 +128,21 @@ abstract final class DentalKnowledge {
     ),
   ];
 
+  static const otherProcedure = DentalProcedure(
+    name: 'Эмчийн зөвлөгөө шаардлагатай үйлчилгээ',
+    summary: 'Эмнэлгийн каталогоос ирсэн үйлчилгээ. '
+        'Тодорхой ажилбарын дэлгэрэнгүйг эмчээс лавлана уу.',
+    steps: [
+      'Эмчээр шүд, буйлны байдлыг үнэлүүлнэ',
+      'Эмчилгээний арга, сонголтыг тайлбарлуулна',
+      'Материал, эрсдэл, хугацааг тодруулна',
+      'Төлбөр болон дараах арчилгааны зааврыг авна',
+    ],
+    whenUseful: 'Эмнэлэгт бүртгэлтэй үйлчилгээний дэлгэрэнгүй тодорхойгүй үед.',
+    aftercare: 'Үйлчилгээний дараах зааврыг үзлэгээр эмч өгнө.',
+    priceFactors: 'Эмчилгээний төрөл, материал, оношилгооны шаардлагаас хамаарна.',
+  );
+
   static DentalProcedure forService(String name) {
     final s = name.toLowerCase();
     if (s.contains('агт')) return overview[5];
@@ -141,6 +156,7 @@ abstract final class DentalKnowledge {
     if (s.contains('ломбо') || s.contains('цоор') || s.contains('эмчил')) return overview[2];
     if (s.contains('ав') || s.contains('сугал')) return overview[4];
     if (s.contains('цэвэр') || s.contains('чулуу') || s.contains('өнгөр')) return overview[1];
-    return overview[0];
+    if (s.contains('үзлэг') || s.contains('онош')) return overview[0];
+    return otherProcedure;
   }
 }
