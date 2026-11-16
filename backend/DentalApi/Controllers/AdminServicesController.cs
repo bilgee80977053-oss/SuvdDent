@@ -53,6 +53,17 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         return Ok(rows.Select(Response));
     }
 
+    [HttpGet("{serviceId:int}")]
+    public async Task<IActionResult> Read(
+        int serviceId, CancellationToken cancellationToken)
+    {
+        if (serviceId <= 0) return BadRequest();
+        var row = await db.Services.AsNoTracking().SingleOrDefaultAsync(
+            s => s.Id == serviceId && s.ClinicId == ClinicId,
+            cancellationToken);
+        return row is null ? NotFound() : Ok(Response(row));
+    }
+
     [HttpPost]
     public async Task<IActionResult> Create(
         ServiceInput input, CancellationToken cancellationToken)
@@ -77,7 +88,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         };
         db.Services.Add(row);
         await db.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(List), new { }, Response(row));
+        return CreatedAtAction(nameof(Read), new { serviceId = row.Id }, Response(row));
     }
 
     [HttpPut("{serviceId:int}")]
