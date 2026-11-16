@@ -11,7 +11,7 @@ class NexoraDentalApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Nexora Dental',
+    title: 'Suvd Dent | NEXORA',
     debugShowCheckedModeBanner: false,
     theme: AppTheme.light,
     home: !settings.isLive
