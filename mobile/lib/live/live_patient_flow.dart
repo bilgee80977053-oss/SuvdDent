@@ -673,6 +673,116 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     6 => slots(),
     _ => bookingReview(),
   };
+  void openHistory() {
+    if (flow.busy || flow.session == null) return;
+    setState(() => showHistory = true);
+    flow.loadAppointments(1);
+  }
+
+  void goToBooking() {
+    if (flow.busy || flow.uncertainBooking) return;
+    setState(() => showHistory = false);
+    if (flow.session == null) {
+      if (flow.step == 0) flow.enterClinic();
+    } else if (flow.step < 3) {
+      flow.loadProfile();
+    } else if (flow.step == 3) {
+      flow.loadServices();
+    } else if (flow.appointment != null) {
+      flow.newBooking();
+    } else if (flow.step > 4) {
+      flow.loadServices();
+    }
+  }
+
+  Widget pageContent() {
+    if (showHistory) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const ClinicalPageIntro(
+            eyebrow: 'Өмнөх болон удахгүй болох захиалгууд',
+            title: 'Миний захиалгууд',
+            titleKey: ValueKey('screen-title'),
+          ),
+          const SizedBox(height: 25),
+          history(),
+        ],
+      );
+    }
+    if (flow.step == 0) return home();
+    const bookingTitles = {
+      4: 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?',
+      5: 'Танд санал болгох эмч\nнар',
+      6: 'Та өөрт тохирох өдрөө\nсонгоорой',
+      7: 'Таны захиалгын\nмэдээлэл',
+    };
+    const bookingEyebrows = {
+      4: 'АЛХАМ 01 / 04    •    Үйлчилгээ',
+      5: 'АЛХАМ 02 / 04    •    Эмч',
+      6: 'АЛХАМ 03 / 04    •    Боломжит цаг',
+      7: 'АЛХАМ 04 / 04    •    Баталгаажуулалт',
+    };
+    final isBooking = flow.step >= 4;
+    final title = flow.step == 2 && flow.session != null
+        ? 'Нэвтрэлт амжилттай'
+        : titles[flow.step];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClinicalPageIntro(
+          eyebrow: bookingEyebrows[flow.step] ??
+              'NEXORA DENTAL  •  НЭВТРЭЛТ',
+          title: bookingTitles[flow.step] ?? title,
+          titleKey: const ValueKey('screen-title'),
+          description: isBooking ? null : stepHint,
+          progress: isBooking ? (flow.step - 3) / 4 : null,
+        ),
+        if (isBooking && (flow.service != null || flow.doctor != null)) ...[
+          const SizedBox(height: 18),
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (flow.service != null)
+                    Text(
+                      'Сонгосон үйлчилгээ: ${LiveLabels.serviceName(flow.service!)}',
+                    ),
+                  if (flow.doctor != null)
+                    Text(
+                      'Сонгосон эмч: ${LiveLabels.doctorName(flow.doctor!)}',
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ],
+        const SizedBox(height: 24),
+        if (flow.busy) ...[
+          const LinearProgressIndicator(semanticsLabel: 'Ачаалж байна'),
+          const SizedBox(height: 10),
+          const Text('Мэдээллийг ачаалж байна…'),
+        ],
+        if (flow.error != null)
+          Semantics(
+            liveRegion: true,
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 16),
+              child: Text(
+                flow.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+            ),
+          ),
+        if (flow.notice != null)
+          Semantics(liveRegion: true, child: Text(flow.notice!)),
+        screen(),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) => PopScope(
     canPop: !showHistory && flow.step == 0,
@@ -686,24 +796,15 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       }
     },
     child: Scaffold(
-      appBar: AppBar(
-        title: const Text(
-          'NEXORA DENTAL',
-          style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800),
-        ),
-        leading: showHistory || flow.step > 0
-            ? IconButton(
-                tooltip: 'Буцах',
-                onPressed: showHistory
-                    ? () => setState(() => showHistory = false)
-                    : !flow.busy &&
-                          !flow.uncertainBooking &&
-                          flow.appointment == null
-                    ? flow.back
-                    : null,
-                icon: const Icon(Icons.arrow_back),
-              )
-            : null,
+      appBar: ClinicalHeader(
+        onBack: showHistory
+            ? () => setState(() => showHistory = false)
+            : flow.step > 0 &&
+                    !flow.busy &&
+                    !flow.uncertainBooking &&
+                    flow.appointment == null
+                ? flow.back
+                : null,
         actions: [
           if (flow.session != null)
             IconButton(
@@ -714,13 +815,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           if (flow.session != null)
             IconButton(
               tooltip: 'Миний захиалгууд',
-              onPressed: flow.busy
-                  ? null
-                  : () {
-                      setState(() => showHistory = true);
-                      flow.loadAppointments(1);
-                    },
-              icon: const Icon(Icons.event_note),
+              onPressed: flow.busy ? null : openHistory,
+              icon: const Icon(Icons.event_note_outlined),
             ),
           if (flow.step > 0)
             IconButton(
@@ -737,111 +833,41 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             child: ListView(
               controller: historyScroll,
               key: ValueKey((flow.step, showHistory)),
-              padding: EdgeInsets.all(
+              padding: EdgeInsets.fromLTRB(
                 MediaQuery.sizeOf(context).width < 400 ? 16 : 24,
+                24,
+                MediaQuery.sizeOf(context).width < 400 ? 16 : 24,
+                30,
               ),
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(14),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primaryContainer,
-                    borderRadius: BorderRadius.circular(14),
-                  ),
-                  child: const Text(
-                    'Онлайн захиалга · Туршилтын эмнэлэг',
-                    style: TextStyle(fontWeight: FontWeight.bold),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                const Text(
-                  'Нэвтрэлт зөвхөн санах ойд хадгалагдана. Апп дахин эхлэхэд дахин нэвтэрнэ.',
-                ),
-                const SizedBox(height: 20),
-                if (!showHistory) ...[
-                  Text(
-                    'АЛХАМ ${flow.step + 1} / 8',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.primary,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  LinearProgressIndicator(
-                    value: (flow.step + 1) / 8,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Text(
-                  showHistory
-                      ? 'Миний захиалгууд'
-                      : flow.step == 2 && flow.session != null
-                      ? 'Нэвтрэлт амжилттай'
-                      : titles[flow.step],
-                  key: const ValueKey('screen-title'),
-                  style: Theme.of(context).textTheme.headlineMedium,
-                ),
-                const SizedBox(height: 12),
-                if (!showHistory) ...[
-                  Text(stepHint),
-                  if (flow.step >= 4 &&
-                      (flow.service != null || flow.doctor != null))
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: InformationCard(
-                        children: [
-                          if (flow.service != null)
-                            Text(
-                              'Сонгосон үйлчилгээ: ${LiveLabels.serviceName(flow.service!)}',
-                            ),
-                          if (flow.doctor != null)
-                            Text(
-                              'Сонгосон эмч: ${LiveLabels.doctorName(flow.doctor!)}',
-                            ),
-                        ],
-                      ),
-                    ),
-                ],
-                const SizedBox(height: 16),
-                if (flow.busy)
-                  const Column(
-                    children: [
-                      LinearProgressIndicator(semanticsLabel: 'Ачаалж байна'),
-                      Text('Мэдээллийг ачаалж байна…'),
-                    ],
-                  ),
-                if (flow.error != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(
-                        flow.error!,
-                        style: TextStyle(
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                      ),
-                    ),
-                  ),
-                if (flow.notice != null)
-                  Semantics(
-                    liveRegion: true,
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Text(flow.notice!),
-                    ),
-                  ),
-                if (showHistory && flow.session != null)
-                  history()
-                else
-                  screen(),
-              ],
+              children: [pageContent()],
             ),
           ),
         ),
       ),
+      bottomNavigationBar: ClinicalNavigation(
+        activeIndex: showHistory ? 2 : flow.step == 0 ? 0 : 1,
+        onHome: flow.busy || flow.uncertainBooking || flow.appointment != null
+            ? null
+            : () {
+                if (flow.session == null) {
+                  flow.logout();
+                } else {
+                  setState(() => showHistory = false);
+                  flow.loadProfile();
+                }
+              },
+        onBook: goToBooking,
+        onAppointments: flow.session == null ? null : openHistory,
+        onProfile: flow.session == null || flow.busy
+            ? null
+            : () {
+                setState(() => showHistory = false);
+                flow.loadProfile();
+              },
+      ),
     ),
   );
+
 }
 
 class LiveConfigurationError extends StatelessWidget {
