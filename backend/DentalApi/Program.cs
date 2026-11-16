@@ -224,7 +224,8 @@ if (!app.Environment.IsEnvironment("Testing"))
         if (app.Environment.IsDevelopment() ||
             (!string.IsNullOrWhiteSpace(seedPhone) && !string.IsNullOrWhiteSpace(seedPassword)))
         {
-            DbSeeder.Seed(db, seedPhone, seedPassword, app.Logger);
+            // Do not publish fictional prices or pretend the clinic offers sample services.
+            DbSeeder.Seed(db, seedPhone, seedPassword, app.Logger, includeSampleServices: false);
         }
         else
         {
