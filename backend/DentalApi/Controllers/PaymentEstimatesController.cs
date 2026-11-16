@@ -110,14 +110,14 @@ public sealed class PaymentEstimatesController(AppDbContext db, EmailService ema
             : estimate.MaxPriceMnt is not null && estimate.MaxPriceMnt != estimate.MinPriceMnt
                 ? $"{estimate.MinPriceMnt:N0}–{estimate.MaxPriceMnt:N0} ₮"
                 : $"{estimate.MinPriceMnt:N0} ₮";
-        var body = "SUV DENT — ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ\\n" +
-            "Энэ нь төлбөр төлсөн баримт, татварын eBarimt биш.\\n\\n" +
-            $"Захиалгын дугаар: {estimate.AppointmentId}\\n" +
-            $"Үйлчилгээ: {estimate.ServiceName}\\n" +
-            $"Бүртгэлийн үнэ: {price}\\n" +
-            "Нэмэлт ажилбар, материал, хөнгөлөлт, татварын нөхцөлийг эмнэлэг баталгаажуулна.\\n" +
-            "Эцсийн төлөх дүн одоогоор баталгаажаагүй.\\n\\n" +
-            "Дархан-Уул • Suvd Dent\\n";
+        var body = "SUV DENT — ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ\n" +
+            "Энэ нь төлбөр төлсөн баримт, татварын eBarimt биш.\n\n" +
+            $"Захиалгын дугаар: {estimate.AppointmentId}\n" +
+            $"Үйлчилгээ: {estimate.ServiceName}\n" +
+            $"Бүртгэлийн үнэ: {price}\n" +
+            "Нэмэлт ажилбар, материал, хөнгөлөлт, татварын нөхцөлийг эмнэлэг баталгаажуулна.\n" +
+            "Эцсийн төлөх дүн одоогоор баталгаажаагүй.\n\n" +
+            "Дархан-Уул • Suvd Dent\n";
 
         try
         {
