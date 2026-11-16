@@ -172,3 +172,34 @@ class NotificationPreferences {
       isEmailVerified = j['isEmailVerified'] as bool,
       isPhoneVerified = j['isPhoneVerified'] as bool;
 }
+
+/// A read-only price estimate returned by the authenticated backend.
+/// Never treat this as a final bill, paid transaction or tax receipt.
+class PaymentEstimate {
+  final int appointmentId, serviceId;
+  final String serviceName, currency, priceSource, paymentState,
+      priceExplanation, receiptState;
+  final int? minPriceMnt, maxPriceMnt, totalDueMnt;
+  final bool isFinalAmount;
+
+  PaymentEstimate.fromJson(Json j)
+      : appointmentId = number(j, 'appointmentId'),
+        serviceId = number(j, 'serviceId'),
+        serviceName = text(j, 'serviceName'),
+        currency = text(j, 'currency'),
+        priceSource = text(j, 'priceSource'),
+        paymentState = text(j, 'paymentState'),
+        priceExplanation = text(j, 'priceExplanation'),
+        receiptState = text(j, 'receiptState'),
+        minPriceMnt = j['minPriceMnt'] as int?,
+        maxPriceMnt = j['maxPriceMnt'] as int?,
+        totalDueMnt = j['totalDueMnt'] as int?,
+        isFinalAmount = j['isFinalAmount'] as bool {
+    if (appointmentId <= 0 || serviceId <= 0 || currency != 'MNT' ||
+        (minPriceMnt != null && minPriceMnt! < 0) ||
+        (maxPriceMnt != null && maxPriceMnt! < 0) ||
+        (totalDueMnt != null && totalDueMnt! < 0)) {
+      throw const FormatException('Invalid payment estimate.');
+    }
+  }
+}
