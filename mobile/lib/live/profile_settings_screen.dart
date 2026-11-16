@@ -100,7 +100,9 @@ class _ProfileSettingsScreenState extends State<ProfileSettingsScreen> {
       address: _address.text.trim().isEmpty ? null : _address.text.trim(),
     );
     if (!mounted || !identical(flow.session, session) ||
-        flow.patient?.id != patientId) return;
+        flow.patient?.id != patientId) {
+      return;
+    }
     // Success is only reported after the server acknowledges the update.
     // If the response is lost, refresh the saved profile before retrying.
   }
