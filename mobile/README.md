@@ -205,3 +205,29 @@ created because write opt-in/private patient password were absent; local executi
 policy also blocked the PowerShell launcher. Do not change that policy or infer
 write authorization from compilation/tests. The original Flutter implementation
 and DEMO remain unchanged. See the report before authorizing any database writes.
+
+
+## Separate Director catalog app (development)
+
+The patient app does **not** accept Director credentials. Launch this independent,
+role-guarded LIVE catalog management UI using a distinct browser origin:
+
+```powershell
+# Configure Cors:AllowedOrigins:1 = http://localhost:7358 in the backend's
+# local User Secrets, then restart the backend (keep the existing 7357 origin).
+cd C:\Users\Surface\SuvdDent\mobile
+flutter run -d chrome --web-hostname localhost --web-port 7358 --dart-define=NEXORA_API_BASE_URL=http://localhost:5018 --dart-define=NEXORA_CLINIC_ID=1 --dart-define=NEXORA_APP_MODE=director
+```
+
+The Director screen logs in through the existing clinic Auth API, verifies the
+role, user and clinic identity, then reads/writes the Director-only
+`/api/admin/services` endpoints. It offers add/edit, activation and
+deactivation with basic input validation and a confirmation before status
+changes. It never embeds credentials or uses a patient JWT. Tokens are held in
+memory only. The dedicated mode does not create appointments or process money.
+
+**Only enter clinic-approved service descriptions, aftercare and official
+tariffs.** A zero tariff is shown as unspecified, never advertised as free.
+Never create fictional services in a live database. The first
+clinic/time-zone/location/working hours and doctor-to-service/slot scheduling
+setup remain separate requirements before booking can be made available.
