@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../core/widgets/flow_components.dart';
+import '../app/app_theme.dart';
+import '../app/clinical_widgets.dart';
 import 'dental_api.dart';
 import 'live_flow_controller.dart';
 import 'models.dart';
@@ -108,20 +110,25 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     bool secondary = false,
   }) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 6),
-    child: FilledButton(
-      style: FilledButton.styleFrom(
-        minimumSize: const Size(48, 48),
-        backgroundColor: secondary
-            ? Theme.of(context).colorScheme.surfaceContainerHighest
-            : null,
-        foregroundColor: secondary
-            ? Theme.of(context).colorScheme.onSurface
-            : null,
-      ),
-      onPressed: !flow.busy && enabled ? action : null,
-      child: Text(label),
-    ),
+    child: secondary
+        ? OutlinedButton(
+            onPressed: !flow.busy && enabled ? action : null,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.navy,
+              minimumSize: const Size.fromHeight(52),
+              side: const BorderSide(color: AppColors.line),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(15),
+              ),
+            ),
+            child: Text(label),
+          )
+        : FilledButton(
+            onPressed: !flow.busy && enabled ? action : null,
+            child: Text(label),
+          ),
   );
+
   Widget empty(String message) =>
       Padding(padding: const EdgeInsets.all(20), child: Text(message));
   Widget choice(
@@ -129,27 +136,14 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     String subtitle,
     bool selected,
     VoidCallback action,
-  ) => Padding(
-    padding: const EdgeInsets.only(bottom: 12),
-    child: Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
-        selected: selected,
-        selectedTileColor: Theme.of(context).colorScheme.primaryContainer,
-        contentPadding: const EdgeInsets.symmetric(
-          horizontal: 16,
-          vertical: 12,
-        ),
-        title: Text(label),
-        subtitle: Text(subtitle),
-        trailing: Icon(
-          selected ? Icons.radio_button_checked : Icons.radio_button_off,
-        ),
-        enabled: !flow.busy && !flow.uncertainBooking,
-        onTap: action,
-      ),
-    ),
+  ) => ClinicalChoiceCard(
+    label: label,
+    subtitle: subtitle,
+    selected: selected,
+    onTap: !flow.busy && !flow.uncertainBooking ? action : null,
+    leadingText: label.isEmpty ? '?' : label.substring(0, 1),
   );
+
   String local(DateTime time, String zone) {
     try {
       return LiveLabels.instant(time, zone);
@@ -571,24 +565,113 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     'Мэдээллээ хянаад захиалгаа баталгаажуулна уу.',
   ][flow.step];
 
-  Widget screen() => switch (flow.step) {
-    0 => Column(
+  Widget home() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const ClinicalPageIntro(
+        eyebrow: 'Шүдний эрүүл мэндийн шинэ дэвшил',
+        title: 'Сайн байна уу!',
+        description: 'Таны инээмсэглэл бидний урам зориг.',
+      ),
+      const SizedBox(height: 25),
+      ClinicalHero(onBook: flow.enterClinic, enabled: !flow.busy),
+      const SizedBox(height: 26),
+      Text('Үйлчилгээнүүд', style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 16),
+      const Row(
+        children: [
+          ClinicalFeatureTile(
+              icon: Icons.medical_services_outlined, label: 'Үзлэг'),
+          SizedBox(width: 8),
+          ClinicalFeatureTile(
+              icon: Icons.auto_awesome_outlined, label: 'Цэвэрлэгээ'),
+          SizedBox(width: 8),
+          ClinicalFeatureTile(
+              icon: Icons.favorite_border, label: 'Эмчилгээ'),
+        ],
+      ),
+      const SizedBox(height: 26),
+      Text('Таны дараагийн цаг',
+          style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 16),
+      const ClinicalInfoPanel(
+        title: 'Одоогоор захиалга алга',
+        children: [
+          Text('Цаг захиалахын тулд эхлээд нэвтэрнэ үү.',
+              style: TextStyle(color: AppColors.muted)),
+        ],
+      ),
+      const SizedBox(height: 24),
+      const Text(
+        'Тохируулсан туршилтын эмнэлэг. LIVE горимд бодит нэвтрэлт шаардлагатай.',
+        style: TextStyle(fontSize: 12, color: AppColors.muted),
+      ),
+    ],
+  );
+
+  Widget bookingReview() {
+    if (flow.slot == null || flow.service == null ||
+        flow.doctor == null || flow.availability == null ||
+        flow.appointment != null || flow.conflict) {
+      return confirmation();
+    }
+    return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        const Text(
-          'Тохируулсан туршилтын эмнэлэг. Энэ нь олон нийтэд нээлттэй эмнэлгийн жагсаалт биш.',
+        ClinicalInfoPanel(
+          title: 'Захиалгын дэлгэрэнгүй',
+          children: [
+            ClinicalDetail('Үйлчилгээ', LiveLabels.serviceName(flow.service!)),
+            const Divider(),
+            ClinicalDetail('Эмч', LiveLabels.doctorName(flow.doctor!)),
+            const Divider(),
+            ClinicalDetail('Өдөр', LiveLabels.date(flow.availability!.date)),
+            const Divider(),
+            ClinicalDetail(
+              'Цаг',
+              LiveLabels.time(
+                flow.slot!.startUtc, flow.availability!.timeZoneId,
+              ),
+            ),
+            const Divider(),
+            const ClinicalDetail('Эмнэлэг', 'Сонгосон туршилтын эмнэлэг'),
+          ],
         ),
-        const Text('Сонгосон туршилтын эмнэлэг'),
-        button('Энэ эмнэлгээр үргэлжлүүлэх', flow.enterClinic),
+        const SizedBox(height: 20),
+        const Card(
+          color: AppColors.sky,
+          child: Padding(
+            padding: EdgeInsets.all(15),
+            child: Text(
+              'Захиалгын цаг болон таны эрхийг сервер дахин шалгана.',
+              style: TextStyle(color: AppColors.blue, fontSize: 12),
+            ),
+          ),
+        ),
+        if (flow.uncertainBooking)
+          const Text(
+            'Өмнөх хүсэлтийн үр дүн тодорхойгүй. Ижил хүсэлтээр дахин шалгана уу.',
+          ),
+        const SizedBox(height: 18),
+        button(
+          flow.uncertainBooking
+              ? 'Ижил хүсэлтээр дахин оролдох'
+              : 'Захиалга баталгаажуулах',
+          flow.book,
+        ),
       ],
-    ),
+    );
+  }
+
+  Widget screen() => switch (flow.step) {
+    0 => home(),
     1 => auth(),
     2 => verification(),
     3 => profile(),
     4 => services(),
     5 => doctors(),
     6 => slots(),
-    _ => confirmation(),
+    _ => bookingReview(),
   };
   @override
   Widget build(BuildContext context) => PopScope(
