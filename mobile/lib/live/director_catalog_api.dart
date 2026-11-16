@@ -107,8 +107,8 @@ class DirectorCatalogApi {
       temporaryToken: session.token,
     )));
     if (identity.role != 'Director' ||
-        identity.clinicId != '\${settings.clinicId}' ||
-        identity.userId != '\${session.userId}' ||
+        identity.clinicId != '${settings.clinicId}' ||
+        identity.userId != '${session.userId}' ||
         _generation != generation) {
       throw const ApiFailure('Захирлын бүртгэлийг баталгаажуулж чадсангүй.', 403);
     }
@@ -151,7 +151,7 @@ class DirectorCatalogApi {
   }
 
   Future<DirectorService> setActive(DirectorService service, bool active) async {
-    final path = '/api/admin/services/\${service.id}/\${active ? 'activate' : 'deactivate'}';
+    final path = '/api/admin/services/${service.id}/${active ? 'activate' : 'deactivate'}';
     final result = DirectorService.fromJson(object(await _call('POST', path)));
     if (result.clinicId != settings.clinicId ||
         result.id != service.id ||
