@@ -91,14 +91,15 @@ class BookingService {
   final int id, minPrice;
   final int? maxPrice;
   final String name, description;
-  final String? imagePath;
+  final String? imagePath, aftercareText;
   BookingService.fromJson(Json j)
     : id = number(j, 'id'),
       name = text(j, 'name'),
       description = text(j, 'description'),
       minPrice = number(j, 'minPrice'),
       maxPrice = j['maxPrice'] as int?,
-      imagePath = j['imagePath'] as String?;
+      imagePath = j['imagePath'] as String?,
+      aftercareText = j['aftercareText'] as String?;
 }
 
 class BookingDoctor {
