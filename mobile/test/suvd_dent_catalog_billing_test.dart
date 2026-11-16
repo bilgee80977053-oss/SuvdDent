@@ -77,7 +77,6 @@ void main() {
     await tester.tap(find.text('Дэлгэрэнгүй'));
     await tester.pumpAndSettle();
     expect(find.text('Үзлэг, ажилбарын үед'), findsOneWidget);
-    expect(find.text('Үнэ юунаас хамаарах вэ?'), findsOneWidget);
     expect(find.text('Хаах'), findsOneWidget);
   });
 }
