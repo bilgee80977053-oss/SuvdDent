@@ -205,6 +205,24 @@ class DentalApi {
       'address': address,
     },
   );
+  // Authenticated patient updates only their own tenant-scoped profile.
+  Future<PatientProfile> updateProfile({
+    required String fullName,
+    required String phone,
+    String? dateOfBirth,
+    String? address,
+  }) => _request(
+    'PUT',
+    '/api/Patients/me',
+    (v) => PatientProfile.fromJson(object(v)),
+    body: {
+      'fullName': fullName,
+      'phone': phone,
+      'dateOfBirth': dateOfBirth,
+      'address': address,
+    },
+  );
+
   Future<List<BookingService>> services() => _request(
     'GET',
     '/api/appointments/services',
