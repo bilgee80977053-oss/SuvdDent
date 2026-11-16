@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 
 import '../live/live_patient_flow.dart';
 import '../live/models.dart';
@@ -15,7 +16,12 @@ class NexoraDentalApp extends StatelessWidget {
     debugShowCheckedModeBanner: false,
     theme: AppTheme.light,
     home: !settings.isLive
-        ? const PatientFlow()
+        ? kReleaseMode
+            ? const LiveConfigurationError(
+                'Suvd Dent-ийн LIVE API хаяг болон эмнэлгийн ID тохируулаагүй байна. '
+                'Release апп DEMO өгөгдөл рүү шилжихгүй.',
+              )
+            : const PatientFlow()
         : settings.error != null
         ? LiveConfigurationError(settings.error!)
         : LivePatientFlow(settings: settings),
