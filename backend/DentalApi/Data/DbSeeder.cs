@@ -4,7 +4,7 @@ namespace DentalApi.Data;
 
 public static class DbSeeder
 {
-    public static bool Seed(AppDbContext db, string? adminPhone, string? adminPassword, ILogger logger)
+    public static bool Seed(AppDbContext db, string? adminPhone, string? adminPassword, ILogger logger, bool includeSampleServices = true)
     {
         if (string.IsNullOrWhiteSpace(adminPhone) || string.IsNullOrWhiteSpace(adminPassword))
         {
@@ -29,6 +29,10 @@ public static class DbSeeder
             Role = Role.Director
         });
 
+        // Runtime startup opts OUT of all synthetic services and unapproved
+        // prices. Direct legacy test fixtures can still explicitly opt in.
+        if (includeSampleServices)
+        {
         db.Services.AddRange(
             new Service {
                 ClinicId = clinic.Id, Name = "Ломбо",
@@ -43,6 +47,7 @@ public static class DbSeeder
                 ClinicId = clinic.Id, Name = "Цайруулалт",
                 Description = "Шүдний өнгийг цайруулах үйлчилгээ.",
                 MinPrice = 300000, MaxPrice = 300000 });
+        }
         db.SaveChanges();
         transaction.Commit();
         return true;
