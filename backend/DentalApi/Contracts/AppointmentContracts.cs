@@ -14,4 +14,4 @@ public record AppointmentSlotsResponse(string Date, string TimeZoneId, Appointme
 public record BookingDoctorResponse(int Id, string FullName, string Specialty,
     int PracticeStartYear, string? Biography, string? PhotoPath);
 public record BookingServiceResponse(int Id, string Name, string Description, string? ImagePath,
-    long MinPrice, long? MaxPrice);
+    long MinPrice, long? MaxPrice, string? AftercareText = null);
