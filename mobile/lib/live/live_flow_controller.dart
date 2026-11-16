@@ -237,6 +237,26 @@ class LiveFlowController extends ChangeNotifier {
     patient = result;
     profileMissing = false;
   });
+  // Reuses the backend's own-patient PUT; never sends a user or clinic ID.
+  Future<void> updateProfile({
+    required String fullName,
+    required String phone,
+    String? dateOfBirth,
+    String? address,
+  }) => run((current) async {
+    if (session == null || patient == null) return;
+    final updated = await api.updateProfile(
+      fullName: fullName,
+      phone: phone,
+      dateOfBirth: dateOfBirth,
+      address: address,
+    );
+    if (!current()) return;
+    patient = updated;
+    profileMissing = false;
+    notice = 'Профайлын мэдээлэл хадгалагдлаа.';
+  });
+
   Future<void> loadServices() => run((current) async {
     final result = await api.services();
     if (!current()) return;
