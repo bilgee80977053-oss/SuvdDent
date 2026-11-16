@@ -86,8 +86,9 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   }
 
   String _preview(PaymentEstimate quote) => [
-    'SUV DENT / Suvd Dent',
+    'Suvd Dent',
     'Дархан-Уул • Suvd Dent',
+    'Сонгосон төлбөрийн арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
     'ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ (ТӨЛБӨРИЙН БАРИМТ БИШ)',
     'Захиалгын дугаар: ${quote.appointmentId}',
     'Үйлчилгээ: ${quote.serviceName}',
@@ -230,6 +231,46 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                           color: AppColors.ink,
                           fontSize: 13,
                           height: 1.45,
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 19),
+                  AnimatedSwitcher(
+                    duration: const Duration(milliseconds: 240),
+                    child: Card(
+                      key: ValueKey('preview-$_method'),
+                      child: Padding(
+                        padding: const EdgeInsets.all(17),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            const Text(
+                              'ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ',
+                              style: TextStyle(
+                                  color: AppColors.navy,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 15),
+                            ),
+                            const SizedBox(height: 12),
+                            Text(
+                              'Арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
+                              style: const TextStyle(
+                                color: AppColors.blue,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                            const SizedBox(height: 9),
+                            ClinicalDetail('Захиалга', '#${q.appointmentId}'),
+                            ClinicalDetail('Үйлчилгээ', q.serviceName),
+                            ClinicalDetail('Үнийн хүрээ', _estimateText(q)),
+                            const Divider(),
+                            const Text(
+                              'Гүйлгээний баримт биш • Эцсийн дүн баталгаажаагүй',
+                              style: TextStyle(
+                                color: AppColors.muted, fontSize: 12),
+                            ),
+                          ],
                         ),
                       ),
                     ),
