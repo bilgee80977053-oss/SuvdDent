@@ -718,7 +718,7 @@ void main() {
           home: LivePatientFlow(settings: settings, api: api),
         ),
       );
-      await tester.tap(find.text('Энэ эмнэлгээр үргэлжлүүлэх'));
+      await tester.tap(find.text('Цаг сонгох'));
       await tester.pumpAndSettle();
       expect(find.byType(TextFormField), findsNWidgets(2));
       await tester.enterText(
@@ -808,7 +808,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await press('Энэ эмнэлгээр үргэлжлүүлэх');
+      await press('Цаг сонгох');
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'synthetic@example.invalid',
@@ -822,7 +822,9 @@ void main() {
       await press('Үйлчилгээ авах');
       await tester.tap(find.text('Тест үйлчилгээ'));
       await tester.pumpAndSettle();
-      await press('Эмч сонгох');
+      // The Figma LIVE flow opens the service details before booking.
+      await tester.tap(find.text('Энэ үйлчилгээгээр цаг захиалах'));
+      await tester.pumpAndSettle();
       await tester.tap(find.text('Тест эмч'));
       await tester.pumpAndSettle();
       await press('Огноо, цаг сонгох');
@@ -882,7 +884,7 @@ void main() {
         await tester.pumpAndSettle();
       }
 
-      await press('Энэ эмнэлгээр үргэлжлүүлэх');
+      await press('Цаг сонгох');
       await tester.tap(find.text('Бүртгүүлэх'));
       await tester.pumpAndSettle();
       await press('Бүртгэл үүсгэх');
@@ -942,8 +944,9 @@ void main() {
     expect(first.authenticated, isFalse);
     expect(second.authenticated, isFalse);
     expect(requests, 0);
-    expect(find.text('Сонгосон туршилтын эмнэлэг'), findsOneWidget);
-    expect(find.text('АЛХАМ 1 / 8'), findsOneWidget);
+    expect(find.text('Сайн байна уу!'), findsOneWidget);
+    expect(find.text('Дархан-Уул • Suvd Dent'), findsOneWidget);
+    expect(find.text('Цаг сонгох'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });
