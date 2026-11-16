@@ -7,6 +7,9 @@ import 'live_flow_controller.dart';
 import 'models.dart';
 import 'live_presentation.dart';
 import 'notification_settings_screen.dart';
+import 'clinical_service_details.dart';
+import 'dental_knowledge.dart';
+import 'payment_estimate_screen.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
@@ -319,21 +322,64 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       button('Мэдэгдлийн тохиргоо', openNotificationSettings, secondary: true),
     ],
   );
+  void openEducationalInfo(String category) {
+    ClinicalServiceDetails.show(context, category: category);
+  }
+
+  void openServiceInfo(BookingService s) {
+    if (flow.busy || flow.uncertainBooking) return;
+    ClinicalServiceDetails.show(
+      context,
+      category: s.name,
+      service: s,
+      onBook: () {
+        if (!mounted || flow.busy || flow.uncertainBooking) return;
+        flow.selectService(s);
+        flow.loadDoctors();
+      },
+    );
+  }
+
+  void openPayment(Appointment appointment) {
+    if (flow.session == null || flow.busy) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (context) => PaymentEstimateScreen(
+          api: flow.api,
+          appointment: appointment,
+        ),
+      ),
+    );
+  }
+
   Widget services() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
-      if (flow.services.isEmpty) empty('Үйлчилгээ олдсонгүй.'),
+      const Text(
+        'Энд зөвхөн сонгосон эмнэлгийн LIVE каталогоос ирсэн '
+        'үйлчилгээнүүд харагдана. Карт дээр дарж үнэ болон '
+        'эмчилгээний талаар дэлгэрэнгүй уншаарай.',
+        style: TextStyle(color: AppColors.muted, fontSize: 13),
+      ),
+      const SizedBox(height: 18),
+      if (flow.services.isEmpty) empty('Эмнэлгийн үйлчилгээ олдсонгүй.'),
       for (final s in flow.services)
-        choice(
-          LiveLabels.serviceName(s),
-          '${LiveLabels.serviceDescription(s)}\n${s.minPrice} – ${s.maxPrice ?? s.minPrice} ₮',
-          flow.service?.id == s.id,
-          () => flow.selectService(s),
+        ClinicalChoiceCard(
+          label: LiveLabels.serviceName(s),
+          subtitle: '${clinicPriceLabel(s)}  •  Дэлгэрэнгүй үзэх',
+          selected: flow.service?.id == s.id,
+          onTap: !flow.busy && !flow.uncertainBooking
+              ? () => openServiceInfo(s)
+              : null,
+          icon: Icons.medical_services_outlined,
         ),
-      button('Эмч сонгох', flow.loadDoctors, enabled: flow.service != null),
+      if (flow.service != null)
+        button('Сонгосон үйлчилгээгээр үргэлжлүүлэх',
+            flow.loadDoctors),
       button('Үйлчилгээг шинэчлэх', flow.loadServices, secondary: true),
     ],
   );
+
   Widget doctors() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -446,6 +492,10 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
         details(flow.appointment!),
+        button(
+          'Төлбөрийн дэлгэрэнгүй',
+          () => openPayment(flow.appointment!),
+        ),
         button('Шинэ захиалга', flow.newBooking),
       ] else if (flow.conflict) ...[
         const Text(
@@ -516,6 +566,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       details(value),
+      button(
+        'Төлбөр / үнийн мэдээлэл',
+        () => openPayment(value),
+        secondary: true,
+      ),
       if (flow.uncertainCancellations.contains(value.id)) ...[
         const Text('Цуцлалтын үр дүнг шалгана уу.'),
         button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
@@ -577,7 +632,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const ClinicalPageIntro(
-        eyebrow: 'Шүдний эрүүл мэндийн шинэ дэвшил',
+        eyebrow: 'Дархан-Уул • Suvd Dent',
         title: 'Сайн байна уу!',
         description: 'Таны инээмсэглэл бидний урам зориг.',
       ),
@@ -586,17 +641,67 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       const SizedBox(height: 26),
       Text('Үйлчилгээнүүд', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
-      const Row(
+      Row(
         children: [
           ClinicalFeatureTile(
-              icon: Icons.medical_services_outlined, label: 'Үзлэг'),
-          SizedBox(width: 8),
+            icon: Icons.medical_services_outlined,
+            label: 'Үзлэг',
+            onTap: () => openEducationalInfo('Шүдний үзлэг'),
+          ),
+          const SizedBox(width: 8),
           ClinicalFeatureTile(
-              icon: Icons.auto_awesome_outlined, label: 'Цэвэрлэгээ'),
-          SizedBox(width: 8),
+            icon: Icons.auto_awesome_outlined,
+            label: 'Цэвэрлэгээ',
+            onTap: () => openEducationalInfo('Шүдний чулуу цэвэрлэгээ'),
+          ),
+          const SizedBox(width: 8),
           ClinicalFeatureTile(
-              icon: Icons.favorite_border, label: 'Эмчилгээ'),
+            icon: Icons.favorite_border,
+            label: 'Эмчилгээ',
+            onTap: () => openEducationalInfo('Цоорлын эмчилгээ'),
+          ),
         ],
+      ),
+      const SizedBox(height: 14),
+      OutlinedButton.icon(
+        onPressed: () => showModalBottomSheet<void>(
+          context: context,
+          showDragHandle: true,
+          isScrollControlled: true,
+          backgroundColor: AppColors.paper,
+          builder: (sheetContext) => SafeArea(
+            child: FractionallySizedBox(
+              heightFactor: 0.8,
+              child: ListView(
+                padding: const EdgeInsets.all(22),
+                children: [
+                  Text('Шүдний эмчилгээний мэдээлэл',
+                    style: Theme.of(sheetContext).textTheme.titleLarge),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Доорх нь ерөнхий танилцуулга. Үйлчилгээг захиалах '
+                    'боломж эмнэлгийн бодит каталогоос хамаарна.',
+                    style: TextStyle(color: AppColors.muted),
+                  ),
+                  const SizedBox(height: 18),
+                  for (final topic in DentalKnowledge.overview)
+                    ClinicalChoiceCard(
+                      label: topic.name,
+                      subtitle: topic.summary,
+                      selected: false,
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        openEducationalInfo(topic.name);
+                      },
+                      icon: Icons.book_outlined,
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+        icon: const Icon(Icons.menu_book_outlined),
+        label: const Text('Бүх төрлийн эмчилгээний тайлбар'),
       ),
       const SizedBox(height: 26),
       Text('Таны дараагийн цаг',
@@ -620,7 +725,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
       const SizedBox(height: 24),
       const Text(
-        'Тохируулсан туршилтын эмнэлэг. LIVE горимд бодит нэвтрэлт шаардлагатай.',
+        'Үйлчилгээ, эмч, цагийн мэдээллийг эмнэлгийн LIVE системээс авна.',
         style: TextStyle(fontSize: 12, color: AppColors.muted),
       ),
     ],
@@ -651,7 +756,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
               ),
             ),
             const Divider(),
-            const ClinicalDetail('Эмнэлэг', 'Сонгосон туршилтын эмнэлэг'),
+            const ClinicalDetail('Эмнэлэг', 'Дархан-Уул • Suvd Dent'),
           ],
         ),
         const SizedBox(height: 20),
