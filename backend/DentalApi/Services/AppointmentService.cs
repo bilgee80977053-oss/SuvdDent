@@ -27,7 +27,7 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
 
     public async Task<AppointmentResult> Services(int clinic) => new(200, await db.Services.AsNoTracking()
         .Where(s => s.ClinicId == clinic && s.IsActive).OrderBy(s => s.Id)
-        .Select(s => new BookingServiceResponse(s.Id, s.Name, s.Description, s.ImagePath, s.MinPrice, s.MaxPrice)).ToArrayAsync());
+        .Select(s => new BookingServiceResponse(s.Id, s.Name, s.Description, s.ImagePath, s.MinPrice, s.MaxPrice, s.AftercareText)).ToArrayAsync());
 
     public async Task<AppointmentResult> DoctorsForService(int clinic, int service)
     {
