@@ -834,6 +834,27 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             titleKey: ValueKey('screen-title'),
           ),
           const SizedBox(height: 25),
+          // The history view must report cancellation/loading feedback too.
+          // Previously this early-return path skipped the shared booking
+          // feedback shown by other steps.
+          if (flow.busy) ...[
+            const LinearProgressIndicator(semanticsLabel: 'Ачаалж байна'),
+            const SizedBox(height: 10),
+            const Text('Мэдээллийг ачаалж байна…'),
+          ],
+          if (flow.error != null)
+            Semantics(
+              liveRegion: true,
+              child: Padding(
+                padding: const EdgeInsets.symmetric(vertical: 16),
+                child: Text(
+                  flow.error!,
+                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                ),
+              ),
+            ),
+          if (flow.notice != null)
+            Semantics(liveRegion: true, child: Text(flow.notice!)),
           history(),
         ],
       );
