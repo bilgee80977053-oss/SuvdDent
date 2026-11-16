@@ -20,8 +20,8 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
     public sealed record ServiceInput(
         [Required, MinLength(2), MaxLength(160)] string Name,
         [Required, MaxLength(1500)] string Description,
-        [Range(0, 1000000000)] long MinPrice,
-        [Range(0, 1000000000)] long? MaxPrice,
+        [Range(typeof(long), "0", "1000000000")] long MinPrice,
+        [Range(typeof(long), "0", "1000000000")] long? MaxPrice,
         [MaxLength(2500)] string? AftercareText);
 
     private int ClinicId => int.Parse(User.FindFirst("clinicId")!.Value);
