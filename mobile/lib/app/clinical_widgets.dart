@@ -42,10 +42,11 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
     ),
     actions: [
       ...actions,
-      const Padding(
-        padding: EdgeInsets.only(left: 4, right: 20),
-        child: Icon(Icons.circle, size: 17, color: AppColors.blue),
-      ),
+      if (actions.length < 2)
+        const Padding(
+          padding: EdgeInsets.only(left: 4, right: 20),
+          child: Icon(Icons.circle, size: 17, color: AppColors.blue),
+        ),
     ],
   );
 }
@@ -99,7 +100,7 @@ class ClinicalPageIntro extends StatelessWidget {
         ClipRRect(
           borderRadius: BorderRadius.circular(4),
           child: LinearProgressIndicator(
-            value: progress!.clamp(0, 1),
+            value: progress!.clamp(0.0, 1.0).toDouble(),
             minHeight: 4,
             backgroundColor: AppColors.line,
           ),
