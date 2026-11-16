@@ -29,7 +29,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   final authKey = GlobalKey<FormState>(),
       profileKey = GlobalKey<FormState>(),
       verifyKey = GlobalKey<FormState>();
-  bool registering = false, showHistory = false;
+  bool registering = false, showHistory = false, showDashboard = false;
   static const titles = [
     'Эмнэлэг сонгох',
     'Нэвтрэх / Бүртгүүлэх',
@@ -63,6 +63,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         field.clear();
       }
       showHistory = false;
+      showDashboard = false;
     }
     if (mounted) setState(() {});
   }
@@ -574,7 +575,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         description: 'Таны инээмсэглэл бидний урам зориг.',
       ),
       const SizedBox(height: 25),
-      ClinicalHero(onBook: flow.enterClinic, enabled: !flow.busy),
+      ClinicalHero(onBook: goToBooking, enabled: !flow.busy),
       const SizedBox(height: 26),
       Text('Үйлчилгээнүүд', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
@@ -594,11 +595,20 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       Text('Таны дараагийн цаг',
           style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
-      const ClinicalInfoPanel(
-        title: 'Одоогоор захиалга алга',
+      ClinicalInfoPanel(
+        title: flow.appointment == null
+            ? 'Одоогоор захиалга харагдахгүй'
+            : 'Таны захиалга баталгаажсан',
         children: [
-          Text('Цаг захиалахын тулд эхлээд нэвтэрнэ үү.',
-              style: TextStyle(color: AppColors.muted)),
+          Text(
+            flow.session == null
+                ? 'Цаг захиалахын тулд эхлээд нэвтэрнэ үү.'
+                : flow.appointment == null
+                    ? 'Миний цаг хэсгээс захиалгаа шалгана уу.'
+                    : local(flow.appointment!.startUtc,
+                        flow.appointment!.clinicTimeZoneId),
+            style: const TextStyle(color: AppColors.muted),
+          ),
         ],
       ),
       const SizedBox(height: 24),
@@ -675,13 +685,19 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   };
   void openHistory() {
     if (flow.busy || flow.session == null) return;
-    setState(() => showHistory = true);
+    setState(() {
+      showHistory = true;
+      showDashboard = false;
+    });
     flow.loadAppointments(1);
   }
 
   void goToBooking() {
     if (flow.busy || flow.uncertainBooking) return;
-    setState(() => showHistory = false);
+    setState(() {
+      showHistory = false;
+      showDashboard = false;
+    });
     if (flow.session == null) {
       if (flow.step == 0) flow.enterClinic();
     } else if (flow.step < 3) {
@@ -710,7 +726,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         ],
       );
     }
-    if (flow.step == 0) return home();
+    if (showDashboard || flow.step == 0) return home();
     const bookingTitles = {
       4: 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?',
       5: 'Танд санал болгох эмч\nнар',
@@ -845,15 +861,17 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         ),
       ),
       bottomNavigationBar: ClinicalNavigation(
-        activeIndex: showHistory ? 2 : flow.step == 0 ? 0 : 1,
+        activeIndex: showHistory ? 2 : showDashboard || flow.step == 0 ? 0 : 1,
         onHome: flow.busy || flow.uncertainBooking || flow.appointment != null
             ? null
             : () {
                 if (flow.session == null) {
                   flow.logout();
                 } else {
-                  setState(() => showHistory = false);
-                  flow.loadProfile();
+                  setState(() {
+                    showHistory = false;
+                    showDashboard = true;
+                  });
                 }
               },
         onBook: goToBooking,
@@ -861,7 +879,10 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         onProfile: flow.session == null || flow.busy
             ? null
             : () {
-                setState(() => showHistory = false);
+                setState(() {
+                  showHistory = false;
+                  showDashboard = false;
+                });
                 flow.loadProfile();
               },
       ),
