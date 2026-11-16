@@ -129,12 +129,12 @@ void main() {
         expect(find.text('Тест үйлчилгээ'), findsOneWidget);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
-        expect(title(tester), 'Үйлчилгээ сонгох');
+        expect(title(tester), 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?');
         expect(find.text('Сонгосон үйлчилгээ: Тест үйлчилгээ'), findsOneWidget);
         await tester.tap(find.byTooltip('Миний захиалгууд'));
         await tester.pumpAndSettle();
         await press(tester, 'Захиалгын алхам руу буцах');
-        expect(title(tester), 'Үйлчилгээ сонгох');
+        expect(title(tester), 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?');
         expect(tester.takeException(), isNull);
       },
     );
