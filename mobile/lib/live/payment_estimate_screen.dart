@@ -28,6 +28,8 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   late Future<PaymentEstimate> _estimate;
   String _method = 'qpay';
   String _delivery = 'email';
+  bool _sendingEmail = false;
+  String? _emailResult;
 
   static const _methods = <(String, String, IconData, String)>[
     ('qpay', 'QPay / QR', Icons.qr_code_2_rounded,
@@ -52,6 +54,27 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
 
   void _load() {
     _estimate = widget.api.paymentEstimate(widget.appointment.id);
+  }
+
+  Future<void> _sendEstimateEmail() async {
+    if (_sendingEmail) return;
+    setState(() {
+      _sendingEmail = true;
+      _emailResult = null;
+    });
+    try {
+      final result = await widget.api.emailPaymentEstimate(widget.appointment.id);
+      if (!mounted) return;
+      setState(() => _emailResult = result);
+    } on ApiFailure catch (e) {
+      if (!mounted) return;
+      setState(() => _emailResult = e.message);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _emailResult = 'Имэйл илгээлтийг баталгаажуулж чадсангүй.');
+    } finally {
+      if (mounted) setState(() => _sendingEmail = false);
+    }
   }
 
   String _estimateText(PaymentEstimate quote) {
@@ -243,6 +266,28 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                     style: const TextStyle(
                       color: AppColors.muted, fontSize: 13, height: 1.5),
                   ),
+                  if (_delivery == 'email') ...[
+                    const SizedBox(height: 18),
+                    FilledButton.icon(
+                      onPressed: _sendingEmail ? null : _sendEstimateEmail,
+                      icon: _sendingEmail
+                          ? const SizedBox(
+                              width: 19,
+                              height: 19,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2, color: Colors.white),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: const Text('Үнийн мэдээллийг имэйлээр авах'),
+                    ),
+                    if (_emailResult != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 10),
+                        child: Text(_emailResult!,
+                            style: const TextStyle(
+                              color: AppColors.blue, fontSize: 13)),
+                      ),
+                  ],
                   const SizedBox(height: 18),
                   OutlinedButton.icon(
                     onPressed: () async {
