@@ -250,6 +250,13 @@ class DentalApi {
         (v) => PaymentEstimate.fromJson(object(v)),
       );
 
+  Future<String> emailPaymentEstimate(int appointmentId) =>
+      _request(
+        'POST',
+        '/api/appointments/$appointmentId/payment-estimate/email',
+        (v) => text(object(v), 'message'),
+      );
+
   Future<Appointment> appointment(int id) =>
       _request('GET', '/api/appointments/$id', (v) {
         final result = Appointment.fromJson(object(v));
