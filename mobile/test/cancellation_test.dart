@@ -53,7 +53,7 @@ Future<void> openHistory(
       ),
     ),
   );
-  await press(tester, 'Энэ эмнэлгээр үргэлжлүүлэх');
+  await press(tester, 'Цаг сонгох');
   await tester.enterText(
     find.byType(TextFormField).at(0),
     'synthetic@example.invalid',
