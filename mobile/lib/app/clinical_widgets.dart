@@ -31,14 +31,29 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
             icon: const Icon(Icons.arrow_back_rounded),
           ),
     titleSpacing: 0,
-    title: const Text(
-      'NEXORA  /  DENTAL',
-      style: TextStyle(
-        color: AppColors.navy,
-        fontSize: 16,
-        fontWeight: FontWeight.w800,
-        letterSpacing: 0.6,
-      ),
+    title: const Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Suvd Dent',
+          style: TextStyle(
+            color: AppColors.navy,
+            fontSize: 19,
+            fontWeight: FontWeight.w800,
+          ),
+        ),
+        Text(
+          'Дархан-Уул • Suvd Dent    ·    NEXORA',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: AppColors.muted,
+            fontSize: 10,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+      ],
     ),
     actions: [
       ...actions,
