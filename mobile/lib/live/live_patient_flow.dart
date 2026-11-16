@@ -371,9 +371,17 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Өнөөдрөөс дараагийн 30 хоногийн өдрөө сонгоод боломжит цагийг шинэчилнэ үү. Хүчинтэй хугацааг сервер шалгана.',
+        'Хуанлиас өдөр сонгоод боломжит цагийг шалгана уу. '
+        'Эцсийн боломжийг сервер баталгаажуулна.',
       ),
-      button('Огноо сонгох', () async {
+      const SizedBox(height: 16),
+      ClinicalCalendarPicker(
+        selectedDate: DateTime.parse(flow.date),
+        enabled: !flow.busy && !flow.uncertainBooking,
+        onSelected: (value) => flow.changeDate(calendarDate(value)),
+      ),
+      const SizedBox(height: 12),
+      button('Өөр огноо сонгох', () async {
         final result = await showMongolianDatePicker(
           context,
           flow.date,
