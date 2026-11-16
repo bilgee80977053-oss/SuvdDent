@@ -26,7 +26,7 @@ Future<void> login(WidgetTester tester) async {
       ),
     ),
   );
-  await press(tester, 'Энэ эмнэлгээр үргэлжлүүлэх');
+  await press(tester, 'Цаг сонгох');
   await tester.enterText(
     find.byType(TextFormField).at(0),
     'synthetic@example.invalid',
@@ -122,6 +122,8 @@ void main() {
         await press(tester, 'Үйлчилгээ авах');
         await tester.tap(find.text('Тест үйлчилгээ'));
         await tester.pumpAndSettle();
+        await tester.tap(find.text('Энэ үйлчилгээгээр цаг захиалах'));
+        await tester.pumpAndSettle();
         await tester.tap(find.byTooltip('Миний захиалгууд'));
         await tester.pumpAndSettle();
         expect(title(tester), 'Миний захиалгууд');
@@ -129,12 +131,12 @@ void main() {
         expect(find.text('Тест үйлчилгээ'), findsOneWidget);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
-        expect(title(tester), 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?');
+        expect(title(tester), 'Танд санал болгох эмч\nнар');
         expect(find.text('Сонгосон үйлчилгээ: Тест үйлчилгээ'), findsOneWidget);
         await tester.tap(find.byTooltip('Миний захиалгууд'));
         await tester.pumpAndSettle();
         await press(tester, 'Захиалгын алхам руу буцах');
-        expect(title(tester), 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?');
+        expect(title(tester), 'Танд санал болгох эмч\nнар');
         expect(tester.takeException(), isNull);
       },
     );
@@ -162,7 +164,7 @@ void main() {
           home: LivePatientFlow(settings: fixtures.settings, api: api),
         ),
       );
-      await press(tester, 'Энэ эмнэлгээр үргэлжлүүлэх');
+      await press(tester, 'Цаг сонгох');
       await tester.enterText(
         find.byType(TextFormField).at(0),
         'synthetic@example.invalid',
