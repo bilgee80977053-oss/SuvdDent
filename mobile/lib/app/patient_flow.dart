@@ -9,6 +9,7 @@ import '../features/doctors/doctor_selection_screen.dart';
 import '../features/patient_profile/patient_profile_screen.dart';
 import '../features/services/service_selection_screen.dart';
 import 'app_theme.dart';
+import 'clinical_widgets.dart';
 import 'demo_flow_controller.dart';
 
 class PatientFlow extends StatefulWidget {
@@ -27,14 +28,14 @@ class _PatientFlowState extends State<PatientFlow> {
   }
 
   static const titles = {
-    DemoStep.clinic: 'Инээмсэглэлдээ цаг гаргая.',
+    DemoStep.clinic: 'Сайн байна уу!',
     DemoStep.authentication: 'Тавтай морил.',
     DemoStep.verification: 'Имэйлээ баталгаажуулъя.',
     DemoStep.profile: 'Тантай танилцъя.',
-    DemoStep.service: 'Танд ямар тусламж хэрэгтэй вэ?',
-    DemoStep.doctor: 'Өөрт тохирох эмчээ сонгоорой.',
-    DemoStep.slot: 'Танд тохирох цаг.',
-    DemoStep.confirmation: 'Сонголтоо нэгтгэн харъя.',
+    DemoStep.service: 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?',
+    DemoStep.doctor: 'Танд санал болгох эмч\nнар',
+    DemoStep.slot: 'Та өөрт тохирох өдрөө\nсонгоорой',
+    DemoStep.confirmation: 'Таны захиалгын\nмэдээлэл',
   };
   static const descriptions = {
     DemoStep.clinic: 'Эхлээд үйлчлүүлэх эмнэлгээ сонгоорой.',
@@ -79,27 +80,8 @@ class _PatientFlowState extends State<PatientFlow> {
         if (!didPop) flow.back();
       },
       child: Scaffold(
-        appBar: AppBar(
-          toolbarHeight: 72,
-          leading: flow.step == DemoStep.clinic
-              ? const Icon(
-                  Icons.health_and_safety_outlined,
-                  color: AppColors.teal,
-                )
-              : IconButton(
-                  key: const ValueKey('back-button'),
-                  tooltip: 'Буцах',
-                  onPressed: flow.back,
-                  icon: const Icon(Icons.arrow_back),
-                ),
-          title: const Text(
-            'NEXORA DENTAL',
-            style: TextStyle(
-              fontSize: 17,
-              fontWeight: FontWeight.w800,
-              letterSpacing: 1.2,
-            ),
-          ),
+        appBar: ClinicalHeader(
+          onBack: flow.step == DemoStep.clinic ? null : flow.back,
         ),
         body: SafeArea(
           top: false,
@@ -113,11 +95,64 @@ class _PatientFlowState extends State<PatientFlow> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
+                    if (flow.step == DemoStep.clinic) ...[
+                      const ClinicalPageIntro(
+                        eyebrow: 'Шүдний эрүүл мэндийн шинэ дэвшил',
+                        title: 'Сайн байна уу!',
+                        description: 'Таны инээмсэглэл бидний урам зориг.',
+                      ),
+                      const SizedBox(height: 24),
+                      ClinicalHero(
+                        onBook: () => flow.continueFlow(),
+                        enabled: flow.canContinue,
+                      ),
+                      const SizedBox(height: 24),
+                      Text('Үйлчилгээнүүд',
+                          style: Theme.of(context).textTheme.titleLarge),
+                      const SizedBox(height: 16),
+                      const Row(
+                        children: [
+                          ClinicalFeatureTile(
+                            icon: Icons.medical_services_outlined,
+                            label: 'Үзлэг',
+                          ),
+                          SizedBox(width: 8),
+                          ClinicalFeatureTile(
+                            icon: Icons.auto_awesome_outlined,
+                            label: 'Цэвэрлэгээ',
+                          ),
+                          SizedBox(width: 8),
+                          ClinicalFeatureTile(
+                            icon: Icons.favorite_border,
+                            label: 'Эмчилгээ',
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 24),
+                    ] else
+                      ClinicalPageIntro(
+                        eyebrow: switch (flow.step) {
+                          DemoStep.service =>
+                            'АЛХАМ 01 / 04    •    Үйлчилгээ',
+                          DemoStep.doctor => 'АЛХАМ 02 / 04    •    Эмч',
+                          DemoStep.slot =>
+                            'АЛХАМ 03 / 04    •    Боломжит цаг',
+                          DemoStep.confirmation =>
+                            'АЛХАМ 04 / 04    •    Баталгаажуулалт',
+                          _ => 'NEXORA DENTAL  •  СУРГАЛТЫН ЗАГВАР',
+                        },
+                        title: titles[flow.step]!,
+                        description: descriptions[flow.step]!,
+                        progress: flow.step.index >= DemoStep.service.index
+                            ? (flow.step.index - DemoStep.service.index + 1) / 4
+                            : null,
+                      ),
+                    const SizedBox(height: 20),
                     Container(
                       padding: const EdgeInsets.all(14),
                       decoration: BoxDecoration(
-                        color: const Color(0xFFFFF1DA),
-                        borderRadius: BorderRadius.circular(14),
+                        color: const Color(0xFFFFF2D7),
+                        borderRadius: BorderRadius.circular(12),
                       ),
                       child: const Row(
                         children: [
@@ -125,46 +160,20 @@ class _PatientFlowState extends State<PatientFlow> {
                           SizedBox(width: 10),
                           Expanded(
                             child: Text(
-                              'Сургалтын загвар · Зөвхөн жишээ өгөгдөл',
-                              style: TextStyle(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                              ),
+                              'DEMO · Зөвхөн жишээ өгөгдөл. Бодит цаг захиалахгүй.',
+                              style: TextStyle(fontSize: 12),
                             ),
                           ),
                         ],
                       ),
                     ),
-                    const SizedBox(height: 26),
-                    Text(
-                      'АЛХАМ ${flow.step.index + 1} / ${DemoStep.values.length}',
-                      style: const TextStyle(
-                        color: AppColors.teal,
-                        fontWeight: FontWeight.w700,
-                        letterSpacing: 1.5,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 10),
-                    LinearProgressIndicator(
-                      value: (flow.step.index + 1) / DemoStep.values.length,
-                      minHeight: 4,
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    const SizedBox(height: 24),
-                    Text(
-                      titles[flow.step]!,
-                      style: Theme.of(context).textTheme.headlineMedium,
-                    ),
-                    const SizedBox(height: 10),
-                    Text(descriptions[flow.step]!),
                     if (flow.clinic != null &&
                         flow.step != DemoStep.clinic) ...[
                       const SizedBox(height: 12),
                       Text(
                         flow.clinic!.name,
                         style: const TextStyle(
-                          color: AppColors.teal,
+                          color: AppColors.blue,
                           fontWeight: FontWeight.w600,
                         ),
                       ),
@@ -172,6 +181,7 @@ class _PatientFlowState extends State<PatientFlow> {
                     const SizedBox(height: 24),
                     screen,
                   ],
+
                 ),
               ),
             ),
