@@ -362,7 +362,32 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         style: TextStyle(color: AppColors.muted, fontSize: 13),
       ),
       const SizedBox(height: 18),
-      if (flow.services.isEmpty) empty('Эмнэлгийн үйлчилгээ олдсонгүй.'),
+      if (flow.services.isEmpty && !flow.busy && flow.error == null) ...[
+        const ClinicalInfoPanel(
+          title: 'Цаг захиалах үйлчилгээ одоогоор бүртгэгдээгүй',
+          children: [
+            Text(
+              'Suvd Dent-ийн LIVE үйлчилгээний жагсаалт хоосон байна. '
+              'Эмнэлгийн захирал үйлчилгээний нэр, тайлбар болон '
+              'үнийн мэдээллээ баталгаажуулж бүртгэсний дараа '
+              'эндээс үйлчилгээ сонгож цаг захиална. '
+              'Бүртгэгдээгүй үйлчилгээг захиалах боломжгүй.',
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        OutlinedButton.icon(
+          onPressed: () => openEducationalInfo('Шүдний үзлэг'),
+          icon: const Icon(Icons.menu_book_outlined),
+          label: const Text('Эмчилгээний ерөнхий мэдээлэл унших'),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: () => setState(() => showDashboard = true),
+          icon: const Icon(Icons.home_outlined),
+          label: const Text('Нүүр хуудас руу буцах'),
+        ),
+      ],
       for (final s in flow.services)
         ClinicalChoiceCard(
           label: LiveLabels.serviceName(s),
