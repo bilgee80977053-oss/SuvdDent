@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_theme.dart';
 import 'director_catalog_api.dart';
+import 'dental_api.dart';
 import 'models.dart';
 
 /// Separate Director-only administration; patient tokens cannot access this UI.
