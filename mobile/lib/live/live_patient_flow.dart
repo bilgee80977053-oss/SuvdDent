@@ -10,6 +10,7 @@ import 'notification_settings_screen.dart';
 import 'clinical_service_details.dart';
 import 'dental_knowledge.dart';
 import 'payment_estimate_screen.dart';
+import 'profile_settings_screen.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
@@ -287,6 +288,15 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     );
   }
 
+  void openProfileSettings() {
+    if (flow.busy || flow.session == null || flow.patient == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => ProfileSettingsScreen(flow: flow),
+      ),
+    );
+  }
+
   Widget profile() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -299,6 +309,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         if (flow.patient!.dateOfBirth != null)
           Text('Төрсөн огноо: ${flow.patient!.dateOfBirth}'),
         if (flow.patient!.address != null) Text(flow.patient!.address!),
+        button('Профайлын мэдээлэл засах', openProfileSettings,
+            secondary: true),
         button('Үйлчилгээ авах', flow.loadServices),
       ] else if (flow.profileMissing)
         Form(
