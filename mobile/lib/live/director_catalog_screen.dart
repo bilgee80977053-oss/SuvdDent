@@ -26,6 +26,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
   String? _error;
   String? _notice;
   List<DirectorService> _services = const [];
+  List<DirectorDoctor> _doctors = const [];
+  bool _doctorsLoaded = false;
 
   @override
   void initState() {
@@ -63,6 +65,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
           if (!api.authenticated) {
             _signedIn = false;
             _services = const [];
+            _doctors = const [];
+            _doctorsLoaded = false;
           }
         });
       }
@@ -97,10 +101,97 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
     setState(() {
       _signedIn = false;
       _services = const [];
+      _doctors = const [];
+      _doctorsLoaded = false;
       _notice = null;
       _error = null;
     });
   }
+
+  Future<void> _loadDoctors() async {
+    await _run(() async {
+      final rows = await api.doctors();
+      if (!mounted) return;
+      setState(() {
+        _doctors = rows;
+        _doctorsLoaded = true;
+      });
+    });
+  }
+
+  static const _dayNames = [
+    'Ням', 'Даваа', 'Мягмар', 'Лхагва',
+    'Пүрэв', 'Баасан', 'Бямба',
+  ];
+
+  String _workHour(DirectorWorkingHour hour) {
+    String clock(int minutes) =>
+        '${(minutes ~/ 60).toString().padLeft(2, '0')}:${(minutes % 60).toString().padLeft(2, '0')}';
+    final day = hour.dayOfWeek >= 0 && hour.dayOfWeek < _dayNames.length
+        ? _dayNames[hour.dayOfWeek]
+        : 'Өдөр ${hour.dayOfWeek}';
+    return '$day ${clock(hour.startMinute)}–${clock(hour.endMinute)}';
+  }
+
+  Widget _doctorRoster() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 28),
+      Text('Эмч, ажлын хуваарь',
+          style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      const Text(
+        'Энд зөвхөн серверт бүртгэлтэй эмч, ажлын цагийг харуулна. '
+        'Энэ дэлгэцээс эмч нэмж, хуваарь өөрчлөхгүй.',
+      ),
+      const SizedBox(height: 12),
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _loadDoctors,
+        icon: const Icon(Icons.medical_services_outlined),
+        label: Text(_doctorsLoaded
+            ? 'Эмчийн мэдээлэл шинэчлэх'
+            : 'Эмчийн жагсаалт харах'),
+      ),
+      if (_doctorsLoaded) ...[
+        const SizedBox(height: 12),
+        if (_doctors.isEmpty)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(18),
+              child: Text('Эмчийн бүртгэл одоогоор алга. '
+                  'Захирал эмчийн бүртгэл, цагийн хуваарийг баталгаажуулах шаардлагатай.'),
+            ),
+          ),
+        for (final doctor in _doctors) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(doctor.fullName,
+                      style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 5),
+                  Text(doctor.specialty),
+                  const SizedBox(height: 5),
+                  Text(doctor.isActive
+                      ? (doctor.isPublished ? 'Нийтлэгдсэн' : 'Нийтлээгүй')
+                      : 'Идэвхгүй'),
+                  const SizedBox(height: 8),
+                  if (doctor.workingHours.isEmpty)
+                    const Text('Ажлын цаг тохируулаагүй')
+                  else
+                    for (final hour in doctor.workingHours)
+                      Text(_workHour(hour)),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    ],
+  );
 
   Future<void> _edit(DirectorService? existing) async {
     if (!_signedIn || _busy) return;
@@ -245,6 +336,7 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
         ),
         const SizedBox(height: 10),
       ],
+      _doctorRoster(),
     ],
   );
 
