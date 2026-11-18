@@ -53,6 +53,8 @@ else
 builder.Services.AddSingleton<JwtService>();
 builder.Services.AddScoped<VerificationService>();
 builder.Services.AddScoped<EmailService>();
+builder.Services.AddScoped<IStaffInvitationSender, StaffInvitationEmailSender>();
+builder.Services.AddScoped<StaffInvitationService>();
 builder.Services.AddScoped<INotificationEmailSender, NotificationEmailSender>();
 builder.Services.AddHttpClient<ISmsSender, GatewaySmsSender>(client => client.Timeout = TimeSpan.FromSeconds(15));
 builder.Services.AddScoped<NotificationProcessor>();
@@ -179,6 +181,25 @@ builder.Services.AddRateLimiter(options =>
     options.AddPolicy("platform-auth", context => RateLimitPartition.GetFixedWindowLimiter(
         partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
         factory: _ => new FixedWindowRateLimiterOptions { PermitLimit = 20, Window = TimeSpan.FromMinutes(1), QueueLimit = 0 }));
+
+    // Separate request budgets for Director invitation sends and public acceptance.
+    options.AddPolicy("staff-invites", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.User.FindFirst("userId")?.Value ??
+                context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 5, Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0, AutoReplenishment = true
+            }));
+    options.AddPolicy("staff-accept", context =>
+        RateLimitPartition.GetFixedWindowLimiter(
+            partitionKey: context.Connection.RemoteIpAddress?.ToString() ?? "unknown",
+            factory: _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = 10, Window = TimeSpan.FromMinutes(10),
+                QueueLimit = 0, AutoReplenishment = true
+            }));
 
     options.AddPolicy("auth", context =>
         RateLimitPartition.GetFixedWindowLimiter(
