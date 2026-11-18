@@ -1,0 +1,226 @@
+using System.Security.Cryptography;
+using DentalApi.Data;
+using DentalApi.Models;
+using DentalApi.Services;
+using Microsoft.EntityFrameworkCore;
+using Npgsql;
+
+namespace DentalApi.PgStagingFixture;
+
+// A single, synthetic, non-production fixture. No schema migration, reset,
+// cleanup, external delivery, or arbitrary target support is implemented.
+public static class Program
+{
+    private const string Target = "nexora_restore_check_20261118_201309";
+    private const string Owner = "nexora_dev";
+    private const string Host = "127.0.0.1";
+    private const int Port = 5432;
+    private const string Approval = "CREATE_SYNTHETIC_PG_STAGING_FIXTURE";
+    private const string Scope = "NEXORA-PG-STAGING-SYNTHETIC-ONLY";
+    private static readonly string[] Tables =
+    [
+        "Appointments", "ClinicPatientLinks", "Clinics", "DoctorProfiles",
+        "DoctorServices", "DoctorWorkingHours", "NotificationOutbox",
+        "NotificationPreference", "PatientAvailabilities",
+        "PatientAvailabilitySchedules", "Patients", "PhoneVerificationChallenge",
+        "PlatformAccounts", "PlatformVerificationCodes", "Services",
+        "Users", "VerificationCodes"
+    ];
+
+    public static async Task<int> Main(string[] args)
+    {
+        try
+        {
+            if (args.Length != 1 || args[0] is not ("plan" or "create" or "inspect"))
+                throw new InvalidOperationException("Usage: plan|create|inspect; no target arguments accepted.");
+            var mode = args[0];
+            var raw = Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_CONNECTION");
+            if (string.IsNullOrWhiteSpace(raw))
+                throw new InvalidOperationException("NEXORA_PG_STAGING_CONNECTION is required (private process environment).");
+
+            NpgsqlConnectionStringBuilder connection;
+            try
+            {
+                connection = new NpgsqlConnectionStringBuilder(raw);
+                if (connection.Host != Host || connection.Port != Port ||
+                    connection.Database != Target || connection.Username != Owner ||
+                    string.IsNullOrEmpty(connection.Password) ||
+                    !string.IsNullOrEmpty(connection.SearchPath) ||
+                    !string.IsNullOrEmpty(connection.Options) ||
+                    connection.Multiplexing)
+                    throw new InvalidOperationException();
+            }
+            catch (Exception)
+            {
+                throw new InvalidOperationException("Unapproved PostgreSQL staging target. No connection attempted.");
+            }
+
+            connection.SearchPath = "public";
+            connection.Pooling = false;
+            connection.Enlist = false;
+            connection.LogParameters = false;
+            connection.IncludeErrorDetail = false;
+            connection.ApplicationName = "NexoraSyntheticPgStaging";
+            await using var db = new PostgreSqlAppDbContext(
+                new DbContextOptionsBuilder<PostgreSqlAppDbContext>()
+                    .UseNpgsql(connection.ConnectionString).Options);
+
+            // Use read-only preflight even for create. Prevents writes until every
+            // identity/schema/emptiness condition is satisfied.
+            await using (var preflight = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead))
+            {
+                await db.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY");
+                var current = await db.Database.SqlQueryRaw<string>(
+                    "SELECT current_database() AS \"Value\"").SingleAsync();
+                var username = await db.Database.SqlQueryRaw<string>(
+                    "SELECT current_user AS \"Value\"").SingleAsync();
+                if (current != Target || username != Owner)
+                    throw new InvalidOperationException("Database identity mismatch. No fixture writes permitted.");
+
+                await DatabaseProviderSettings.VerifyPostgreSqlSchemaAsync(db);
+                var existingTables = await db.Database.SqlQueryRaw<string>(
+                    "SELECT tablename AS \"Value\" FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename <> '__EFMigrationsHistory' ORDER BY tablename")
+                    .ToListAsync();
+                if (!existingTables.OrderBy(x => x, StringComparer.Ordinal)
+                        .SequenceEqual(Tables.OrderBy(x => x, StringComparer.Ordinal), StringComparer.Ordinal))
+                    throw new InvalidOperationException("Unexpected staging table inventory. No fixture writes permitted.");
+
+                // Only use a fixed, allowlisted set of quoted table names.
+                var counts = new List<(string Table, long Count)>();
+                foreach (var table in Tables)
+                {
+                    var count = await db.Database.SqlQueryRaw<long>(
+                        $"SELECT COUNT(*) AS \"Value\" FROM public.\"{table}\"").SingleAsync();
+                    counts.Add((table, count));
+                }
+                var isEmpty = counts.All(item => item.Count == 0);
+                Console.WriteLine($"Target verified: {Target}; provider: PostgreSQL; migrations: exact match; tables: {counts.Count}");
+                Console.WriteLine($"All fixture tables empty: {isEmpty}");
+                if (mode == "plan" || mode == "create")
+                {
+                    if (!isEmpty)
+                        throw new InvalidOperationException("Staging database contains data. Creation refused; nothing will be replaced.");
+                }
+                else
+                {
+                    foreach (var item in counts)
+                        Console.WriteLine($"{item.Table}: {item.Count}");
+                }
+                await preflight.CommitAsync();
+            }
+
+            if (mode != "create")
+            {
+                Console.WriteLine("READ-ONLY CHECK COMPLETE. No fixture data created.");
+                return 0;
+            }
+
+            if (Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_WRITE_OPT_IN") != Approval)
+                throw new InvalidOperationException("Explicit synthetic fixture write opt-in is missing.");
+            var password = Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_PATIENT_PASSWORD");
+            if (string.IsNullOrEmpty(password) || password.Length < 8 ||
+                System.Text.Encoding.UTF8.GetByteCount(password) > 72)
+                throw new InvalidOperationException("Private synthetic patient password must contain 8-72 UTF-8 bytes.");
+
+            await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
+            // Repeat the empty-database check within the write transaction.
+            // Lock known application tables to exclude competing inserts until commit.
+            foreach (var table in Tables)
+                await db.Database.ExecuteSqlRawAsync($"LOCK TABLE public.\"{table}\" IN SHARE ROW EXCLUSIVE MODE");
+            foreach (var table in Tables)
+            {
+                if (await db.Database.SqlQueryRaw<long>(
+                    $"SELECT COUNT(*) AS \"Value\" FROM public.\"{table}\"").SingleAsync() != 0)
+                    throw new InvalidOperationException("Staging data appeared during preflight. Transaction aborted.");
+            }
+
+            var marker = Scope + "/" + Guid.NewGuid().ToString("N");
+            var clinic = new Clinic
+            {
+                Name = marker, WorkHours = "SYNTHETIC ONLY: 09:00-17:00",
+                CountryCode = "MN", ProvinceOrCapitalCode = "11",
+                SoumOrDistrictCode = "1101",
+                AddressLine = "SYNTHETIC TEST LOCATION - NOT A REAL CLINIC"
+            };
+            db.Clinics.Add(clinic);
+            await db.SaveChangesAsync();
+
+            User MakeUser(Role role, string suffix, string hash) => new()
+            {
+                ClinicId = clinic.Id, FullName = "SYNTHETIC " + suffix,
+                Email = suffix.ToLowerInvariant() + "@example.invalid",
+                PasswordHash = hash, Role = role,
+                IsActive = true, IsEmailVerified = true,
+                CreatedAt = DateTime.UtcNow
+            };
+
+            var director = MakeUser(Role.Director, "Director-" + Guid.NewGuid().ToString("N"), BCrypt.Net.BCrypt.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))));
+            var doctor = MakeUser(Role.Doctor, "Doctor-" + Guid.NewGuid().ToString("N"), BCrypt.Net.BCrypt.HashPassword(Convert.ToBase64String(RandomNumberGenerator.GetBytes(24))));
+            var patient = MakeUser(Role.Patient, "Patient-" + Guid.NewGuid().ToString("N"), BCrypt.Net.BCrypt.HashPassword(password));
+            db.Users.AddRange(director, doctor, patient);
+            await db.SaveChangesAsync();
+
+            clinic.TimeZoneId = "Asia/Ulaanbaatar";
+            clinic.TimeZoneStatus = TimeZoneStatus.Verified;
+            clinic.TimeZoneVerifiedAtUtc = DateTime.UtcNow;
+            clinic.TimeZoneVerifiedByUserId = director.Id;
+            clinic.TimeZoneVerifiedClinicId = clinic.Id;
+            var doctorProfile = new DoctorProfile
+            {
+                ClinicId = clinic.Id, UserId = doctor.Id,
+                Specialty = "SYNTHETIC DENTAL TEST", PracticeStartYear = 2020,
+                Biography = "Disposable staging demonstration only.",
+                IsPublished = true, IsActive = true
+            };
+            var service = new Service
+            {
+                ClinicId = clinic.Id, Name = "SYNTHETIC TEST SERVICE",
+                Description = "Not a clinical treatment offering.",
+                MinPrice = 0, MaxPrice = 0, IsActive = true
+            };
+            db.DoctorProfiles.Add(doctorProfile);
+            db.Services.Add(service);
+            db.Patients.Add(new Patient
+            {
+                ClinicId = clinic.Id, UserId = patient.Id,
+                FullName = "SYNTHETIC TEST PATIENT",
+                Phone = "00000000", IsActive = true
+            });
+            await db.SaveChangesAsync();
+
+            db.DoctorServices.Add(new DoctorService
+            {
+                ClinicId = clinic.Id, DoctorProfileId = doctorProfile.Id,
+                ServiceId = service.Id, DurationMinutes = 30,
+                BufferBeforeMinutes = 0, BufferAfterMinutes = 0, IsActive = true
+            });
+            for (var day = 0; day < 7; day++)
+                db.DoctorWorkingHours.Add(new DoctorWorkingHours
+                {
+                    ClinicId = clinic.Id, DoctorProfileId = doctorProfile.Id,
+                    DayOfWeek = day, StartMinute = 540, EndMinute = 1020
+                });
+            await db.SaveChangesAsync();
+
+            var policy = await new ClinicSchedulingPolicy(db, new MongoliaLocations())
+                .RequireVerifiedAsync(clinic.Id);
+            if (policy.TimeZone is null)
+                throw new InvalidOperationException("Synthetic clinic timezone verification failed.");
+            await tx.CommitAsync();
+            Console.WriteLine("SYNTHETIC STAGING FIXTURE CREATED.");
+            Console.WriteLine($"Clinic ID: {clinic.Id}");
+            Console.WriteLine($"Patient login: {patient.Email}");
+            Console.WriteLine("Password: private input (never printed).");
+            Console.WriteLine($"Marker: {marker}");
+            Console.WriteLine("No production data, provider calls or migrations were used.");
+            return 0;
+        }
+        catch (Exception e)
+        {
+            // Never print provider exception chains or connection strings.
+            Console.Error.WriteLine("STAGING FIXTURE FAILED: " + e.Message.Replace(
+                Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_CONNECTION") ?? "\0", "[redacted]"));
+            return 1;
+        }
+    }
+}
