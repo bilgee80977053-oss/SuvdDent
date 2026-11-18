@@ -131,6 +131,13 @@ class DirectorCatalogApi {
         .toList();
   }
 
+  Future<List<EligibleDoctorAccount>> eligibleDoctors() async {
+    final result = await _call('GET', '/api/admin/Doctors/eligible-users');
+    return (result as List)
+        .map((item) => EligibleDoctorAccount.fromJson(object(item)))
+        .toList();
+  }
+
   // The backend requires an existing active Doctor-role user in this clinic.
   // Creating a profile never grants a user the Doctor role.
   Future<DirectorDoctor> createDoctorProfile({
@@ -444,4 +451,16 @@ class DirectorDoctorService {
         'bufferAfterMinutes': bufferAfterMinutes,
         'isActive': isActive,
       };
+}
+
+class EligibleDoctorAccount {
+  final int userId;
+  final String fullName;
+
+  const EligibleDoctorAccount({required this.userId, required this.fullName});
+
+  factory EligibleDoctorAccount.fromJson(Json json) => EligibleDoctorAccount(
+    userId: number(json, 'userId'),
+    fullName: text(json, 'fullName'),
+  );
 }
