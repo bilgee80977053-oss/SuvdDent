@@ -28,3 +28,5 @@ public record UpdateWorkingHoursRequest(Guid Version,
 public record DoctorResponse(int Id, string FullName, string Specialty,
     int PracticeStartYear, string? Biography, string? PhotoPath,
     bool IsPublished, bool IsActive, Guid Version, WorkingHoursInput[] WorkingHours);
+// Only the fields required to select an already-authorized Doctor account.
+public record EligibleDoctorUserResponse(int UserId, string FullName);
