@@ -152,4 +152,136 @@ void main() {
     expect(find.text('Баталгаажсан үйлчилгээ'), findsNothing);
     await tester.pumpWidget(const SizedBox());
   });
+
+  test('director reads doctor roster and verified working hours without writes', () async {
+    final requests = <http.Request>[];
+    final api = makeApi((r) {
+      requests.add(r);
+      if (r.url.path == '/api/admin/Doctors') {
+        return reply([
+          {
+            'id': 20,
+            'fullName': 'Бүртгэлтэй эмч',
+            'specialty': 'Шүдний эмчилгээ',
+            'practiceStartYear': 2019,
+            'isPublished': true,
+            'isActive': true,
+            'workingHours': [
+              {'dayOfWeek': 1, 'startMinute': 540, 'endMinute': 1080},
+            ],
+          },
+        ]);
+      }
+      return normal(r);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final doctors = await api.doctors();
+    expect(doctors.single.fullName, 'Бүртгэлтэй эмч');
+    expect(doctors.single.workingHours.single.startMinute, 540);
+    expect(requests.last.method, 'GET');
+    expect(requests.last.headers['authorization'], 'Bearer director-only-token');
+  });
+
+  test('editing service uses PUT and no caller-supplied clinic identity', () async {
+    http.Request? write;
+    final api = makeApi((r) {
+      if (r.url.path == '/api/admin/services/3' && r.method == 'PUT') {
+        write = r;
+        return reply({...service, 'description': 'Шинэ баталгаажсан тайлбар'});
+      }
+      return normal(r);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final updated = await api.saveService(
+      id: 3,
+      name: 'Баталгаажсан үйлчилгээ',
+      description: 'Шинэ баталгаажсан тайлбар',
+      minPrice: 0,
+    );
+    expect(updated.description, 'Шинэ баталгаажсан тайлбар');
+    expect(write?.method, 'PUT');
+    expect(jsonDecode(write!.body).containsKey('clinicId'), isFalse);
+  });
+
+  test('activating and deactivating service checks resulting state', () async {
+    final paths = <String>[];
+    final api = makeApi((r) {
+      if (r.url.path.contains('/activate') ||
+          r.url.path.contains('/deactivate')) {
+        paths.add(r.url.path);
+        final active = r.url.path.endsWith('/activate');
+        return reply({...service, 'isActive': active});
+      }
+      return normal(r);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final item = (await api.services()).single;
+    final disabled = await api.setActive(item, false);
+    expect(disabled.isActive, isFalse);
+    final enabled = await api.setActive(disabled, true);
+    expect(enabled.isActive, isTrue);
+    expect(paths, [
+      '/api/admin/services/3/deactivate',
+      '/api/admin/services/3/activate',
+    ]);
+  });
+
+  test('rejects a cross-clinic service write response', () async {
+    final api = makeApi((r) {
+      if (r.url.path == '/api/admin/services' && r.method == 'POST') {
+        return reply({...service, 'clinicId': 99}, 201);
+      }
+      return normal(r);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    await expectLater(
+      api.saveService(
+        name: 'Баталгаажсан үйлчилгээ',
+        description: 'Тайлбар',
+        minPrice: 0,
+      ),
+      throwsA(isA<ApiFailure>()),
+    );
+  });
+
+  testWidgets('doctor roster shows API results only on Director request', (tester) async {
+    final api = makeApi((r) {
+      if (r.url.path == '/api/admin/Doctors') {
+        return reply([
+          {
+            'id': 20,
+            'fullName': 'Бүртгэлтэй эмч',
+            'specialty': 'Шүдний эмчилгээ',
+            'practiceStartYear': 2019,
+            'isPublished': false,
+            'isActive': true,
+            'workingHours': [
+              {'dayOfWeek': 1, 'startMinute': 540, 'endMinute': 1080},
+            ],
+          },
+        ]);
+      }
+      return normal(r);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: DirectorCatalogScreen(settings: settings, api: api),
+    ));
+    await tester.enterText(find.byType(TextFormField).at(0), '99999999');
+    await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
+    await tester.tap(find.text('Захирлаар нэвтрэх'));
+    await tester.pumpAndSettle();
+    expect(find.text('Бүртгэлтэй эмч'), findsNothing);
+    final load = find.text('Эмчийн жагсаалт харах');
+    await tester.ensureVisible(load);
+    await tester.pumpAndSettle();
+    await tester.tap(load);
+    await tester.pumpAndSettle();
+    expect(find.text('Бүртгэлтэй эмч'), findsOneWidget);
+    expect(find.text('Даваа 09:00–18:00'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox());
+  });
 }
