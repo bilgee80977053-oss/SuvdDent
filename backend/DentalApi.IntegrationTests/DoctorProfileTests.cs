@@ -46,6 +46,53 @@ public sealed class DoctorProfileTests
     }
 
     [Fact]
+    public async Task Eligible_Doctor_accounts_are_scoped_filtered_and_private()
+    {
+        using var app = new DoctorApiFactory();
+        await app.SeedAsync();
+        var beforeA = await app.SnapshotAsync(101);
+        var beforeB = await app.SnapshotAsync(202);
+        using var director = await app.AsAsync(15);
+        using var response = await director.GetAsync("/api/admin/Doctors/eligible-users?clinicId=202");
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadAsStringAsync();
+        var eligible = JsonSerializer.Deserialize<EligibleDoctorUserResponse[]>(
+            body, new JsonSerializerOptions(JsonSerializerDefaults.Web))!;
+        Assert.Equal(new[] { 20 }, eligible.Select(u => u.UserId).ToArray());
+        Assert.Equal("Synthetic user 20", eligible[0].FullName);
+        foreach (var forbidden in new[] { "email", "phone", "password", "tokenVersion", "clinicId" })
+            Assert.DoesNotContain(forbidden, body, StringComparison.OrdinalIgnoreCase);
+        using var patient = await app.AsAsync(11);
+        using var forbiddenPatient = await patient.GetAsync("/api/admin/Doctors/eligible-users");
+        Assert.Equal(HttpStatusCode.Forbidden, forbiddenPatient.StatusCode);
+        using var anonymous = app.Client();
+        using var unauthenticated = await anonymous.GetAsync("/api/admin/Doctors/eligible-users");
+        Assert.Equal(HttpStatusCode.Unauthorized, unauthenticated.StatusCode);
+        using var otherDirector = await app.AsAsync(25, 202);
+        using var other = await otherDirector.GetAsync("/api/admin/Doctors/eligible-users");
+        Assert.Equal(HttpStatusCode.OK, other.StatusCode);
+        Assert.Empty((await other.Content.ReadFromJsonAsync<EligibleDoctorUserResponse[]>())!);
+        Assert.Equal(beforeA, await app.SnapshotAsync(101));
+        Assert.Equal(beforeB, await app.SnapshotAsync(202));
+    }
+
+    [Fact]
+    public async Task Eligible_Doctor_disappears_after_unpublished_profile_creation()
+    {
+        using var app = new DoctorApiFactory();
+        await app.SeedAsync();
+        using var director = await app.AsAsync(15);
+        using var created = await director.PostAsJsonAsync("/api/admin/Doctors",
+            new CreateDoctorRequest(20, new DoctorDetails("Clinical specialty", 2020, null, null)));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        var profile = (await created.Content.ReadFromJsonAsync<DoctorResponse>())!;
+        Assert.False(profile.IsPublished);
+        using var after = await director.GetAsync("/api/admin/Doctors/eligible-users");
+        Assert.Equal(HttpStatusCode.OK, after.StatusCode);
+        Assert.Empty((await after.Content.ReadFromJsonAsync<EligibleDoctorUserResponse[]>())!);
+    }
+
+    [Fact]
     public async Task Director_creates_only_one_profile_for_eligible_own_doctor()
     {
         using var app = new DoctorApiFactory();
