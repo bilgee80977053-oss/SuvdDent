@@ -171,10 +171,11 @@ public sealed class StaffInvitationTests
             var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
             var userId = await db.Users.Where(u => u.Email == Invite.Email)
                 .Select(u => u.Id).SingleAsync();
+            var expiredAt = DateTime.UtcNow.AddMinutes(-1);
             await db.VerificationCodes.Where(c => c.UserId == userId &&
                 c.Purpose == "doctor-invite")
                 .ExecuteUpdateAsync(s => s.SetProperty(
-                    c => c.ExpiresAt, DateTime.UtcNow.AddMinutes(-1)));
+                    c => c.ExpiresAt, expiredAt));
         }
         using var client = app.Client();
         using var response = await client.PostAsJsonAsync(
