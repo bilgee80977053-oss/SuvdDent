@@ -73,34 +73,29 @@ public static class Program
             if (args.Length != 1 || args[0] is not ("plan" or "create" or "inspect"))
                 throw new InvalidOperationException("Usage: plan|create|inspect; no target arguments accepted.");
             var mode = args[0];
-            var raw = Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_CONNECTION");
-            if (string.IsNullOrWhiteSpace(raw))
-                throw new InvalidOperationException("NEXORA_PG_STAGING_CONNECTION is required (private process environment).");
-
             stage = "target configuration";
-            NpgsqlConnectionStringBuilder connection;
-            try
+            // The database target is fixed in source code. Accept only the
+            // private password, not a user-assembled connection string. This
+            // safely handles special characters including semicolons and quotes.
+            var dbPassword = Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_DB_PASSWORD");
+            if (string.IsNullOrEmpty(dbPassword))
+                throw new InvalidOperationException(
+                    "NEXORA_PG_STAGING_DB_PASSWORD is required (private process environment).");
+            var connection = new NpgsqlConnectionStringBuilder
             {
-                connection = new NpgsqlConnectionStringBuilder(raw);
-                if (connection.Host != Host || connection.Port != Port ||
-                    connection.Database != Target || connection.Username != Owner ||
-                    string.IsNullOrEmpty(connection.Password) ||
-                    !string.IsNullOrEmpty(connection.SearchPath) ||
-                    !string.IsNullOrEmpty(connection.Options) ||
-                    connection.Multiplexing)
-                    throw new InvalidOperationException();
-            }
-            catch (Exception)
-            {
-                throw new InvalidOperationException("Unapproved PostgreSQL staging target. No connection attempted.");
-            }
-
-            connection.SearchPath = "public";
-            connection.Pooling = false;
-            connection.Enlist = false;
-            connection.LogParameters = false;
-            connection.IncludeErrorDetail = false;
-            connection.ApplicationName = "NexoraSyntheticPgStaging";
+                Host = Host,
+                Port = Port,
+                Database = Target,
+                Username = Owner,
+                Password = dbPassword,
+                SearchPath = "public",
+                Pooling = false,
+                Enlist = false,
+                LogParameters = false,
+                IncludeErrorDetail = false,
+                Multiplexing = false,
+                ApplicationName = "NexoraSyntheticPgStaging"
+            };
             stage = "provider setup";
             await using var db = new PostgreSqlAppDbContext(
                 new DbContextOptionsBuilder<PostgreSqlAppDbContext>()
