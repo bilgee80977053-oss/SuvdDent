@@ -5,6 +5,7 @@ import 'director_catalog_api.dart';
 import 'director_doctor_dialog.dart';
 import 'director_create_doctor_dialog.dart';
 import 'director_service_assignment_dialog.dart';
+import 'director_staff_invite_dialog.dart';
 import 'dental_api.dart';
 import 'models.dart';
 
@@ -31,6 +32,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
   List<DirectorService> _services = const [];
   List<DirectorDoctor> _doctors = const [];
   bool _doctorsLoaded = false;
+  List<DirectorStaffAccount> _staff = const [];
+  bool _staffLoaded = false;
 
   @override
   void initState() {
@@ -70,6 +73,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
             _services = const [];
             _doctors = const [];
             _doctorsLoaded = false;
+            _staff = const [];
+            _staffLoaded = false;
           }
         });
       }
@@ -106,6 +111,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
       _services = const [];
       _doctors = const [];
       _doctorsLoaded = false;
+      _staff = const [];
+      _staffLoaded = false;
       _notice = null;
       _error = null;
     });
@@ -121,6 +128,79 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
       });
     });
   }
+
+  Future<void> _loadStaff() async {
+    await _run(() async {
+      final staff = await api.staffDoctors();
+      if (mounted) {
+        setState(() {
+          _staff = staff;
+          _staffLoaded = true;
+        });
+      }
+    });
+  }
+
+  Future<void> _inviteStaff() async {
+    if (!_signedIn || _busy) return;
+    final sent = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DirectorStaffInviteDialog(api: api),
+    );
+    if (!mounted || sent != true) return;
+    await _loadStaff();
+    if (mounted && _error == null) {
+      setState(() => _notice =
+          'Эмчийн урилгын хүсэлт илгээгдлээ. '
+          'Баталгаажуулсны дараа профайл бүртгэнэ.');
+    }
+  }
+
+  Widget _staffSection() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      const SizedBox(height: 28),
+      Text('Ажилтны эрхийн урилга',
+          style: Theme.of(context).textTheme.titleLarge),
+      const SizedBox(height: 8),
+      const Text('Зөвхөн албан ёсоор зөвшөөрөгдсөн эмчийг урь. '
+          'Эмч өөрийн имэйлээр ирсэн кодоор нууц үгээ тохируулна. '
+          'Нийтлэгдэх профайл тусад нь бүртгэгдэнэ.'),
+      const SizedBox(height: 12),
+      FilledButton.icon(
+        onPressed: _busy ? null : _inviteStaff,
+        icon: const Icon(Icons.mail_outline),
+        label: const Text('Эмчид урилга илгээх'),
+      ),
+      OutlinedButton.icon(
+        onPressed: _busy ? null : _loadStaff,
+        icon: const Icon(Icons.refresh),
+        label: const Text('Эмчийн аккаунтууд харах'),
+      ),
+      if (_staffLoaded) ...[
+        const SizedBox(height: 12),
+        if (_staff.isEmpty)
+          const Text('Одоогоор эмчийн эрхтэй аккаунт алга.'),
+        for (final employee in _staff)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(employee.fullName),
+                  Text(employee.email),
+                  Text(employee.isActive && employee.isEmailVerified
+                      ? 'Имэйл баталгаажсан, идэвхтэй'
+                      : 'Урилга баталгаажаагүй эсвэл идэвхгүй'),
+                ],
+              ),
+            ),
+          ),
+      ],
+    ],
+  );
 
   Future<void> _editDoctor(DirectorDoctor doctor, {required bool hours}) async {
     if (!_signedIn || _busy) return;
@@ -189,6 +269,7 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
   Widget _doctorRoster() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
+      _staffSection(),
       const SizedBox(height: 28),
       Text('Эмч, ажлын хуваарь',
           style: Theme.of(context).textTheme.titleLarge),
@@ -196,8 +277,8 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
       const Text(
         'Энд серверт бүртгэлтэй эмч, ажлын цагийг харуулна. '
         'Одоо байгаа эмчийн мэдээлэл, энгийн долоо хоногийн '
-        'хуваарийг засах боломжтой. Шинэ эмчийн хэрэглэгчийн эрх '
-        'үүсгэх үйлдэл тусдаа шаардлагатай.',
+        'хуваарийг засах боломжтой. Шинэ эмч эхлээд имэйл '
+        'урилгаа баталгаажуулах шаардлагатай.',
       ),
       const SizedBox(height: 12),
       FilledButton.icon(
