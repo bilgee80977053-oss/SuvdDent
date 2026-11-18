@@ -34,15 +34,24 @@ The default `AllowedHosts` is `localhost`; override it when deploying behind a
 real domain. CORS denies cross-origin browsers by default until permitted origins
 are configured. It never grants credentialed wildcard access.
 
-Phase 2 migration in progress: the PostgreSQL provider package is installed and
-`Database__Provider=PostgreSQL` selects it. PostgreSQL connection strings are
-accepted **only** from the `ConnectionStrings__Default` environment variable,
-never from JSON configuration. Step 2 adds an independent PostgreSQL baseline;
-startup still intentionally rejects PostgreSQL pending a separately authorized
-database rollout. SQLite also requires a configured connection string; no database
-path is bundled in appsettings.json. Outside `Testing`, SQLite automatically applies
-pending migrations on startup. PostgreSQL startup remains blocked before migration
-or seeding. `Testing` skips application startup migration and seeding for both.
+PostgreSQL uses the dedicated migration history and requires an explicit rollout
+approval before API startup. `Database__Provider=PostgreSQL` selects the provider;
+the connection string is accepted **only** from the
+`ConnectionStrings__Default` environment variable (never JSON).
+Outside `Testing`, SQLite retains its historical automatic migration and seeding
+behavior. PostgreSQL instead performs an **exact read-only migration-history
+check**: the database must already contain all and only the migrations known
+to this build, in order. The API does not run migrations or seed PostgreSQL.
+`Testing` skips application startup migration and seeding for both providers.
+
+PostgreSQL startup is **blocked by default**. The trusted deployment operator
+must explicitly set `NEXORA_PG_STARTUP_APPROVAL=READ_ONLY_SCHEMA_CHECK` in the
+private process environment, after an approved, backed-up schema rollout.
+The flag does NOT authorize migrations, seeding, development test databases,
+or a production deployment on its own. The application still requires all
+normal secret, origin, proxy and transport configuration.
+Never persist the flag in committed configuration, and never run the app with
+the strict `NEXORA_PG_TEST_CONNECTION` fixture as its default connection.
 
 Forwarded headers are disabled by default. When enabled, configure at least one
 trusted proxy IP or CIDR; unknown sources are never permitted to override the
