@@ -27,6 +27,7 @@ public class DoctorApiFactory : WebApplicationFactory<Program>
         ForeignKeys = true, Pooling = false, DefaultTimeout = 1
     }.ToString();
     private readonly SqliteConnection anchor;
+    public FakeStaffInvitationSender InvitationSender { get; } = new();
     public DoctorApiFactory()
     {
         anchor = new SqliteConnection(connectionString);
@@ -58,6 +59,8 @@ public class DoctorApiFactory : WebApplicationFactory<Program>
             services.RemoveAll<DbContextOptions<AppDbContext>>();
             services.RemoveAll<IDbContextOptionsConfiguration<AppDbContext>>();
             services.AddDbContext<AppDbContext>(o => o.UseSqlite(connectionString));
+            services.RemoveAll<IStaffInvitationSender>();
+            services.AddSingleton<IStaffInvitationSender>(InvitationSender);
             services.RemoveAll<EmailService>();
             services.AddScoped(_ => new EmailService(new ConfigurationBuilder().Build()));
         });
@@ -138,5 +141,27 @@ public class DoctorApiFactory : WebApplicationFactory<Program>
     {
         base.Dispose(disposing);
         if (disposing) anchor.Dispose();
+    }
+}
+
+public sealed class FakeStaffInvitationSender : IStaffInvitationSender
+{
+    private readonly object gate = new();
+    private readonly List<(string Email, string Code, string Clinic)> messages = new();
+
+    public Task SendAsync(string email, string code, string clinicName, CancellationToken ct)
+    {
+        lock (gate) messages.Add((email, code, clinicName));
+        return Task.CompletedTask;
+    }
+
+    public (string Email, string Code, string Clinic) Latest()
+    {
+        lock (gate) return messages.Last();
+    }
+
+    public int Count
+    {
+        get { lock (gate) return messages.Count; }
     }
 }
