@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app/app_theme.dart';
 import 'director_catalog_api.dart';
+import 'director_doctor_dialog.dart';
 import 'dental_api.dart';
 import 'models.dart';
 
@@ -119,6 +120,24 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
     });
   }
 
+  Future<void> _editDoctor(DirectorDoctor doctor, {required bool hours}) async {
+    if (!_signedIn || _busy) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => hours
+          ? DirectorHoursDialog(api: api, doctor: doctor)
+          : DirectorDoctorDialog(api: api, doctor: doctor),
+    );
+    if (!mounted || saved != true) return;
+    await _loadDoctors();
+    if (mounted && _error == null) {
+      setState(() => _notice = hours
+          ? 'Эмчийн ажлын цаг шинэчлэгдлээ.'
+          : 'Эмчийн мэдээлэл шинэчлэгдлээ.');
+    }
+  }
+
   static const _dayNames = [
     'Ням', 'Даваа', 'Мягмар', 'Лхагва',
     'Пүрэв', 'Баасан', 'Бямба',
@@ -183,6 +202,20 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
                   else
                     for (final hour in doctor.workingHours)
                       Text(_workHour(hour)),
+                  const SizedBox(height: 12),
+                  Wrap(
+                    spacing: 8,
+                    children: [
+                      OutlinedButton(
+                        onPressed: _busy ? null : () => _editDoctor(doctor, hours: false),
+                        child: const Text('Эмчийн мэдээлэл засах'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _busy ? null : () => _editDoctor(doctor, hours: true),
+                        child: const Text('Ажлын цаг засах'),
+                      ),
+                    ],
+                  ),
                 ],
               ),
             ),
