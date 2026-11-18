@@ -30,6 +30,12 @@ public record VerifyRequest(
     string Code
 );
 
+public record VerifyEmailRequest(
+    string Email,
+    string Code,
+    int ClinicId = 1
+);
+
 public record ResendCodeRequest(
     string Email,
     int ClinicId = 1
@@ -296,11 +302,42 @@ public class AuthController(
 
     [EnableRateLimiting("auth")]
     [HttpPost("verify")]
-    public async Task<IActionResult> Verify(VerifyRequest r)
+    public Task<IActionResult> Verify(VerifyRequest r) =>
+        VerifyPendingRegistrationAsync(r.UserId, r.Code, emailOnly: false);
+
+    // Recover an email registration after the first SMTP delivery failed:
+    // the initial 503 did not return the numeric user ID to the app.
+    // Never reactivate staff accounts or bypass the original email OTP.
+    [EnableRateLimiting("auth")]
+    [HttpPost("verify-email")]
+    public async Task<IActionResult> VerifyEmail(VerifyEmailRequest r)
     {
-        if (string.IsNullOrWhiteSpace(r.Code) ||
-            r.Code.Length != 6 ||
-            !r.Code.All(char.IsDigit))
+        const string invalid = "Код буруу эсвэл хугацаа дууссан.";
+        var email = r.Email?.Trim().ToLowerInvariant();
+        if (string.IsNullOrWhiteSpace(email) ||
+            !MailAddress.TryCreate(email, out var address) ||
+            address.Address != email ||
+            string.IsNullOrWhiteSpace(r.Code) ||
+            r.Code.Length != 6 || !r.Code.All(char.IsDigit))
+            return BadRequest(new { error = invalid });
+
+        var userId = await db.Users.AsNoTracking()
+            .Where(u => u.ClinicId == r.ClinicId && u.Email == email &&
+                        u.Role == Role.Patient && !u.IsActive && !u.IsEmailVerified)
+            .Select(u => (int?)u.Id)
+            .SingleOrDefaultAsync();
+        if (!userId.HasValue)
+            return BadRequest(new { error = invalid });
+
+        return await VerifyPendingRegistrationAsync(userId.Value, r.Code, emailOnly: true);
+    }
+
+    private async Task<IActionResult> VerifyPendingRegistrationAsync(
+        int userId, string code, bool emailOnly)
+    {
+        if (string.IsNullOrWhiteSpace(code) ||
+            code.Length != 6 ||
+            !code.All(char.IsDigit))
             return BadRequest(new
             {
                 error = "6 оронтой код оруулна уу"
@@ -309,16 +346,17 @@ public class AuthController(
         await using var transaction =
             await db.Database.BeginTransactionAsync();
 
-        var user = await db.Users.FindAsync(r.UserId);
+        var user = await db.Users.FindAsync(userId);
 
-        if (user is null || user.IsActive)
+        if (user is null || user.IsActive ||
+            (emailOnly && (user.IsEmailVerified || user.Role != Role.Patient)))
             return BadRequest(new
             {
                 error = "Баталгаажуулах боломжгүй"
             });
 
         var record = await db.VerificationCodes
-            .Where(v => v.UserId == r.UserId &&
+            .Where(v => v.UserId == userId &&
                         !v.IsUsed &&
                         (v.Purpose == "registration" || v.Purpose == ""))
             .OrderByDescending(v => v.CreatedAt)
@@ -342,14 +380,14 @@ public class AuthController(
                 error = "Оролдлогын тоо хэтэрсэн"
             });
 
-        if (record.Channel != "email" &&
-            record.Channel != "sms")
+        if ((emailOnly && record.Channel != "email") ||
+            (record.Channel != "email" && record.Channel != "sms"))
             return BadRequest(new
             {
                 error = "Баталгаажуулах суваг буруу"
             });
 
-        if (!verification.VerifyCode(r.Code, record.CodeHash))
+        if (!verification.VerifyCode(code, record.CodeHash))
         {
             await db.VerificationCodes
                 .Where(v =>
