@@ -17,15 +17,51 @@ public static class Program
     private const int Port = 5432;
     private const string Approval = "CREATE_SYNTHETIC_PG_STAGING_FIXTURE";
     private const string Scope = "NEXORA-PG-STAGING-SYNTHETIC-ONLY";
-    private static readonly string[] Tables =
+    // SQL identifiers cannot be parameterized. Keep every counted table name
+    // and its query as a hard-coded literal, never constructed from input.
+    private static readonly (string Name, string CountSql)[] TableCounts =
     [
-        "Appointments", "ClinicPatientLinks", "Clinics", "DoctorProfiles",
-        "DoctorServices", "DoctorWorkingHours", "NotificationOutbox",
-        "NotificationPreference", "PatientAvailabilities",
-        "PatientAvailabilitySchedules", "Patients", "PhoneVerificationChallenge",
-        "PlatformAccounts", "PlatformVerificationCodes", "Services",
-        "Users", "VerificationCodes"
+        ("Appointments", "SELECT COUNT(*) AS \"Value\" FROM public.\"Appointments\""),
+        ("ClinicPatientLinks", "SELECT COUNT(*) AS \"Value\" FROM public.\"ClinicPatientLinks\""),
+        ("Clinics", "SELECT COUNT(*) AS \"Value\" FROM public.\"Clinics\""),
+        ("DoctorProfiles", "SELECT COUNT(*) AS \"Value\" FROM public.\"DoctorProfiles\""),
+        ("DoctorServices", "SELECT COUNT(*) AS \"Value\" FROM public.\"DoctorServices\""),
+        ("DoctorWorkingHours", "SELECT COUNT(*) AS \"Value\" FROM public.\"DoctorWorkingHours\""),
+        ("NotificationOutbox", "SELECT COUNT(*) AS \"Value\" FROM public.\"NotificationOutbox\""),
+        ("NotificationPreference", "SELECT COUNT(*) AS \"Value\" FROM public.\"NotificationPreference\""),
+        ("PatientAvailabilities", "SELECT COUNT(*) AS \"Value\" FROM public.\"PatientAvailabilities\""),
+        ("PatientAvailabilitySchedules", "SELECT COUNT(*) AS \"Value\" FROM public.\"PatientAvailabilitySchedules\""),
+        ("Patients", "SELECT COUNT(*) AS \"Value\" FROM public.\"Patients\""),
+        ("PhoneVerificationChallenge", "SELECT COUNT(*) AS \"Value\" FROM public.\"PhoneVerificationChallenge\""),
+        ("PlatformAccounts", "SELECT COUNT(*) AS \"Value\" FROM public.\"PlatformAccounts\""),
+        ("PlatformVerificationCodes", "SELECT COUNT(*) AS \"Value\" FROM public.\"PlatformVerificationCodes\""),
+        ("Services", "SELECT COUNT(*) AS \"Value\" FROM public.\"Services\""),
+        ("Users", "SELECT COUNT(*) AS \"Value\" FROM public.\"Users\""),
+        ("VerificationCodes", "SELECT COUNT(*) AS \"Value\" FROM public.\"VerificationCodes\"")
     ];
+
+    // Static SQL for the same 17 tables, not an interpolated identifier.
+    private const string LockAllTablesSql = """
+        LOCK TABLE
+            public."Appointments",
+            public."ClinicPatientLinks",
+            public."Clinics",
+            public."DoctorProfiles",
+            public."DoctorServices",
+            public."DoctorWorkingHours",
+            public."NotificationOutbox",
+            public."NotificationPreference",
+            public."PatientAvailabilities",
+            public."PatientAvailabilitySchedules",
+            public."Patients",
+            public."PhoneVerificationChallenge",
+            public."PlatformAccounts",
+            public."PlatformVerificationCodes",
+            public."Services",
+            public."Users",
+            public."VerificationCodes"
+        IN SHARE ROW EXCLUSIVE MODE
+        """;
 
     public static async Task<int> Main(string[] args)
     {
@@ -82,16 +118,15 @@ public static class Program
                     "SELECT tablename AS \"Value\" FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename <> '__EFMigrationsHistory' ORDER BY tablename")
                     .ToListAsync();
                 if (!existingTables.OrderBy(x => x, StringComparer.Ordinal)
-                        .SequenceEqual(Tables.OrderBy(x => x, StringComparer.Ordinal), StringComparer.Ordinal))
+                        .SequenceEqual(TableCounts.Select(x => x.Name).OrderBy(x => x, StringComparer.Ordinal), StringComparer.Ordinal))
                     throw new InvalidOperationException("Unexpected staging table inventory. No fixture writes permitted.");
 
                 // Only use a fixed, allowlisted set of quoted table names.
                 var counts = new List<(string Table, long Count)>();
-                foreach (var table in Tables)
+                foreach (var table in TableCounts)
                 {
-                    var count = await db.Database.SqlQueryRaw<long>(
-                        $"SELECT COUNT(*) AS \"Value\" FROM public.\"{table}\"").SingleAsync();
-                    counts.Add((table, count));
+                    var count = await db.Database.SqlQueryRaw<long>(table.CountSql).SingleAsync();
+                    counts.Add((table.Name, count));
                 }
                 var isEmpty = counts.All(item => item.Count == 0);
                 Console.WriteLine($"Target verified: {Target}; provider: PostgreSQL; migrations: exact match; tables: {counts.Count}");
@@ -125,12 +160,12 @@ public static class Program
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             // Repeat the empty-database check within the write transaction.
             // Lock known application tables to exclude competing inserts until commit.
-            foreach (var table in Tables)
-                await db.Database.ExecuteSqlRawAsync($"LOCK TABLE public.\"{table}\" IN SHARE ROW EXCLUSIVE MODE");
-            foreach (var table in Tables)
+            // Fail promptly instead of waiting indefinitely for another session.
+            await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'");
+            await db.Database.ExecuteSqlRawAsync(LockAllTablesSql);
+            foreach (var table in TableCounts)
             {
-                if (await db.Database.SqlQueryRaw<long>(
-                    $"SELECT COUNT(*) AS \"Value\" FROM public.\"{table}\"").SingleAsync() != 0)
+                if (await db.Database.SqlQueryRaw<long>(table.CountSql).SingleAsync() != 0)
                     throw new InvalidOperationException("Staging data appeared during preflight. Transaction aborted.");
             }
 
