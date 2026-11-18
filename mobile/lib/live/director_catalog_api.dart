@@ -131,6 +131,103 @@ class DirectorCatalogApi {
         .toList();
   }
 
+  // The backend requires an existing active Doctor-role user in this clinic.
+  // Creating a profile never grants a user the Doctor role.
+  Future<DirectorDoctor> createDoctorProfile({
+    required int userId,
+    required String specialty,
+    required int practiceStartYear,
+    String? biography,
+  }) async {
+    final response = await _call(
+      'POST',
+      '/api/admin/Doctors',
+      accepted: const {201},
+      body: {
+        'userId': userId,
+        'profile': {
+          'specialty': specialty.trim(),
+          'practiceStartYear': practiceStartYear,
+          'biography': biography?.trim(),
+          'photoPath': null,
+        },
+        'isPublished': false,
+      },
+    );
+    return DirectorDoctor.fromJson(object(response));
+  }
+
+  Future<DirectorDoctor> updateDoctorProfile(
+    DirectorDoctor doctor, {
+    required String specialty,
+    required int practiceStartYear,
+    String? biography,
+    required bool isPublished,
+    required bool isActive,
+  }) async {
+    final response = await _call(
+      'PUT',
+      '/api/admin/Doctors/${doctor.id}',
+      body: {
+        'version': doctor.version,
+        'profile': {
+          'specialty': specialty.trim(),
+          'practiceStartYear': practiceStartYear,
+          'biography': biography?.trim(),
+          'photoPath': doctor.photoPath,
+        },
+        'isPublished': isPublished,
+        'isActive': isActive,
+      },
+    );
+    final updated = DirectorDoctor.fromJson(object(response));
+    if (updated.id != doctor.id) {
+      throw const ApiFailure('Эмчийн мэдээллийн хариу зөрчилтэй байна.');
+    }
+    return updated;
+  }
+
+  Future<DirectorDoctor> updateDoctorHours(
+    DirectorDoctor doctor,
+    List<DirectorWorkingHour> intervals,
+  ) async {
+    if (intervals.length > 70 ||
+        intervals.any((h) =>
+            h.dayOfWeek < 0 || h.dayOfWeek > 6 ||
+            h.startMinute < 0 || h.endMinute > 1440 ||
+            h.startMinute >= h.endMinute)) {
+      throw const ApiFailure('Ажлын цагийн мэдээлэл буруу байна.', 400);
+    }
+    for (var day = 0; day <= 6; day++) {
+      final hours = intervals.where((h) => h.dayOfWeek == day).toList()
+        ..sort((a, b) => a.startMinute.compareTo(b.startMinute));
+      for (var i = 1; i < hours.length; i++) {
+        if (hours[i].startMinute < hours[i - 1].endMinute) {
+          throw const ApiFailure('Ажлын цагууд давхцаж байна.', 400);
+        }
+      }
+    }
+    final response = await _call(
+      'PUT',
+      '/api/admin/Doctors/${doctor.id}/working-hours',
+      body: {
+        'version': doctor.version,
+        'intervals': intervals
+            .map((h) => {
+                  'dayOfWeek': h.dayOfWeek,
+                  'startMinute': h.startMinute,
+                  'endMinute': h.endMinute,
+                })
+            .toList(),
+      },
+    );
+    final updated = DirectorDoctor.fromJson(object(response));
+    if (updated.id != doctor.id) {
+      throw const ApiFailure('Ажлын цагийн хариу зөрчилтэй байна.');
+    }
+    return updated;
+  }
+
   Future<DirectorService> saveService({
     int? id,
     required String name,
@@ -202,7 +299,8 @@ class DirectorService {
 
 class DirectorDoctor {
   final int id, practiceStartYear;
-  final String fullName, specialty;
+  final String fullName, specialty, version;
+  final String? biography, photoPath;
   final bool isActive, isPublished;
   final List<DirectorWorkingHour> workingHours;
 
@@ -211,6 +309,9 @@ class DirectorDoctor {
     required this.fullName,
     required this.specialty,
     required this.practiceStartYear,
+    required this.version,
+    required this.biography,
+    required this.photoPath,
     required this.isActive,
     required this.isPublished,
     required this.workingHours,
@@ -221,6 +322,9 @@ class DirectorDoctor {
     fullName: text(json, 'fullName'),
     specialty: text(json, 'specialty'),
     practiceStartYear: number(json, 'practiceStartYear'),
+    version: text(json, 'version'),
+    biography: json['biography'] as String?,
+    photoPath: json['photoPath'] as String?,
     isActive: json['isActive'] as bool,
     isPublished: json['isPublished'] as bool,
     workingHours: (json['workingHours'] as List)
