@@ -208,6 +208,21 @@ class LiveFlowController extends ChangeNotifier {
     });
   }
 
+  Future<void> resendRegistrationCode(String email) => run((current) async {
+    final message = await api.resendRegistrationCode(email);
+    if (!current()) return;
+    notice = message;
+  });
+
+  Future<void> verifyRegistrationEmail(String email, String code) =>
+      run((current) async {
+        final result = await api.verifyRegistrationEmail(email, code);
+        if (!current()) return;
+        registration = null;
+        step = 1;
+        notice = '${result.message} Одоо нууц үгээрээ нэвтэрнэ үү.';
+      });
+
   Future<void> verify(String code) => run((current) async {
     if (registration == null) return;
     final result = await api.verify(registration!.userId, code);
