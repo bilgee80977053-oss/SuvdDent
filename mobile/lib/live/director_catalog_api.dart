@@ -228,6 +228,52 @@ class DirectorCatalogApi {
     return updated;
   }
 
+  // A read snapshot contains the version shared by doctor profile, hours and
+  // service mappings. Keep every previously linked row on single-item writes.
+  Future<DirectorDoctorServiceCatalog> doctorServices(int doctorId) async {
+    final result = DirectorDoctorServiceCatalog.fromJson(
+      object(await _call('GET', '/api/admin/Doctors/$doctorId/services')),
+    );
+    if (result.doctorProfileId != doctorId) {
+      throw const ApiFailure('Эмчийн үйлчилгээний хариу зөрчилтэй байна.');
+    }
+    return result;
+  }
+
+  Future<DirectorDoctorServiceCatalog> saveDoctorServices(
+    DirectorDoctorServiceCatalog snapshot,
+    List<DirectorDoctorService> services,
+  ) async {
+    if (snapshot.doctorProfileId <= 0 ||
+        snapshot.version.isEmpty ||
+        services.length > 100 ||
+        services.map((s) => s.serviceId).toSet().length != services.length ||
+        services.any((s) =>
+            s.serviceId <= 0 ||
+            s.durationMinutes < 1 ||
+            s.durationMinutes > 1440 ||
+            s.bufferBeforeMinutes < 0 ||
+            s.bufferBeforeMinutes > 1439 ||
+            s.bufferAfterMinutes < 0 ||
+            s.bufferAfterMinutes > 1439 ||
+            s.durationMinutes + s.bufferBeforeMinutes +
+                s.bufferAfterMinutes > 1440)) {
+      throw const ApiFailure('Эмчилгээний хугацаа, үйлчилгээний тохиргоо буруу байна.', 400);
+    }
+    final response = DirectorDoctorServiceCatalog.fromJson(object(await _call(
+      'PUT',
+      '/api/admin/Doctors/${snapshot.doctorProfileId}/services',
+      body: {
+        'version': snapshot.version,
+        'services': services.map((service) => service.toJson()).toList(),
+      },
+    )));
+    if (response.doctorProfileId != snapshot.doctorProfileId) {
+      throw const ApiFailure('Эмчийн үйлчилгээний хадгалалтын хариу зөрчилтэй байна.');
+    }
+    return response;
+  }
+
   Future<DirectorService> saveService({
     int? id,
     required String name,
@@ -347,4 +393,55 @@ class DirectorWorkingHour {
     startMinute: number(json, 'startMinute'),
     endMinute: number(json, 'endMinute'),
   );
+}
+
+
+class DirectorDoctorServiceCatalog {
+  final int doctorProfileId;
+  final String version;
+  final List<DirectorDoctorService> services;
+
+  const DirectorDoctorServiceCatalog({
+    required this.doctorProfileId,
+    required this.version,
+    required this.services,
+  });
+
+  factory DirectorDoctorServiceCatalog.fromJson(Json json) =>
+      DirectorDoctorServiceCatalog(
+        doctorProfileId: number(json, 'doctorProfileId'),
+        version: text(json, 'version'),
+        services: (json['services'] as List)
+            .map((v) => DirectorDoctorService.fromJson(object(v)))
+            .toList(),
+      );
+}
+
+class DirectorDoctorService {
+  final int serviceId, durationMinutes, bufferBeforeMinutes, bufferAfterMinutes;
+  final bool isActive;
+
+  const DirectorDoctorService({
+    required this.serviceId,
+    required this.durationMinutes,
+    required this.bufferBeforeMinutes,
+    required this.bufferAfterMinutes,
+    required this.isActive,
+  });
+
+  factory DirectorDoctorService.fromJson(Json json) => DirectorDoctorService(
+        serviceId: number(json, 'serviceId'),
+        durationMinutes: number(json, 'durationMinutes'),
+        bufferBeforeMinutes: number(json, 'bufferBeforeMinutes'),
+        bufferAfterMinutes: number(json, 'bufferAfterMinutes'),
+        isActive: json['isActive'] as bool,
+      );
+
+  Json toJson() => {
+        'serviceId': serviceId,
+        'durationMinutes': durationMinutes,
+        'bufferBeforeMinutes': bufferBeforeMinutes,
+        'bufferAfterMinutes': bufferAfterMinutes,
+        'isActive': isActive,
+      };
 }
