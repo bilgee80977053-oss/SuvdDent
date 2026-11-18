@@ -164,6 +164,9 @@ void main() {
             'fullName': 'Бүртгэлтэй эмч',
             'specialty': 'Шүдний эмчилгээ',
             'practiceStartYear': 2019,
+            'version': '12345678-1234-1234-1234-123456789abc',
+            'biography': null,
+            'photoPath': null,
             'isPublished': true,
             'isActive': true,
             'workingHours': [
@@ -257,6 +260,9 @@ void main() {
             'fullName': 'Бүртгэлтэй эмч',
             'specialty': 'Шүдний эмчилгээ',
             'practiceStartYear': 2019,
+            'version': '12345678-1234-1234-1234-123456789abc',
+            'biography': null,
+            'photoPath': null,
             'isPublished': false,
             'isActive': true,
             'workingHours': [
