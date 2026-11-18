@@ -60,9 +60,11 @@ class _DirectorDoctorDialogState extends State<DirectorDoctorDialog> {
       );
       if (mounted) Navigator.pop(context, true);
     } on ApiFailure catch (error) {
-      if (mounted) setState(() => _error = error.status == 409
-          ? 'Эмчийн мэдээлэл өөрчлөгдсөн байна. Жагсаалтыг шинэчлээд дахин оролдоно уу.'
-          : error.message);
+      if (mounted) {
+        setState(() => _error = error.status == 409
+            ? 'Эмчийн мэдээлэл өөрчлөгдсөн байна. Жагсаалтыг шинэчлээд дахин оролдоно уу.'
+            : error.message);
+      }
     } catch (_) {
       if (mounted) setState(() => _error = 'Хадгалалт баталгаажаагүй. Дахин шалгана уу.');
     } finally {
@@ -227,9 +229,11 @@ class _DirectorHoursDialogState extends State<DirectorHoursDialog> {
       await widget.api.updateDoctorHours(widget.doctor, hours);
       if (mounted) Navigator.pop(context, true);
     } on ApiFailure catch (error) {
-      if (mounted) setState(() => _error = error.status == 409
-          ? 'Хуваарь өөрчлөгдсөн байна. Жагсаалтыг шинэчлээд дахин оролдоно уу.'
-          : error.message);
+      if (mounted) {
+        setState(() => _error = error.status == 409
+            ? 'Хуваарь өөрчлөгдсөн байна. Жагсаалтыг шинэчлээд дахин оролдоно уу.'
+            : error.message);
+      }
     } catch (_) {
       if (mounted) setState(() => _error = 'Хуваарийн хадгалалт баталгаажаагүй.');
     } finally {
