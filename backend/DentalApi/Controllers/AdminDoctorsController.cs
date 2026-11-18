@@ -15,6 +15,10 @@ public class AdminDoctorsController(DoctorProfileService profiles) : ControllerB
     [HttpGet]
     public async Task<IActionResult> List() => Ok(await profiles.ListAsync(ClinicId, true));
 
+    [HttpGet("eligible-users")]
+    public async Task<IActionResult> EligibleUsers() =>
+        Ok(await profiles.EligibleUsersAsync(ClinicId));
+
     [HttpGet("{id:int}")]
     public async Task<IActionResult> Get(int id)
     {
