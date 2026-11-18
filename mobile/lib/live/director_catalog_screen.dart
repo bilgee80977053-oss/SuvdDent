@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_theme.dart';
 import 'director_catalog_api.dart';
 import 'director_doctor_dialog.dart';
+import 'director_service_assignment_dialog.dart';
 import 'dental_api.dart';
 import 'models.dart';
 
@@ -138,6 +139,24 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
     }
   }
 
+  Future<void> _assignDoctorService(DirectorDoctor doctor) async {
+    if (!_signedIn || _busy) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DirectorServiceAssignmentDialog(
+        api: api,
+        doctor: doctor,
+        clinicServices: _services,
+      ),
+    );
+    if (!mounted || saved != true) return;
+    await _loadDoctors();
+    if (mounted && _error == null) {
+      setState(() => _notice = 'Эмчийн үйлчилгээний холбоос хадгалагдлаа.');
+    }
+  }
+
   static const _dayNames = [
     'Ням', 'Даваа', 'Мягмар', 'Лхагва',
     'Пүрэв', 'Баасан', 'Бямба',
@@ -215,6 +234,12 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
                       OutlinedButton(
                         onPressed: _busy ? null : () => _editDoctor(doctor, hours: true),
                         child: const Text('Ажлын цаг засах'),
+                      ),
+                      OutlinedButton(
+                        onPressed: _busy || _services.isEmpty
+                            ? null
+                            : () => _assignDoctorService(doctor),
+                        child: const Text('Үйлчилгээ холбох'),
                       ),
                     ],
                   ),
