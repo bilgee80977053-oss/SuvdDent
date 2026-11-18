@@ -230,15 +230,22 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-// Өгөгдлийн сангийн migration
+// PostgreSQL startup is explicitly opt-in and READ ONLY for the database schema.
+// SQLite retains its existing migration and seeding behavior.
 if (!app.Environment.IsEnvironment("Testing"))
 {
     DatabaseProviderSettings.EnsureMigrationsReady(app.Configuration);
-    using (var scope = app.Services.CreateScope())
-    {
-        var db = scope.ServiceProvider
-            .GetRequiredService<AppDbContext>();
+    using var scope = app.Services.CreateScope();
+    var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
 
+    if (DatabaseProviderSettings.Selected(app.Configuration) == DatabaseProviderSettings.PostgreSql)
+    {
+        await DatabaseProviderSettings.VerifyPostgreSqlSchemaAsync(db);
+        app.Logger.LogInformation(
+            "PostgreSQL migration history verified. Startup did not apply migrations or seed data.");
+    }
+    else
+    {
         db.Database.Migrate();
         var seedPhone = app.Configuration["Seed:AdminPhone"];
         var seedPassword = app.Configuration["Seed:AdminPassword"];
