@@ -114,9 +114,12 @@ There is no checked-in PostgreSQL `.sql` artifact; generate it from its C# histo
 
 - SQLite automatically applies pending migrations on application startup outside
   `Testing`. Starting the API can therefore change the configured SQLite database.
-- PostgreSQL startup migration protection remains enabled: outside `Testing`,
-  startup rejects PostgreSQL before migration/seeding. A baseline on disk does
-  not authorize disabling that guard.
+- PostgreSQL startup requires an explicit `NEXORA_PG_STARTUP_APPROVAL=READ_ONLY_SCHEMA_CHECK`
+  opt-in and verifies that applied migrations exactly match the C# migration
+  history. It never invokes `Migrate()`, `EnsureCreated()` or seeding for PostgreSQL.
+  Missing, extra or out-of-order history prevents startup. The opt-in is not
+  authorization to migrate an existing database; schema rollout must occur
+  independently with backup, validation and an approved plan.
 - `Testing` skips application startup migration/seeding. Historical tests explicitly
   apply SQLite migrations only to their isolated in-memory databases.
 - Both design-time factories ignore application configuration: SQLite uses an
