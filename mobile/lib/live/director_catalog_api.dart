@@ -123,6 +123,14 @@ class DirectorCatalogApi {
         .toList();
   }
 
+  // Director-only read of the existing doctor roster; no placeholder doctors.
+  Future<List<DirectorDoctor>> doctors() async {
+    final result = await _call('GET', '/api/admin/Doctors');
+    return (result as List)
+        .map((item) => DirectorDoctor.fromJson(object(item)))
+        .toList();
+  }
+
   Future<DirectorService> saveService({
     int? id,
     required String name,
@@ -189,5 +197,50 @@ class DirectorService {
     maxPrice: json['maxPrice'] as int?,
     aftercareText: json['aftercareText'] as String?,
     isActive: json['isActive'] as bool,
+  );
+}
+
+class DirectorDoctor {
+  final int id, practiceStartYear;
+  final String fullName, specialty;
+  final bool isActive, isPublished;
+  final List<DirectorWorkingHour> workingHours;
+
+  const DirectorDoctor({
+    required this.id,
+    required this.fullName,
+    required this.specialty,
+    required this.practiceStartYear,
+    required this.isActive,
+    required this.isPublished,
+    required this.workingHours,
+  });
+
+  factory DirectorDoctor.fromJson(Json json) => DirectorDoctor(
+    id: number(json, 'id'),
+    fullName: text(json, 'fullName'),
+    specialty: text(json, 'specialty'),
+    practiceStartYear: number(json, 'practiceStartYear'),
+    isActive: json['isActive'] as bool,
+    isPublished: json['isPublished'] as bool,
+    workingHours: (json['workingHours'] as List)
+        .map((v) => DirectorWorkingHour.fromJson(object(v)))
+        .toList(),
+  );
+}
+
+class DirectorWorkingHour {
+  final int dayOfWeek, startMinute, endMinute;
+
+  const DirectorWorkingHour({
+    required this.dayOfWeek,
+    required this.startMinute,
+    required this.endMinute,
+  });
+
+  factory DirectorWorkingHour.fromJson(Json json) => DirectorWorkingHour(
+    dayOfWeek: number(json, 'dayOfWeek'),
+    startMinute: number(json, 'startMinute'),
+    endMinute: number(json, 'endMinute'),
   );
 }
