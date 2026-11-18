@@ -290,4 +290,76 @@ void main() {
     expect(find.text('Даваа 09:00–18:00'), findsOneWidget);
     await tester.pumpWidget(const SizedBox());
   });
+
+  test('Doctor profile edits include original version and do not change tenant', () async {
+    http.Request? update;
+    final doctorJson = {
+      'id': 20,
+      'fullName': 'Бүртгэлтэй эмч',
+      'specialty': 'Шүдний эмчилгээ',
+      'practiceStartYear': 2019,
+      'biography': null,
+      'photoPath': null,
+      'isPublished': false,
+      'isActive': true,
+      'version': '12345678-1234-1234-1234-123456789abc',
+      'workingHours': <Map<String, int>>[],
+    };
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/Doctors/20' &&
+          request.method == 'PUT') {
+        update = request;
+        return reply(doctorJson);
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final doctor = DirectorDoctor.fromJson(doctorJson);
+    await api.updateDoctorProfile(
+      doctor,
+      specialty: 'Шүдний эмчилгээ',
+      practiceStartYear: 2019,
+      isPublished: false,
+      isActive: true,
+    );
+    expect(update?.method, 'PUT');
+    final body = jsonDecode(update!.body);
+    expect(body['version'], doctor.version);
+    expect(body.containsKey('clinicId'), isFalse);
+    expect(update!.headers['authorization'], 'Bearer director-only-token');
+  });
+
+  test('Doctor hours edit rejects invalid intervals before contacting backend', () async {
+    var hourWrites = 0;
+    final api = makeApi((request) {
+      if (request.url.path.endsWith('/working-hours')) hourWrites++;
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final doctor = DirectorDoctor.fromJson({
+      'id': 20,
+      'fullName': 'Бүртгэлтэй эмч',
+      'specialty': 'Шүдний эмчилгээ',
+      'practiceStartYear': 2019,
+      'biography': null,
+      'photoPath': null,
+      'isPublished': false,
+      'isActive': true,
+      'version': '12345678-1234-1234-1234-123456789abc',
+      'workingHours': <Map<String, int>>[],
+    });
+    await expectLater(
+      api.updateDoctorHours(doctor, [
+        const DirectorWorkingHour(
+          dayOfWeek: 1,
+          startMinute: 700,
+          endMinute: 600,
+        ),
+      ]),
+      throwsA(isA<ApiFailure>()),
+    );
+    expect(hourWrites, 0);
+  });
 }
