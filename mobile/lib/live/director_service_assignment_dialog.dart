@@ -90,7 +90,9 @@ class _DirectorServiceAssignmentDialogState
     final snapshot = _snapshot;
     final id = _serviceId;
     if (_busy || snapshot == null || id == null ||
-        !_form.currentState!.validate()) return;
+        !_form.currentState!.validate()) {
+      return;
+    }
 
     final duration = int.parse(_duration.text.trim());
     final before = int.parse(_before.text.trim());
@@ -161,7 +163,7 @@ class _DirectorServiceAssignmentDialogState
                   const Text('Үйлчилгээний каталог хоосон байна.')
                 else ...[
                   DropdownButtonFormField<int>(
-                    value: _serviceId,
+                    initialValue: _serviceId,
                     decoration: const InputDecoration(labelText: 'Үйлчилгээ'),
                     items: [
                       for (final service in catalog)
