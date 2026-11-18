@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../live/live_patient_flow.dart';
 import '../live/director_catalog_screen.dart';
+import '../live/staff_invitation_accept_screen.dart';
 import '../live/models.dart';
 import 'app_theme.dart';
 import 'patient_flow.dart';
@@ -26,6 +27,8 @@ class NexoraDentalApp extends StatelessWidget {
             : const PatientFlow()
         : settings.error != null
         ? LiveConfigurationError(settings.error!)
+        : Uri.base.queryParameters['staff-invite'] == '1'
+        ? StaffInvitationAcceptScreen(settings: settings)
         : _appMode == 'director'
         ? DirectorCatalogScreen(settings: settings)
         : LivePatientFlow(settings: settings),
