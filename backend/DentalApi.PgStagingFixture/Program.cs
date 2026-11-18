@@ -215,11 +215,11 @@ public static class Program
             Console.WriteLine("No production data, provider calls or migrations were used.");
             return 0;
         }
-        catch (Exception e)
+        catch (Exception)
         {
-            // Never print provider exception chains or connection strings.
-            Console.Error.WriteLine("STAGING FIXTURE FAILED: " + e.Message.Replace(
-                Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_CONNECTION") ?? "\0", "[redacted]"));
+            // Deliberately suppress provider exception text: it can include
+            // connection strings, credentials, SQL parameters or fixture data.
+            Console.Error.WriteLine("STAGING FIXTURE FAILED. Check preflight conditions and permissions privately.");
             return 1;
         }
     }
