@@ -131,6 +131,28 @@ class DirectorCatalogApi {
         .toList();
   }
 
+  Future<List<DirectorStaffAccount>> staffDoctors() async {
+    final data = await _call('GET', '/api/admin/staff/doctors');
+    return (data as List)
+        .map((row) => DirectorStaffAccount.fromJson(object(row)))
+        .toList();
+  }
+
+  Future<void> inviteDoctor({
+    required String fullName,
+    required String email,
+  }) async {
+    await _call(
+      'POST',
+      '/api/admin/staff/invite-doctor',
+      accepted: const {202},
+      body: {
+        'fullName': fullName.trim(),
+        'email': email.trim().toLowerCase(),
+      },
+    );
+  }
+
   Future<List<EligibleDoctorAccount>> eligibleDoctors() async {
     final result = await _call('GET', '/api/admin/Doctors/eligible-users');
     return (result as List)
@@ -462,5 +484,29 @@ class EligibleDoctorAccount {
   factory EligibleDoctorAccount.fromJson(Json json) => EligibleDoctorAccount(
     userId: number(json, 'userId'),
     fullName: text(json, 'fullName'),
+  );
+}
+
+class DirectorStaffAccount {
+  final int userId;
+  final String fullName, email, role;
+  final bool isActive, isEmailVerified;
+
+  const DirectorStaffAccount({
+    required this.userId,
+    required this.fullName,
+    required this.email,
+    required this.role,
+    required this.isActive,
+    required this.isEmailVerified,
+  });
+
+  factory DirectorStaffAccount.fromJson(Json json) => DirectorStaffAccount(
+    userId: number(json, 'userId'),
+    fullName: text(json, 'fullName'),
+    email: text(json, 'email'),
+    role: text(json, 'role'),
+    isActive: json['isActive'] as bool,
+    isEmailVerified: json['isEmailVerified'] as bool,
   );
 }
