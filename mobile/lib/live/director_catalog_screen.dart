@@ -160,8 +160,10 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
           style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 8),
       const Text(
-        'Энд зөвхөн серверт бүртгэлтэй эмч, ажлын цагийг харуулна. '
-        'Энэ дэлгэцээс эмч нэмж, хуваарь өөрчлөхгүй.',
+        'Энд серверт бүртгэлтэй эмч, ажлын цагийг харуулна. '
+        'Одоо байгаа эмчийн мэдээлэл, энгийн долоо хоногийн '
+        'хуваарийг засах боломжтой. Шинэ эмчийн хэрэглэгчийн эрх '
+        'үүсгэх үйлдэл тусдаа шаардлагатай.',
       ),
       const SizedBox(height: 12),
       OutlinedButton.icon(
