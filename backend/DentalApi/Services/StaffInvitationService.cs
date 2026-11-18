@@ -39,14 +39,20 @@ public sealed class StaffInvitationService(
         "Урилгыг хүлээн авлаа. Боломжтой бол имэйлээр баталгаажуулах код хүргэнэ." };
     private static readonly object Invalid = new { error = "Код буруу эсвэл хугацаа дууссан." };
 
-    public async Task<DirectorStaffResponse[]> ListAsync(int clinicId, CancellationToken ct) =>
-        await db.Users.AsNoTracking()
+    public async Task<DirectorStaffResponse[]> ListAsync(int clinicId, CancellationToken ct)
+    {
+        var accounts = await db.Users.AsNoTracking()
             .Where(u => u.ClinicId == clinicId && u.Role == Role.Doctor)
             .OrderBy(u => u.FullName).ThenBy(u => u.Id)
-            .Select(u => new DirectorStaffResponse(
-                u.Id, u.FullName, u.Email ?? "", u.Role.ToString(),
-                u.IsActive, u.IsEmailVerified))
+            .Select(u => new
+            {
+                u.Id, u.FullName, u.Email, u.Role, u.IsActive, u.IsEmailVerified
+            })
             .ToArrayAsync(ct);
+        return accounts.Select(u => new DirectorStaffResponse(
+            u.Id, u.FullName, u.Email ?? "", u.Role.ToString(),
+            u.IsActive, u.IsEmailVerified)).ToArray();
+    }
 
     public async Task<StaffInvitationResult> InviteAsync(
         int clinicId, InviteDoctorRequest input, CancellationToken ct)
