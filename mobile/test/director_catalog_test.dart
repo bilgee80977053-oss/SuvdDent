@@ -362,4 +362,91 @@ void main() {
     );
     expect(hourWrites, 0);
   });
+
+  test('Doctor-service mapping reads versioned roster and keeps unrelated rows', () async {
+    http.Request? write;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/Doctors/20/services') {
+        if (request.method == 'GET') {
+          return reply({
+            'doctorProfileId': 20,
+            'version': '12345678-1234-1234-1234-123456789abc',
+            'services': [
+              {
+                'serviceId': 3,
+                'durationMinutes': 30,
+                'bufferBeforeMinutes': 5,
+                'bufferAfterMinutes': 5,
+                'isActive': true,
+              },
+              {
+                'serviceId': 4,
+                'durationMinutes': 60,
+                'bufferBeforeMinutes': 0,
+                'bufferAfterMinutes': 10,
+                'isActive': false,
+              },
+            ],
+          });
+        }
+        write = request;
+        return reply({
+          'doctorProfileId': 20,
+          'version': '12345678-1234-1234-1234-123456789abd',
+          'services': jsonDecode(request.body)['services'],
+        });
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final snapshot = await api.doctorServices(20);
+    final rows = [
+      for (final s in snapshot.services)
+        if (s.serviceId != 3) s,
+      const DirectorDoctorService(
+        serviceId: 3,
+        durationMinutes: 45,
+        bufferBeforeMinutes: 5,
+        bufferAfterMinutes: 5,
+        isActive: true,
+      ),
+    ];
+    final updated = await api.saveDoctorServices(snapshot, rows);
+    expect(updated.services.length, 2);
+    expect(jsonDecode(write!.body)['version'], snapshot.version);
+    expect((jsonDecode(write!.body)['services'] as List)
+        .any((s) => s['serviceId'] == 4 && s['isActive'] == false), isTrue);
+    expect(jsonDecode(write!.body).containsKey('clinicId'), isFalse);
+  });
+
+  test('invalid doctor-service durations fail without sending writes', () async {
+    var writes = 0;
+    final api = makeApi((request) {
+      if (request.method == 'PUT') writes++;
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    await expectLater(
+      api.saveDoctorServices(
+        const DirectorDoctorServiceCatalog(
+          doctorProfileId: 20,
+          version: '12345678-1234-1234-1234-123456789abc',
+          services: [],
+        ),
+        [
+          const DirectorDoctorService(
+            serviceId: 3,
+            durationMinutes: 1440,
+            bufferBeforeMinutes: 1,
+            bufferAfterMinutes: 0,
+            isActive: true,
+          ),
+        ],
+      ),
+      throwsA(isA<ApiFailure>()),
+    );
+    expect(writes, 0);
+  });
 }
