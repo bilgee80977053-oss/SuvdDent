@@ -191,6 +191,15 @@ internal sealed class PostgreSqlApiFactory : WebApplicationFactory<Program>
                 await db.PlatformAccounts.AnyAsync(a => a.Id == Platform.Id &&
                     (a.Email == null || a.Email != Marker + "@example.invalid" || a.FullName != Marker)))
                 throw new InvalidOperationException();
+            // A booking fixture can verify its clinic's time zone using its own Director.
+            // Clear that same-clinic FK before removing the Director user; keep the
+            // CHECK-constrained verification fields consistent in one UPDATE.
+            await db.Clinics.Where(c => ids.Contains(c.Id) && c.TimeZoneStatus == TimeZoneStatus.Verified)
+                .ExecuteUpdateAsync(setters => setters
+                    .SetProperty(c => c.TimeZoneStatus, TimeZoneStatus.PendingVerification)
+                    .SetProperty(c => c.TimeZoneVerifiedClinicId, (int?)null)
+                    .SetProperty(c => c.TimeZoneVerifiedByUserId, (int?)null)
+                    .SetProperty(c => c.TimeZoneVerifiedAtUtc, (DateTime?)null));
             var users = db.Users.Where(u => ids.Contains(u.ClinicId)).Select(u => u.Id);
             await db.ClinicPatientLinks.Where(x => ids.Contains(x.ClinicId)).ExecuteDeleteAsync();
             await db.PatientAvailabilities.Where(x => ids.Contains(x.ClinicId)).ExecuteDeleteAsync();
