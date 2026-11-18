@@ -6,8 +6,9 @@ resets sequences, deletes existing records, or contacts SMTP/SMS providers.
 
 **Only allowed target**: native PostgreSQL on 127.0.0.1:5432, database
 `nexora_restore_check_20261118_201309`, login `nexora_dev`. No CLI override
-of the target is accepted. It does not use `ConnectionStrings__Default` or
-`NEXORA_PG_TEST_CONNECTION`.
+of the target is accepted. It does not use `ConnectionStrings__Default`, `NEXORA_PG_TEST_CONNECTION`,
+or a user-assembled connection string. The only connection secret is supplied
+through the private `NEXORA_PG_STAGING_DB_PASSWORD` environment variable.
 
 The three modes are:
 
@@ -25,21 +26,19 @@ The three modes are:
 
 ```powershell
 cd C:\Users\Surface\SuvdDent
-# The configured password stays private, not in command history or Git.
+# This tool constructs the fixed target using NpgsqlConnectionStringBuilder.
+# Supply only the private database password, not a manually quoted connection string.
 $secure = Read-Host "nexora_dev password" -AsSecureString
 $ptr = [Runtime.InteropServices.Marshal]::SecureStringToBSTR($secure)
 try { $pw = [Runtime.InteropServices.Marshal]::PtrToStringBSTR($ptr) }
 finally { [Runtime.InteropServices.Marshal]::ZeroFreeBSTR($ptr) }
 try {
-    # Npgsql connection strings quote a password; never print the variable.
-    $env:NEXORA_PG_STAGING_CONNECTION = (
-        'Host=127.0.0.1;Port=5432;Database=nexora_restore_check_20261118_201309;Username=nexora_dev;Password="{0}"' -f $pw.Replace('"','""')
-    )
-    dotnet run --project backend/DentalApi.PgStagingFixture -- plan
+    $env:NEXORA_PG_STAGING_DB_PASSWORD = $pw
+    dotnet run --project backend/DentalApi.PgStagingFixture -c Release --no-build -- plan
     if ($LASTEXITCODE -ne 0) { throw 'Read-only preflight failed.' }
 }
 finally {
-    Remove-Item Env:\NEXORA_PG_STAGING_CONNECTION -ErrorAction SilentlyContinue
+    Remove-Item Env:\NEXORA_PG_STAGING_DB_PASSWORD -ErrorAction SilentlyContinue
     Remove-Variable pw,secure,ptr -ErrorAction SilentlyContinue
 }
 ```
