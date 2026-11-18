@@ -65,6 +65,9 @@ public static class Program
 
     public static async Task<int> Main(string[] args)
     {
+        // Only pre-defined stages and exception categories reach the console.
+        // Never emit exception messages, SQL parameters or connection strings.
+        var stage = "arguments";
         try
         {
             if (args.Length != 1 || args[0] is not ("plan" or "create" or "inspect"))
@@ -74,6 +77,7 @@ public static class Program
             if (string.IsNullOrWhiteSpace(raw))
                 throw new InvalidOperationException("NEXORA_PG_STAGING_CONNECTION is required (private process environment).");
 
+            stage = "target configuration";
             NpgsqlConnectionStringBuilder connection;
             try
             {
@@ -97,15 +101,19 @@ public static class Program
             connection.LogParameters = false;
             connection.IncludeErrorDetail = false;
             connection.ApplicationName = "NexoraSyntheticPgStaging";
+            stage = "provider setup";
             await using var db = new PostgreSqlAppDbContext(
                 new DbContextOptionsBuilder<PostgreSqlAppDbContext>()
                     .UseNpgsql(connection.ConnectionString).Options);
 
             // Use read-only preflight even for create. Prevents writes until every
             // identity/schema/emptiness condition is satisfied.
+            stage = "read-only connection";
             await using (var preflight = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.RepeatableRead))
             {
+                stage = "read-only transaction";
                 await db.Database.ExecuteSqlRawAsync("SET TRANSACTION READ ONLY");
+                stage = "database identity";
                 var current = await db.Database.SqlQueryRaw<string>(
                     "SELECT current_database() AS \"Value\"").SingleAsync();
                 var username = await db.Database.SqlQueryRaw<string>(
@@ -113,7 +121,9 @@ public static class Program
                 if (current != Target || username != Owner)
                     throw new InvalidOperationException("Database identity mismatch. No fixture writes permitted.");
 
+                stage = "migration history";
                 await DatabaseProviderSettings.VerifyPostgreSqlSchemaAsync(db);
+                stage = "table inventory";
                 var existingTables = await db.Database.SqlQueryRaw<string>(
                     "SELECT tablename AS \"Value\" FROM pg_catalog.pg_tables WHERE schemaname = 'public' AND tablename <> '__EFMigrationsHistory' ORDER BY tablename")
                     .ToListAsync();
@@ -121,6 +131,7 @@ public static class Program
                         .SequenceEqual(TableCounts.Select(x => x.Name).OrderBy(x => x, StringComparer.Ordinal), StringComparer.Ordinal))
                     throw new InvalidOperationException("Unexpected staging table inventory. No fixture writes permitted.");
 
+                stage = "table row counts";
                 // Only use a fixed, allowlisted set of quoted table names.
                 var counts = new List<(string Table, long Count)>();
                 foreach (var table in TableCounts)
@@ -141,6 +152,7 @@ public static class Program
                     foreach (var item in counts)
                         Console.WriteLine($"{item.Table}: {item.Count}");
                 }
+                stage = "read-only completion";
                 await preflight.CommitAsync();
             }
 
@@ -150,6 +162,7 @@ public static class Program
                 return 0;
             }
 
+            stage = "write authorization";
             if (Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_WRITE_OPT_IN") != Approval)
                 throw new InvalidOperationException("Explicit synthetic fixture write opt-in is missing.");
             var password = Environment.GetEnvironmentVariable("NEXORA_PG_STAGING_PATIENT_PASSWORD");
@@ -157,11 +170,13 @@ public static class Program
                 System.Text.Encoding.UTF8.GetByteCount(password) > 72)
                 throw new InvalidOperationException("Private synthetic patient password must contain 8-72 UTF-8 bytes.");
 
+            stage = "write transaction";
             await using var tx = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable);
             // Repeat the empty-database check within the write transaction.
             // Lock known application tables to exclude competing inserts until commit.
             // Fail promptly instead of waiting indefinitely for another session.
             await db.Database.ExecuteSqlRawAsync("SET LOCAL lock_timeout = '5s'");
+            stage = "table locking";
             await db.Database.ExecuteSqlRawAsync(LockAllTablesSql);
             foreach (var table in TableCounts)
             {
@@ -169,6 +184,7 @@ public static class Program
                     throw new InvalidOperationException("Staging data appeared during preflight. Transaction aborted.");
             }
 
+            stage = "synthetic data insert";
             var marker = Scope + "/" + Guid.NewGuid().ToString("N");
             var clinic = new Clinic
             {
@@ -237,10 +253,12 @@ public static class Program
                 });
             await db.SaveChangesAsync();
 
+            stage = "clinic timezone policy";
             var policy = await new ClinicSchedulingPolicy(db, new MongoliaLocations())
                 .RequireVerifiedAsync(clinic.Id);
             if (policy.TimeZone is null)
                 throw new InvalidOperationException("Synthetic clinic timezone verification failed.");
+            stage = "commit synthetic fixture";
             await tx.CommitAsync();
             Console.WriteLine("SYNTHETIC STAGING FIXTURE CREATED.");
             Console.WriteLine($"Clinic ID: {clinic.Id}");
@@ -250,11 +268,19 @@ public static class Program
             Console.WriteLine("No production data, provider calls or migrations were used.");
             return 0;
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-            // Deliberately suppress provider exception text: it can include
-            // connection strings, credentials, SQL parameters or fixture data.
-            Console.Error.WriteLine("STAGING FIXTURE FAILED. Check preflight conditions and permissions privately.");
+            // Never print exception messages or stack traces. These can contain
+            // connection strings, parameter values or fixture data.
+            var category = ex switch
+            {
+                PostgresException pg => "PostgreSQL SQLSTATE " + pg.SqlState,
+                NpgsqlException => "PostgreSQL connection/transport",
+                InvalidOperationException => "failed invariant",
+                ArgumentException => "invalid configuration",
+                _ => "unexpected error"
+            };
+            Console.Error.WriteLine($"STAGING FIXTURE FAILED at [{stage}]; category: {category}.");
             return 1;
         }
     }
