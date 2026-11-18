@@ -28,7 +28,7 @@ public sealed class DatabaseProviderSettingsTests
     public void PostgreSqlCannotAccidentallyRunSqliteMigrations()
     {
         var error = Assert.Throws<InvalidOperationException>(() =>
-            DatabaseProviderSettings.EnsureMigrationsReady(Build("PostgreSQL")));
+            DatabaseProviderSettings.EnsureMigrationsReady(Build("PostgreSQL"), ""));
         Assert.Contains("PostgreSQL", error.Message);
     }
 
