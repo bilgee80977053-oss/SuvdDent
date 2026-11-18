@@ -540,4 +540,55 @@ void main() {
     await tester.pumpAndSettle();
     await tester.pumpWidget(const SizedBox());
   });
+
+  test('Director sees Doctor accounts without tokens or credentials in responses', () async {
+    http.Request? read;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/staff/doctors') {
+        read = request;
+        return reply([
+          {
+            'userId': 20,
+            'fullName': 'Эмч',
+            'email': 'doctor@example.invalid',
+            'role': 'Doctor',
+            'isActive': false,
+            'isEmailVerified': false,
+          },
+        ]);
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final rows = await api.staffDoctors();
+    expect(rows.single.email, 'doctor@example.invalid');
+    expect(rows.single.isActive, isFalse);
+    expect(read!.headers['authorization'], 'Bearer director-only-token');
+  });
+
+  test('Doctor invitation sends only name and email without password or role', () async {
+    http.Request? sent;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/staff/invite-doctor') {
+        sent = request;
+        return reply({'message': 'Invitation accepted'}, 202);
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    await api.inviteDoctor(
+      fullName: 'Эмчийн нэр',
+      email: 'Doctor@Example.invalid',
+    );
+    expect(sent!.method, 'POST');
+    final body = jsonDecode(sent!.body);
+    expect(body['fullName'], 'Эмчийн нэр');
+    expect(body['email'], 'doctor@example.invalid');
+    expect(body.containsKey('role'), isFalse);
+    expect(body.containsKey('password'), isFalse);
+    expect(body.containsKey('clinicId'), isFalse);
+    expect(sent!.headers['authorization'], 'Bearer director-only-token');
+  });
 }
