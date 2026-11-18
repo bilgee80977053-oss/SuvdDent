@@ -28,7 +28,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
 
     private static string Clean(string value) => value.Trim();
 
-    private static object Response(Service s) => new
+    private static object ServiceProjection(Service s) => new
     {
         s.Id, s.ClinicId, s.Name, s.Description, s.MinPrice,
         s.MaxPrice, s.AftercareText, s.IsActive
@@ -61,7 +61,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         var row = await db.Services.AsNoTracking().SingleOrDefaultAsync(
             s => s.Id == serviceId && s.ClinicId == ClinicId,
             cancellationToken);
-        return row is null ? NotFound() : Ok(Response(row));
+        return row is null ? NotFound() : Ok(ServiceProjection(row));
     }
 
     [HttpPost]
@@ -88,7 +88,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         };
         db.Services.Add(row);
         await db.SaveChangesAsync(cancellationToken);
-        return CreatedAtAction(nameof(Read), new { serviceId = row.Id }, Response(row));
+        return CreatedAtAction(nameof(Read), new { serviceId = row.Id }, ServiceProjection(row));
     }
 
     [HttpPut("{serviceId:int}")]
@@ -114,7 +114,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         row.MaxPrice = input.MaxPrice;
         row.AftercareText = input.AftercareText?.Trim();
         await db.SaveChangesAsync(cancellationToken);
-        return Ok(Response(row));
+        return Ok(ServiceProjection(row));
     }
 
     [HttpPost("{serviceId:int}/deactivate")]
@@ -126,7 +126,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         if (row is null) return NotFound();
         row.IsActive = false;
         await db.SaveChangesAsync(cancellationToken);
-        return Ok(Response(row));
+        return Ok(ServiceProjection(row));
     }
 
     [HttpPost("{serviceId:int}/activate")]
@@ -138,6 +138,6 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         if (row is null) return NotFound();
         row.IsActive = true;
         await db.SaveChangesAsync(cancellationToken);
-        return Ok(Response(row));
+        return Ok(ServiceProjection(row));
     }
 }
