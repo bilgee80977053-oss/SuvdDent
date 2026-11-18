@@ -257,7 +257,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           ),
           button('Баталгаажуулах код дахин илгээх', () async {
             final address = email.text.trim();
-            if (!address.contains('@')) return;
+            if (!address.contains('@')) {
+              return;
+            }
             await flow.resendRegistrationCode(address);
           }, secondary: true),
           field(
@@ -269,7 +271,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             final address = email.text.trim();
             final pin = code.text.trim();
             if (!address.contains('@') ||
-                pin.length != 6 || int.tryParse(pin) == null) return;
+                pin.length != 6 || int.tryParse(pin) == null) {
+              return;
+            }
             await flow.verifyRegistrationEmail(address, pin);
             if (mounted && flow.error == null) {
               code.clear();
