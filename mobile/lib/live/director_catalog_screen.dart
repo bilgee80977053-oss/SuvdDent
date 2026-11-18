@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app/app_theme.dart';
 import 'director_catalog_api.dart';
 import 'director_doctor_dialog.dart';
+import 'director_create_doctor_dialog.dart';
 import 'director_service_assignment_dialog.dart';
 import 'dental_api.dart';
 import 'models.dart';
@@ -139,6 +140,20 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
     }
   }
 
+  Future<void> _createDoctorProfile() async {
+    if (!_signedIn || _busy) return;
+    final saved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => DirectorCreateDoctorDialog(api: api),
+    );
+    if (!mounted || saved != true) return;
+    await _loadDoctors();
+    if (mounted && _error == null) {
+      setState(() => _notice = 'Эмчийн профайл нийтлэгдээгүй төлөвтэй бүртгэгдлээ.');
+    }
+  }
+
   Future<void> _assignDoctorService(DirectorDoctor doctor) async {
     if (!_signedIn || _busy) return;
     final saved = await showDialog<bool>(
@@ -185,6 +200,11 @@ class _DirectorCatalogScreenState extends State<DirectorCatalogScreen> {
         'үүсгэх үйлдэл тусдаа шаардлагатай.',
       ),
       const SizedBox(height: 12),
+      FilledButton.icon(
+        onPressed: _busy ? null : _createDoctorProfile,
+        icon: const Icon(Icons.person_add_alt_1),
+        label: const Text('Эмчийн профайл бүртгэх'),
+      ),
       OutlinedButton.icon(
         onPressed: _busy ? null : _loadDoctors,
         icon: const Icon(Icons.medical_services_outlined),
