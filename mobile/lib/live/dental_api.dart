@@ -168,6 +168,28 @@ class DentalApi {
     auth: false,
     body: {'userId': userId, 'code': code},
   );
+  // Pending email registrations can recover after a failed first SMTP send.
+  // The backend response is deliberately generic to avoid email enumeration.
+  Future<String> resendRegistrationCode(String email) => _request(
+    'POST',
+    '/api/Auth/resend-code',
+    (v) => text(object(v), 'message'),
+    auth: false,
+    body: {'email': email, 'clinicId': settings.clinicId},
+  );
+
+  // Verify an existing registration without the userId lost on a 503.
+  Future<VerificationReceipt> verifyRegistrationEmail(
+    String email,
+    String code,
+  ) => _request(
+    'POST',
+    '/api/Auth/verify-email',
+    (v) => VerificationReceipt.fromJson(object(v)),
+    auth: false,
+    body: {'email': email, 'code': code, 'clinicId': settings.clinicId},
+  );
+
   Future<NotificationPreferences> notificationPreferences() => _request(
     'GET',
     '/api/notification-preferences/me',
