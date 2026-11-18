@@ -14,6 +14,16 @@ public class DoctorProfileService(AppDbContext db)
         db.DoctorProfiles.Where(d => d.ClinicId == clinicId &&
             d.User.ClinicId == clinicId && d.User.IsActive && d.User.Role == Role.Doctor);
 
+    // Director-only eligibility: no role grants, passwords, contact details,
+    // users from other clinics, or accounts with existing doctor profiles.
+    public async Task<EligibleDoctorUserResponse[]> EligibleUsersAsync(int clinicId) =>
+        await db.Users.AsNoTracking()
+            .Where(u => u.ClinicId == clinicId && u.IsActive && u.Role == Role.Doctor &&
+                !db.DoctorProfiles.Any(d => d.ClinicId == clinicId && d.UserId == u.Id))
+            .OrderBy(u => u.FullName).ThenBy(u => u.Id)
+            .Select(u => new EligibleDoctorUserResponse(u.Id, u.FullName))
+            .ToArrayAsync();
+
     public async Task<DoctorResponse[]> ListAsync(int clinicId, bool management)
     {
         var query = Scope(clinicId);
