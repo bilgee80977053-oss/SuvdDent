@@ -143,8 +143,8 @@ Compose initializes only its own empty PostgreSQL cluster/database on first use.
 It does not start ASP.NET Core, apply EF migrations, run historical SQLite SQL,
 or connect to the Windows `nexora_dental_dev` or `nexora_dental_test` databases.
 Application tables must not be created automatically. The PostgreSQL application
-startup migration guard remains enabled; starting the backend with PostgreSQL
-still fails outside `Testing` pending a separately authorized rollout.
+startup migration guard remains enabled; starting the backend with PostgreSQL remains blocked without a separately authorized
+rollout and explicit read-only startup approval.
 
 Use a separate private `ConnectionStrings__Default` for any future Docker-backed
 application setup; never reuse the Windows database connection or change the
@@ -162,8 +162,11 @@ for migration creation, SQL generation, source-of-truth files and safety checks.
 
 - **SQLite:** outside `Testing`, application startup automatically applies pending
   migrations. Starting the API can change the configured SQLite schema.
-- **PostgreSQL:** the startup migration guard remains enabled. Outside `Testing`,
-  startup rejects PostgreSQL before running migrations or seeding.
+- **PostgreSQL:** startup is blocked by default. An explicitly approved
+  `NEXORA_PG_STARTUP_APPROVAL=READ_ONLY_SCHEMA_CHECK` process flag permits
+  a read-only, exact migration-history verification on a pre-migrated database.
+  PostgreSQL application startup never migrates or seeds; mismatch prevents startup.
+  See `backend/DentalApi/CONFIGURATION.md` before attempting a staging deployment.
 - **Testing:** application startup skips migrations/seeding. Historical tests
   explicitly apply SQLite migrations to their isolated in-memory databases.
 
