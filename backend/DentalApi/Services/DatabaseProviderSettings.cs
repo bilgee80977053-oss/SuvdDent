@@ -1,3 +1,4 @@
+using DentalApi.Data;
 using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Services;
@@ -47,12 +48,45 @@ public static class DatabaseProviderSettings
             options.UseSqlite(connection);
     }
 
-    public static void EnsureMigrationsReady(IConfiguration config)
+    // A deliberate opt-in is required even for a pre-migrated PostgreSQL database.
+    // This flag authorizes starting the API, never schema updates or seeding.
+    public const string PostgreSqlStartupApprovalVariable = "NEXORA_PG_STARTUP_APPROVAL";
+    public const string PostgreSqlStartupApprovalValue = "READ_ONLY_SCHEMA_CHECK";
+
+    public static void EnsureMigrationsReady(IConfiguration config, string? approvalOverride = null)
     {
-        // Step 2 only prepares the baseline. Keep PostgreSQL startup migration blocked
-        // until database rollout is explicitly authorized in a later step.
-        if (Selected(config) == PostgreSql)
+        if (Selected(config) == PostgreSql &&
+            !string.Equals(
+                approvalOverride ?? Environment.GetEnvironmentVariable(PostgreSqlStartupApprovalVariable),
+                PostgreSqlStartupApprovalValue,
+                StringComparison.Ordinal))
             throw new InvalidOperationException(
-                "PostgreSQL startup migrations remain blocked pending explicit database rollout authorization.");
+                "PostgreSQL API startup is blocked. An explicit read-only schema-check approval is required; " +
+                "application startup never applies PostgreSQL migrations.");
+    }
+
+    // Compare the entire applied history, not only the last migration. Fail closed
+    // for an empty, incomplete, out-of-order or unexpected history.
+    public static void VerifyPostgreSqlMigrationHistory(
+        IReadOnlyList<string> expected, IReadOnlyList<string> applied)
+    {
+        if (expected.Count == 0 || !expected.SequenceEqual(applied, StringComparer.Ordinal))
+            throw new InvalidOperationException(
+                "PostgreSQL schema migration history does not exactly match this application. " +
+                "Startup stopped without running migrations or seeding.");
+    }
+
+    public static async Task VerifyPostgreSqlSchemaAsync(
+        AppDbContext db, CancellationToken cancellationToken = default)
+    {
+        if (db is not PostgreSqlAppDbContext || !db.Database.IsNpgsql())
+            throw new InvalidOperationException(
+                "PostgreSQL startup requires the dedicated PostgreSqlAppDbContext.");
+
+        // EF Core metadata is local. Only GetAppliedMigrationsAsync reads the
+        // server's EF migration history. Do not call Migrate/EnsureCreated here.
+        var expected = db.Database.GetMigrations().ToArray();
+        var applied = (await db.Database.GetAppliedMigrationsAsync(cancellationToken)).ToArray();
+        VerifyPostgreSqlMigrationHistory(expected, applied);
     }
 }
