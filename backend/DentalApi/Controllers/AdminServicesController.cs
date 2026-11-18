@@ -50,7 +50,7 @@ public sealed class AdminServicesController(AppDbContext db) : ControllerBase
         var rows = await db.Services.AsNoTracking()
             .Where(s => s.ClinicId == ClinicId)
             .OrderBy(s => s.Name).ToListAsync(cancellationToken);
-        return Ok(rows.Select(Response));
+        return Ok(rows.Select(ServiceProjection));
     }
 
     [HttpGet("{serviceId:int}")]
