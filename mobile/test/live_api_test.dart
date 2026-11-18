@@ -196,6 +196,44 @@ void main() {
       );
     },
   );
+  test('Pending registration resend uses the selected clinic without authentication',
+      () async {
+    final requests = <http.Request>[];
+    final api = makeApi((request) {
+      requests.add(request);
+      return response({
+        'message': 'Баталгаажуулалт шаардлагатай бол шинэ код илгээх хүсэлтийг боловсруулна.',
+      });
+    });
+    addTearDown(api.close);
+    final message = await api.resendRegistrationCode('pending@example.invalid');
+    expect(message, contains('Баталгаажуулалт'));
+    expect(requests.single.url.path, '/api/Auth/resend-code');
+    expect(jsonDecode(requests.single.body), {
+      'email': 'pending@example.invalid',
+      'clinicId': 7,
+    });
+    expect(requests.single.headers.containsKey('authorization'), isFalse);
+  });
+
+  test('Email recovery needs successful verification response', () async {
+    final requests = <http.Request>[];
+    final api = makeApi((request) {
+      requests.add(request);
+      return response({'message': 'Бүртгэл амжилттай баталгаажлаа', 'userId': 9});
+    });
+    addTearDown(api.close);
+    final receipt = await api.verifyRegistrationEmail('pending@example.invalid', '274190');
+    expect(receipt.userId, 9);
+    expect(requests.single.url.path, '/api/Auth/verify-email');
+    expect(jsonDecode(requests.single.body), {
+      'email': 'pending@example.invalid',
+      'code': '274190',
+      'clinicId': 7,
+    });
+    expect(api.authenticated, isFalse);
+  });
+
   test('Login failure never creates an authenticated session', () async {
     final api = makeApi(
       (r) => response({'error': 'Нэвтрэх мэдээлэл буруу'}, 401),
