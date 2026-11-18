@@ -449,4 +449,95 @@ void main() {
     );
     expect(writes, 0);
   });
+
+  test('eligible doctor accounts are loaded with Director bearer token', () async {
+    http.Request? read;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/Doctors/eligible-users') {
+        read = request;
+        return reply([
+          {'userId': 20, 'fullName': 'Баталгаажсан эмч'},
+        ]);
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final users = await api.eligibleDoctors();
+    expect(users.single.userId, 20);
+    expect(users.single.fullName, 'Баталгаажсан эмч');
+    expect(read!.method, 'GET');
+    expect(read!.headers['authorization'], 'Bearer director-only-token');
+  });
+
+  test('creating an unpublished doctor profile never grants role or clinic', () async {
+    http.Request? write;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/Doctors' && request.method == 'POST') {
+        write = request;
+        return reply({
+          'id': 71,
+          'fullName': 'Баталгаажсан эмч',
+          'specialty': 'Шүдний эмч',
+          'practiceStartYear': 2020,
+          'biography': null,
+          'photoPath': null,
+          'isPublished': false,
+          'isActive': true,
+          'version': '12345678-1234-1234-1234-123456789abd',
+          'workingHours': <Map<String, int>>[],
+        }, 201);
+      }
+      return normal(request);
+    });
+    addTearDown(api.close);
+    await api.login('test', 'test');
+    final created = await api.createDoctorProfile(
+      userId: 20,
+      specialty: 'Шүдний эмч',
+      practiceStartYear: 2020,
+    );
+    expect(created.isPublished, isFalse);
+    expect(created.id, 71);
+    final sent = jsonDecode(write!.body);
+    expect(sent['userId'], 20);
+    expect(sent['isPublished'], isFalse);
+    expect(sent.containsKey('clinicId'), isFalse);
+    expect(sent.containsKey('role'), isFalse);
+    expect(sent.containsKey('password'), isFalse);
+  });
+
+  testWidgets('Doctor enrollment dialog shows empty eligibility without writes',
+      (tester) async {
+    var doctorWrites = 0;
+    final api = makeApi((request) {
+      if (request.url.path == '/api/admin/Doctors/eligible-users') {
+        return reply(<Object>[]);
+      }
+      if (request.url.path == '/api/admin/Doctors' && request.method == 'POST') {
+        doctorWrites++;
+      }
+      return normal(request);
+    });
+    await tester.pumpWidget(MaterialApp(
+      home: DirectorCatalogScreen(settings: settings, api: api),
+    ));
+    await tester.enterText(find.byType(TextFormField).at(0), '99999999');
+    await tester.enterText(find.byType(TextFormField).at(1), 'test-password');
+    await tester.tap(find.text('Захирлаар нэвтрэх'));
+    await tester.pumpAndSettle();
+    final create = find.text('Эмчийн профайл бүртгэх');
+    await tester.ensureVisible(create);
+    await tester.pumpAndSettle();
+    await tester.tap(create);
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Профайлгүй, Doctor эрхтэй'), findsOneWidget);
+    expect(find.text('Бүртгэх'), findsOneWidget);
+    expect(tester.widget<FilledButton>(
+      find.widgetWithText(FilledButton, 'Бүртгэх')).onPressed, isNull);
+    expect(doctorWrites, 0);
+    await tester.tap(find.text('Болих'));
+    await tester.pumpAndSettle();
+    await tester.pumpWidget(const SizedBox());
+  });
 }
