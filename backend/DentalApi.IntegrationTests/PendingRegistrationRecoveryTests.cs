@@ -38,6 +38,27 @@ public sealed class PendingRegistrationRecoveryTests
             new { email = Email, code = Code, clinicId = 101 }))
             Assert.Equal(HttpStatusCode.OK, verified.StatusCode);
 
+        using var loggedIn = await client.PostAsJsonAsync("/api/Auth/login",
+            new { identifier = Email, password = DentalApiFactory.Password, clinicId = 101 });
+        Assert.Equal(HttpStatusCode.OK, loggedIn.StatusCode);
+        Assert.Equal(beforeOtherClinic, await app.SnapshotBAsync());
+    }
+
+    // Keep this case separate: each authentication test must remain inside
+    // the production limit of five auth requests per IP per minute.
+    [Fact]
+    public async Task Completed_email_verification_code_cannot_be_replayed()
+    {
+        using var app = new DentalApiFactory();
+        using var client = app.CreateTestClient();
+        await app.SeedAsync();
+        var beforeOtherClinic = await app.SnapshotBAsync();
+        await SeedPendingAsync(app, Role.Patient);
+
+        using (var verified = await client.PostAsJsonAsync("/api/Auth/verify-email",
+            new { email = Email, code = Code, clinicId = 101 }))
+            Assert.Equal(HttpStatusCode.OK, verified.StatusCode);
+
         using (var replay = await client.PostAsJsonAsync("/api/Auth/verify-email",
             new { email = Email, code = Code, clinicId = 101 }))
             Assert.Equal(HttpStatusCode.BadRequest, replay.StatusCode);
