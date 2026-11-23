@@ -329,7 +329,7 @@ void main() {
       expect(find.byType(NotificationSettingsScreen), findsOneWidget);
       await tester.pageBack();
       await tester.pumpAndSettle();
-      expect(find.text('Өвчтөний профайл'), findsOneWidget);
+      expect(find.text('Миний мэдээлэл'), findsOneWidget);
       await tester.tap(find.byTooltip('Мэдэгдлийн тохиргоо'));
       await tester.pumpAndSettle();
       expect(find.byType(NotificationSettingsScreen), findsOneWidget);
