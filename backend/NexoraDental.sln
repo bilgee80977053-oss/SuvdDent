@@ -7,6 +7,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DentalApi", "DentalApi\Dent
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DentalApi.IntegrationTests", "DentalApi.IntegrationTests\DentalApi.IntegrationTests.csproj", "{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "DentalApi.PgDevelopmentFixture", "DentalApi.PgDevelopmentFixture\DentalApi.PgDevelopmentFixture.csproj", "{6F64EED2-782F-48DB-BEF7-1B70B9EF92C6}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -37,6 +39,10 @@ Global
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Debug|x86.Build.0 = Debug|Any CPU
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6F64EED2-782F-48DB-BEF7-1B70B9EF92C6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6F64EED2-782F-48DB-BEF7-1B70B9EF92C6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6F64EED2-782F-48DB-BEF7-1B70B9EF92C6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6F64EED2-782F-48DB-BEF7-1B70B9EF92C6}.Release|Any CPU.Build.0 = Release|Any CPU
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Release|x64.ActiveCfg = Release|Any CPU
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Release|x64.Build.0 = Release|Any CPU
 		{412AB9A8-7F0E-48FC-AA94-2FF96E85D1A1}.Release|x86.ActiveCfg = Release|Any CPU
