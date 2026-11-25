@@ -964,6 +964,12 @@ namespace DentalApi.Migrations.PostgreSql
 
             modelBuilder.Entity("DentalApi.Models.Patient", b =>
                 {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
                     b.HasOne("DentalApi.Models.User", null)
                         .WithMany()
                         .HasForeignKey("ClinicId", "UserId")
@@ -1011,6 +1017,24 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasOne("DentalApi.Models.PlatformAccount", null)
                         .WithMany()
                         .HasForeignKey("PlatformAccountId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.Service", b =>
+                {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.User", b =>
+                {
+                    b.HasOne("DentalApi.Models.Clinic", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

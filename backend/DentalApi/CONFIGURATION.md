@@ -103,7 +103,7 @@ reserved for a separately authorized isolated database rehearsal.
 ## Offline cleanup validation (Phase 2, Step 5)
 
 Before running tests, verify that `NEXORA_PG_TEST_CONNECTION` is absent without
-printing its value. With it absent, all ten real PostgreSQL tests are skipped;
+printing its value. With it absent, all thirteen real PostgreSQL tests are skipped;
 only in-memory SQLite and offline tests execute. Do not configure the opt-in
 connection or run real PostgreSQL tests for this cleanup. No existing database
 connection, migration execution or schema change is authorized by these docs.
@@ -189,7 +189,7 @@ PostgreSQL; any future schema rollout needs separate authorization and the
 The real PostgreSQL tests still require the separate, strictly validated native
 `nexora_dental_test` target on port 5432. The Compose development database is not a
 replacement test target. For STEP 6 build/test validation,
-`NEXORA_PG_TEST_CONNECTION` must be absent and the ten real PostgreSQL tests skipped.
+`NEXORA_PG_TEST_CONNECTION` must be absent and the thirteen real PostgreSQL tests skipped.
 Do not run `psql`, EF migrations, or real database probes as validation for this task.
 
 Docker runtime validation is **NOT TESTED** in this environment because Docker

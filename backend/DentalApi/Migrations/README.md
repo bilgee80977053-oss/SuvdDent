@@ -110,6 +110,39 @@ locations because they are active historical test fixtures. Do not hand-edit,
 relocate or overwrite them as part of generating SQL for a new migration.
 There is no checked-in PostgreSQL `.sql` artifact; generate it from its C# history.
 
+## Step 11.6.1 tenant-root foreign keys
+
+The shared model adds restrictive `ClinicId -> Clinics.Id` foreign keys for
+`Users`, `Services`, and `Patients`, with one new additive migration per
+provider: SQLite `20261125115238_AddClinicTenantRootForeignKeys`, PostgreSQL
+`20261125115303_AddPostgreSqlClinicTenantRootForeignKeys`. The read-only
+[tenant-root preflight](../../TENANT_ROOT_FOREIGN_KEY_PREFLIGHT.sql) reports
+orphan references before a separately authorized migration. Returned rows must
+be investigated by the data owner; no migration or fixture repairs, normalizes,
+reassigns, or deletes them.
+
+The model already has the reverse optional clinic-to-user relationship for
+timezone verification. A pending clinic has null verifier fields, so it remains
+valid to insert and save a clinic first, then its director, and finally update
+the clinic to verified. Seed and fixture workflows must preserve this order to
+avoid a non-null insert cycle. Clinic deletion remains restrictive.
+
+The PostgreSQL migration adds validated foreign-key constraints without
+recreating tables or adding redundant indexes; its normal EF migration
+transaction fails without changing records if orphan rows remain. SQLite has no
+general `ALTER TABLE ... ADD CONSTRAINT` support, so its additive migration
+rebuilds the affected tables while copying rows and preserving indexes and
+dependent foreign keys. Offline migration tests must exercise the rebuild with
+foreign-key enforcement enabled and verify row preservation and
+`PRAGMA foreign_key_check`.
+
+Both PostgreSQL fixture programs pin the expected migration count. Update that
+count to include the new migration while retaining exact ordered migration
+history, target identity, table inventory, and write guards. Until the new
+PostgreSQL migration is separately authorized and applied, existing four-
+migration databases must continue to be rejected by those fixtures. The
+migration does not add or remove application tables.
+
 ## Migration safety and startup behavior
 
 - SQLite automatically applies pending migrations on application startup outside
@@ -136,8 +169,10 @@ There is no checked-in PostgreSQL `.sql` artifact; generate it from its C# histo
 - Never include credentials in source, SQL artifacts, command history or logs.
   Keep deployment authorization separate from generating review files.
 
-For the STEP 5 validation, require `NEXORA_PG_TEST_CONNECTION` to be absent before
+For offline validation, require `NEXORA_PG_TEST_CONNECTION` to be absent before
 running `dotnet build backend/NexoraDental.sln`, `dotnet test backend/NexoraDental.sln`
-and `git diff --check`. The ten opt-in PostgreSQL tests should be skipped, not
-reported as passed. Remaining tests use in-memory SQLite or offline checks.
-No file-backed or real database migration is part of this cleanup.
+and `git diff --check`. The thirteen opt-in PostgreSQL tests should be skipped,
+not reported as passed. Remaining tests use in-memory SQLite or offline checks.
+The optional, explicitly gated PostgreSQL test and migration-rehearsal workflows
+are documented in [`backend/scripts`](../../scripts/README.md); they are
+separate from offline validation and were not executed as part of this phase.

@@ -23,7 +23,7 @@ internal static class PgCrossTenantFixture
     internal const string Host = "127.0.0.1";
     internal const int Port = 5432;
     internal const int ExpectedPostgreSqlMajorVersion = 18;
-    internal const int ExpectedMigrationCount = 4;
+    internal const int ExpectedMigrationCount = 5;
     internal const string WriteApproval = "CREATE_SYNTHETIC_PG_CROSS_TENANT_FIXTURE";
     internal const string DatabasePasswordVariable = "NEXORA_PG_CROSS_TENANT_DB_PASSWORD";
     internal const string WriteApprovalVariable = "NEXORA_PG_CROSS_TENANT_WRITE_OPT_IN";

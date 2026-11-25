@@ -67,6 +67,24 @@ public class AppDbContext : DbContext
             .HasForeignKey(v => v.UserId)
             .OnDelete(DeleteBehavior.Cascade);
 
+        b.Entity<User>()
+            .HasOne<Clinic>()
+            .WithMany()
+            .HasForeignKey(u => u.ClinicId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<Service>()
+            .HasOne<Clinic>()
+            .WithMany()
+            .HasForeignKey(s => s.ClinicId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        b.Entity<Patient>()
+            .HasOne<Clinic>()
+            .WithMany()
+            .HasForeignKey(p => p.ClinicId)
+            .OnDelete(DeleteBehavior.Restrict);
+
         // Өвчтөн ба хэрэглэгчийн холбоо
         b.Entity<Patient>()
             .HasOne<User>()

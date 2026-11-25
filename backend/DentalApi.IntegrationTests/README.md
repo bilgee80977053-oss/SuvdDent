@@ -146,11 +146,12 @@ model or booking endpoint, and these tests do not claim booking coverage.
 Opt in by configuring `NEXORA_PG_TEST_CONNECTION` in the operating system
 environment inherited by the test process. Obtain its value privately; do not
 paste it into shell history, source, appsettings, documentation or test output.
-The test suite never reads a production/default connection string as fallback
-and never changes process environment variables. Restart the runner if necessary
-so it inherits a newly configured variable.
+The test code never reads a production/default connection string as fallback
+and never changes process environment variables. The optional PowerShell runner
+in [`backend/scripts`](../scripts/README.md) temporarily supplies and clears
+process-scoped secrets after explicit approval.
 
-Without the variable, all ten real PostgreSQL tests are **skipped / not executed**;
+Without the variable, all thirteen real PostgreSQL tests are **skipped / not executed**;
 SQLite, offline provider and target-safety tests still run normally.
 An invalid, nonempty variable fails preflight rather than silently skipping.
 
@@ -252,7 +253,7 @@ dotnet test backend/NexoraDental.sln
 git diff --check
 ```
 
-Expect all ten real PostgreSQL tests to be skipped, not passed. The remaining
+Expect all thirteen real PostgreSQL tests to be skipped, not passed. The remaining
 suite uses in-memory SQLite or offline checks. Stop and investigate if any
 historical migration test fails; do not edit migration history or SQL contents
 to bypass the failure. This validation must not connect to an existing database.
@@ -294,6 +295,7 @@ Serializable isolation, a real serialization failure and one committed booking.
 They require the Step 2 appointment migration to be applied beforehand; they never
 apply migrations. They delete only their generated request keys in an ownership-
 checked synthetic clinic before normal fixture cleanup. No broad purge or schema
-reset is used. These tests have not been run against PostgreSQL in Step 3 offline
-validation. With the opt-in variable absent, expect 12 PostgreSQL tests skipped
-(the original ten plus these two), not passed.
+reset is used. These tests have not been run against PostgreSQL in offline
+validation. With the opt-in variable absent, expect thirteen PostgreSQL tests
+skipped (the original ten, these two appointment tests, and the tenant-root
+foreign-key test), not passed.

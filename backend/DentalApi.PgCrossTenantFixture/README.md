@@ -8,7 +8,7 @@ single-clinic PostgreSQL fixture. It is restricted in code to PostgreSQL 18 at
 ## What it checks and creates
 
 `plan`, `create`, and `inspect` all use read-only preflight checks for database
-identity, exact four-migration history, the public schema inventory, and table
+identity, exact five-migration history, the public schema inventory, and table
 counts. The schema must have the expected 17 application tables plus the EF
 migration-history table. The preflight requires Clinic 1 to have the exact
 original synthetic clinic name, nine expected `development.*@example.invalid`
