@@ -220,3 +220,38 @@ was contacted or persistent database migrated.
 | SQLite audit upgrade | Preserved existing reschedule linkage and all four appointment overlap triggers; synthetic rollback and immutability passed |
 | Provider model and SQL | Both EF snapshots current; audit SQL adds no changes to existing tables; PostgreSQL checked offline only |
 | PowerShell | Four files parsed; offline automation helper tests passed |
+
+## Assigned encounter treatment note draft (2026-11-27)
+
+On isolated `dot/treatment-encounter`, based on the clinical audit overlay
+(`f2a974f`), a doctor assigned to an active same-clinic patient and started
+confirmed encounter can sign one immutable bounded plain-text note and read
+it back only while still authorized. The note and its metadata-only write
+audit commit together. A read audit must commit before returning the note.
+Neither failures nor POST successes return the note. No cache is requested.
+
+The route is off by default. Explicit opt-in works only in Development or
+Testing with a memory-backed SQLite connection. No persistent SQLite file,
+PostgreSQL, or production environment is accepted by this draft route. Do not
+start this draft against a persistent database, since the pre-existing SQLite
+startup path can apply migrations outside Testing.
+
+Provider source histories now have 19 SQLite and 9 PostgreSQL migrations,
+including `20261127124415_AddTreatmentRecords` and
+`20261127124418_AddPostgreSqlTreatmentRecords`. The new scripts create only
+the treatment table, its index and mutation/signer guards. The live
+PostgreSQL seven-migration gates remain unchanged and closed. No server was
+contacted and no persistent migration was applied.
+
+| Local draft check | Result |
+| --- | --- |
+| .NET 10.0.402 Release | Build passed; 0 warning/error |
+| Focused treatment, audit, authorization and provider tests | 30 passed, 0 failed, 0 skipped |
+| Full offline backend filter | 553 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
+| Synthetic HTTP/storage | Default-off/target guard, assigned signer, cross-clinic denial, duplicate and immutable notes, read audit denial, commit rollback, and no-store checks passed |
+| PowerShell helper | Passed offline; no database connection |
+
+Remaining: immutable amendments, clinical procedure and tooth definitions,
+scoped longitudinal history, retention/role review, Flutter UI and all
+billing. Do not treat this synthetic draft as production acceptance. See
+[the draft API contract](backend/DentalApi/EncounterTreatmentApi.md).

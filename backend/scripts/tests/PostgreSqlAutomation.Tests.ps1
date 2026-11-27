@@ -25,9 +25,10 @@ try {
         "20261125115303_AddPostgreSqlClinicTenantRootForeignKeys",
         "20261126070352_EnforceAppointmentIntegrity",
         "20261127122656_AddPostgreSqlAppointmentReschedules",
-        "20261127123142_AddPostgreSqlClinicalAuditTrail"
+        "20261127123142_AddPostgreSqlClinicalAuditTrail",
+        "20261127124418_AddPostgreSqlTreatmentRecords"
     )
-    Assert-OfflineTest ($migrationIds.Count -eq 8) "source migration IDs are a flat eight-element array"
+    Assert-OfflineTest ($migrationIds.Count -eq 9) "source migration IDs are a flat nine-element array"
     Assert-OfflineTest (@($migrationIds | Where-Object { $_ -is [array] }).Count -eq 0) "migration IDs are not nested"
     Assert-OfflineTest (($expectedIds -join "|") -ceq ($migrationIds -join "|")) `
         "migration IDs have the exact expected chronological order"
@@ -145,7 +146,8 @@ try {
     Assert-OfflineTest ($completeGuard.Contains("'20261126070352_EnforceAppointmentIntegrity'") -and
         $completeGuard.Contains("'20261127122656_AddPostgreSqlAppointmentReschedules'") -and
         $completeGuard.Contains("actual_count <> 7") -and
-        -not $completeGuard.Contains("AddPostgreSqlClinicalAuditTrail")) `
+        -not $completeGuard.Contains("AddPostgreSqlClinicalAuditTrail") -and
+        -not $completeGuard.Contains("AddPostgreSqlTreatmentRecords")) `
         "reviewed write guard stops at the reschedule ledger, excluding the audit migration"
     foreach ($workflow in @("Invoke-PostgreSqlIntegrationTests.ps1", "Invoke-PostgreSqlMigrationWorkflow.ps1")) {
         $path = Join-Path (Join-Path $root "backend\scripts") $workflow
@@ -153,7 +155,7 @@ try {
         $sourceGate = $script.IndexOf('$expectedMigrations.Count -ne 7', [StringComparison]::Ordinal)
         $credentialPrompt = $script.IndexOf('Read-PgSecurePassword', [StringComparison]::Ordinal)
         Assert-OfflineTest ($sourceGate -ge 0 -and $credentialPrompt -gt $sourceGate) `
-            "$workflow blocks the eight-migration source history before any credential prompt"
+            "$workflow blocks the unreviewed clinical source history before any credential prompt"
     }
 
     $rows = @(

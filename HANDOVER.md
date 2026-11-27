@@ -43,6 +43,17 @@ Before clinical exposure, implement the audited treatment record and verify
 role separation, amendments, scoped history and retention against the
 [clinical acceptance criteria](backend/DentalApi/ClinicalHistoryAcceptance.md).
 
+## Assigned treatment note draft
+
+The `dot/treatment-encounter` branch adds one immutable treatment note per
+started confirmed encounter. Only the assigned active doctor can sign or read
+it, only with explicit opt-in in a Development/Testing host and in-memory
+SQLite. Its scoped write and read audit are required before success. It adds
+no history list, amendment, procedure/tariff snapshot, Flutter UI, or billing.
+The combined source currently has 19 SQLite and 9 PostgreSQL migrations; both
+clinical migrations remain outside the seven-migration live controls. See
+[the draft API contract](backend/DentalApi/EncounterTreatmentApi.md).
+
 ## Architecture
 
 - `backend/DentalApi/Program.cs` composes controllers, DI, auth, rate limiting,

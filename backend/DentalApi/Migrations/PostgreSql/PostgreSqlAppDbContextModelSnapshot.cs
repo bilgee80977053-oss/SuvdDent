@@ -814,6 +814,43 @@ namespace DentalApi.Migrations.PostgreSql
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.TreatmentRecord", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AuthorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("SignedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ClinicId", "AppointmentId");
+
+                    b.HasIndex("ClinicId", "AuthorUserId");
+
+                    b.ToTable("TreatmentRecords", null, t =>
+                        {
+                            t.HasTrigger("TR_TreatmentRecords_NoMutation");
+
+                            t.HasTrigger("TR_TreatmentRecords_NoTruncate");
+
+                            t.HasTrigger("TR_TreatmentRecords_RequireAssignedSigner");
+
+                            t.HasCheckConstraint("CK_TreatmentRecords_NoteLength", "length(trim(\"Note\")) BETWEEN 1 AND 2000");
+
+                            t.HasCheckConstraint("CK_TreatmentRecords_SignedUtc", "isfinite(\"SignedUtc\")");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.User", b =>
                 {
                     b.Property<int>("Id")
@@ -1142,6 +1179,23 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasOne("DentalApi.Models.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.TreatmentRecord", b =>
+                {
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AuthorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -1,7 +1,9 @@
 # Clinical treatment and history acceptance criteria
 
-Status: development contract; not release approval. This branch adds internal
-audit storage, not clinical records or a clinical history endpoint.
+Status: development contract; not release approval. The earlier clinical audit
+overlay added internal storage. The subsequent [assigned treatment note
+draft](EncounterTreatmentApi.md) has a single encounter-specific signed note,
+not a general clinical history endpoint.
 
 ## First slice: verified encounter scope
 
@@ -30,9 +32,9 @@ audit storage, not clinical records or a clinical history endpoint.
 | Integrity | Exercise synthetic create/read/amend flows, invalid and cross-tenant foreign keys, concurrency/retry behavior, audit rollback and HTTP role separation. Review independent SQLite and PostgreSQL model histories. PostgreSQL runs require the separate authorized target/workflow. |
 | Billing handoff | Expose only the procedure/tariff snapshot required for invoicing, not clinical notes or diagnosis. A treatment record or estimate is not a payment or receipt. |
 
-After the audit storage milestone below, the next slice is to implement the
-tenant-safe treatment record and call the scope service inside its write
-transaction before committing a clinical change together with its audit event.
+The initial draft calls the scope service inside the transaction and commits
+the encounter note and audit event together. Signed amendments, approved
+procedure/tooth or tariff snapshots, and history scope are later slices.
 
 ## Clinical audit storage (development only)
 
@@ -60,8 +62,9 @@ access. Do not routinely downgrade: the rollback migration drops audit storage.
 
 This review-only overlay stacks clinical access and audit after atomic
 appointment rescheduling. Both combined provider snapshots were regenerated.
-The source contains 18 SQLite migrations and 8 PostgreSQL migrations.
+The original audit overlay contains 18 SQLite migrations and 8 PostgreSQL
+migrations; the subsequent treatment draft adds one more migration per provider.
 The seven-migration PostgreSQL workflows and fixtures remain a separate
-approval boundary and fail closed for this eight-migration branch. They do not
-authorize clinical audit migration or real-data use. No live database validation
-was performed.
+approval boundary and fail closed for both clinical review branches. They do
+not authorize migrations or real-data use. No live database validation was
+performed.
