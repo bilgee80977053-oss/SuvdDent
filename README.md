@@ -11,10 +11,17 @@ Platform хэрэглэгчийн JWT нэвтрэлт тусдаа ажилла
 - Эмчийн ажлын цаг, үйлчилгээний хугацаа, өвчтөний боломжтой цагийн суурь
 - Монголын аймаг/сум, дүүрэг болон эмнэлгийн цагийн бүсийн баталгаажуулалт
 - Platform account-ийн тусдаа бүртгэл/нэвтрэлтийн суурь
+- Patient цаг захиалга, idempotent request ID, SQLite trigger болон PostgreSQL
+  exclusion constraint-аар хамгаалсан давхцлын шалгалт
+- Flutter demo болон тохируулсан нэг эмнэлэгт зориулсан LIVE booking урсгал
 - SQLite and separate PostgreSQL EF Core migration histories, xUnit integration tests
 
-**Хараахан байхгүй:** цаг захиалгын `Appointment`, эмчилгээ/төлбөр, audit log,
-SMS reminder болон frontend. Эдгээрийг дараагийн үе шатуудад төлөвлөсөн.
+**Хараахан дуусаагүй:** бодит төлбөр/буцаалт/eBarimt, төлбөрийн баталгаажуулалт,
+тарифын хувилбарын audit trail, production-ready clinic discovery ба эмнэлгийн
+зөвшөөрөлтэй LIVE үйлчилгээ. Урьдчилсан үнийн estimate нь төлбөр биш; бодит
+төлбөр эсвэл баримт үүсгэхгүй. Энэ handover-ийн хүрээнд persistent database-д
+холбогдоогүй; migration-уудын бодит төлөвийг оператор баталгаажуулах ёстой.
+Live PostgreSQL баталгаажуулалт тусдаа операторын зөвшөөрөл шаарддаг.
 
 ## Төслийн бүтэц
 
@@ -24,7 +31,14 @@ SMS reminder болон frontend. Эдгээрийг дараагийн үе ш�
 | `backend/DentalApi/` | ASP.NET Core Web API (.NET 10) |
 | `backend/DentalApi.IntegrationTests/` | xUnit integration tests, тусгаарлагдсан SQLite in-memory өгөгдөл |
 | `backend/DentalApi/Migrations/` | SQLite migrations, snapshot and SQL fixtures; [workflow](backend/DentalApi/Migrations/README.md) |
-| `backend/DentalApi/Migrations/PostgreSql/` | Separate PostgreSQL baseline and snapshot |
+| `backend/DentalApi/Migrations/PostgreSql/` | PostgreSQL-ийн тусдаа 6 миграцийн түүх ба snapshot |
+| `mobile/` | Flutter demo/LIVE UI, LIVE-д тохируулсан clinic ID шаардана |
+
+Шинэ хөгжүүлэгчийн заавар, бодит боломж/үлдэгдэл ажлын жагсаалт, migration
+түүх, офлайн баталгаажуулалт, аюулгүй handover-ийг [AGENTS.md](AGENTS.md),
+[DEVELOPMENT_ROADMAP.md](DEVELOPMENT_ROADMAP.md),
+[DEVELOPMENT_CHECKPOINT.md](DEVELOPMENT_CHECKPOINT.md) болон
+[HANDOVER.md](HANDOVER.md)-ээс үзнэ үү.
 
 ## Бэлтгэл
 
@@ -40,7 +54,7 @@ SMS reminder болон frontend. Эдгээрийг дараагийн үе ш�
 
 | Нэр | Тайлбар |
 | --- | --- |
-| `Database__Provider` | `Sqlite` эсвэл `PostgreSQL`; одоогоор SQLite migration идэвхтэй |
+| `Database__Provider` | `Sqlite` эсвэл `PostgreSQL`; SQLite startup migration хийнэ, PostgreSQL startup зөвхөн explicit read-only schema check хийж migration огт хэрэглэхгүй |
 | `ConnectionStrings__Default` | Сонгосон өгөгдлийн сангийн холболт (PostgreSQL үед зөвхөн environment variable) |
 | `Jwt__Key`, `Jwt__Issuer`, `Jwt__Audience` | Эмнэлгийн JWT (key дор хаяж 32 UTF-8 байт) |
 | `PlatformJwt__Key`, `PlatformJwt__Issuer`, `PlatformJwt__Audience` | Тусдаа Platform JWT |
