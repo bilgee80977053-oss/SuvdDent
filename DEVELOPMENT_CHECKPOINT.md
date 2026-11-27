@@ -325,3 +325,17 @@ responses after logout. Errors do not surface server-provided content.
   in-memory SQLite. No same-version end-to-end run was performed.
 - Next: test the gated clinic workflow end-to-end on authorized synthetic
   data, and keep audit/privacy checks before any actual clinician release.
+
+## Routine tooth target groundwork
+
+The isolated `dot/routine-tooth-scope` branch starts from exact clinician
+adapter draft head `88afa04`. It adds an internal validator for the 52
+routine FDI codes and explicit visit-versus-single-tooth scope. It adds no
+HTTP route, data model, migration, provider operations, age inference, or
+clinical procedure workflow. Existing audit, signed notes and pricing are
+unchanged. See [validation scope and sources](backend/DentalApi/StructuredTreatmentTarget.md).
+
+Release build passed with 0 warnings/errors. All 27 focused cases passed,
+including the exhaustive 16,384 ASCII-pair test. The full offline backend
+filter passed 587/587 (0 failures/skips; live PostgreSQL excluded). The offline
+PowerShell helper passed, and no live database was contacted.
