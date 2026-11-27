@@ -194,3 +194,13 @@ active same-clinic catalog label. It is an internal, nonfinancial snapshot,
 not authorization to perform or sign a procedure. No route, persistence,
 schema, audit behavior, original note or price changed. See
 [remaining authorization and signing gates](backend/DentalApi/StructuredTreatmentTarget.md).
+
+## Internal performed-procedure write draft
+
+`dot/performed-procedure` uses an assigned active doctor and the begun
+confirmed visit's booked service only, with an active matching qualification
+and active catalog entry. It signs an immutable nonfinancial item and audit
+atomically in Testing in-memory SQLite only, with no route. Earlier notes
+and addenda do not change. The draft source counts are 21 SQLite and 11
+PostgreSQL; live PostgreSQL remains fenced at seven reviewed migrations.
+See [the acceptance boundary](backend/DentalApi/StructuredTreatmentTarget.md).

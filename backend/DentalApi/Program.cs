@@ -65,6 +65,7 @@ builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();
 builder.Services.AddScoped<ClinicalEncounterAccess>();
 builder.Services.AddScoped<StructuredProcedureDraftService>();
+builder.Services.AddScoped<PerformedProcedureService>();
 builder.Services.AddScoped<ClinicalAuditTrail>();
 builder.Services.AddScoped<IEncounterTreatmentService, EncounterTreatmentService>();
 builder.Services.AddScoped<NotificationPreferenceService>();

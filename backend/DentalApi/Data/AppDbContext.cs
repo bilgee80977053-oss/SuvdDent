@@ -40,6 +40,7 @@ public class AppDbContext : DbContext
         ClinicalAuditModelConfiguration.Configure(b, Database.IsSqlite());
         TreatmentRecordModelConfiguration.Configure(b, Database.IsSqlite());
         TreatmentAddendumModelConfiguration.Configure(b, Database.IsSqlite());
+        PerformedProcedureModelConfiguration.Configure(b, Database.IsSqlite());
         NotificationModelConfiguration.Configure(b);
         PhoneVerificationModelConfiguration.Configure(b);
 

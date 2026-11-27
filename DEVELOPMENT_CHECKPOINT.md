@@ -355,3 +355,29 @@ tests passed 30/30 and the full offline backend suite 590/590, with 0 failures
 or skips. The offline PowerShell helper passed. Tests exercised the exact
 internal service entry point on synthetic in-memory SQLite, not an HTTP
 procedure flow or PostgreSQL server.
+
+## Internal performed-procedure item draft
+
+Isolated `dot/performed-procedure` starts from exact PR #13 head `e4d4bad`.
+The synthetic Testing-only service signs an immutable nonfinancial item for
+the activated same-clinic catalog service already booked on the begun
+confirmed visit. The active assignee and matching current qualification are
+revalidated in the same transaction. Item and metadata-only audit are
+atomic; replay is visit-scoped and a changed target cannot overwrite the
+record. Catalog rename leaves the signed label unchanged. No read/list or
+signing HTTP route, financial action, real database, or existing clinical
+note/addenda behavior changed.
+
+Source histories are 21 SQLite and 11 PostgreSQL migrations. The respective
+additive new drafts are `20261127150423_AddPerformedProcedures` and
+`20261127150425_AddPostgreSqlPerformedProcedures`. Historical migrations and
+seven-migration live PostgreSQL safeguards were not loosened. No PostgreSQL
+server was contacted or persistent migration applied.
+
+Exact Release build passed with 0 warnings/errors. Focused tests passed
+48/48 and full offline backend 596/596 (0 failures/skips; live categories
+excluded); the offline PowerShell helper passed. Synthetic tests verified
+booked/assigned/catalog boundaries, immutable label, replay, commit and
+audit-insert rollback, no unrelated tracked writes, same-scope retry and
+SQLite immutability. Both migration snapshots and generated additive SQL
+were checked offline.
