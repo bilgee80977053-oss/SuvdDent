@@ -190,12 +190,13 @@ public sealed class TenantRootForeignKeyTests
         AssertTenantRootOperations(sqliteMigration);
         AssertTenantRootOperations(pgMigration);
         var sourceHistory = pg.Database.GetMigrations().ToArray();
-        Assert.Equal(20, sqlite.Database.GetMigrations().Count());
-        Assert.Equal(10, sourceHistory.Length);
+        Assert.Equal(21, sqlite.Database.GetMigrations().Count());
+        Assert.Equal(11, sourceHistory.Length);
         Assert.Equal("20261127122656_AddPostgreSqlAppointmentReschedules", sourceHistory[6]);
         Assert.Equal("20261127123142_AddPostgreSqlClinicalAuditTrail", sourceHistory[7]);
         Assert.Equal("20261127124418_AddPostgreSqlTreatmentRecords", sourceHistory[8]);
         Assert.Equal("20261127125155_AddPostgreSqlTreatmentAddenda", sourceHistory[9]);
+        Assert.Equal("20261127150425_AddPostgreSqlPerformedProcedures", sourceHistory[10]);
         // Clinical source migrations are not reviewed for live fixture writes.
         Assert.Equal(7, DevelopmentFixture.ExpectedMigrationCount);
         Assert.Equal(7, CrossTenantFixture.ExpectedMigrationCount);

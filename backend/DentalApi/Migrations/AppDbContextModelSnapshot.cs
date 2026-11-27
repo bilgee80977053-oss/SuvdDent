@@ -593,6 +593,66 @@ namespace DentalApi.Migrations
                     b.ToTable("PatientAvailabilitySchedules");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.PerformedProcedure", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("DoctorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ServiceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("ServiceLabel")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SignedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("TargetScope")
+                        .IsRequired()
+                        .HasMaxLength(12)
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("ToothCode")
+                        .HasMaxLength(2)
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClinicId", "AppointmentId", "RequestId");
+
+                    b.HasIndex("ClinicId", "DoctorUserId");
+
+                    b.HasIndex("ClinicId", "ServiceId");
+
+                    b.ToTable("PerformedProcedures", null, t =>
+                        {
+                            t.HasTrigger("TR_PerformedProcedures_CheckAssignment");
+
+                            t.HasTrigger("TR_PerformedProcedures_NoDelete");
+
+                            t.HasTrigger("TR_PerformedProcedures_NoReplace");
+
+                            t.HasTrigger("TR_PerformedProcedures_NoUpdate");
+
+                            t.HasCheckConstraint("CK_PerformedProcedures_Label", "typeof(\"ServiceLabel\") = 'text' AND length(trim(\"ServiceLabel\")) BETWEEN 2 AND 160 AND instr(\"ServiceLabel\", char(0)) = 0");
+
+                            t.HasCheckConstraint("CK_PerformedProcedures_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000' AND typeof(\"RequestId\") = 'text' AND length(CAST(\"RequestId\" AS BLOB)) = 36\n AND substr(\"RequestId\", 9, 1) = '-' AND substr(\"RequestId\", 14, 1) = '-'\n AND substr(\"RequestId\", 19, 1) = '-' AND substr(\"RequestId\", 24, 1) = '-'\n AND length(replace(\"RequestId\", '-', '')) = 32\n AND replace(\"RequestId\", '-', '') NOT GLOB '*[^0-9A-F]*'");
+
+                            t.HasCheckConstraint("CK_PerformedProcedures_SignedUtc", "typeof(\"SignedUtc\") = 'integer' AND \"SignedUtc\" BETWEEN 1 AND 3155378975999999998");
+
+                            t.HasCheckConstraint("CK_PerformedProcedures_Target", "(\"TargetScope\" = 'Visit' AND \"ToothCode\" IS NULL) OR\n(\"TargetScope\" = 'SingleTooth' AND \"ToothCode\" IS NOT NULL AND typeof(\"ToothCode\") = 'text'\n    AND length(CAST(\"ToothCode\" AS BLOB)) = 2\n    AND (\"ToothCode\" GLOB '[1-4][1-8]' OR \"ToothCode\" GLOB '[5-8][1-5]'))");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.PhoneVerificationChallenge", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1166,6 +1226,30 @@ namespace DentalApi.Migrations
                     b.HasOne("DentalApi.Models.Patient", null)
                         .WithMany()
                         .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.PerformedProcedure", b =>
+                {
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Service", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ServiceId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

@@ -48,3 +48,32 @@ clinical change and metadata-only audit atomically; failed audit must not
 release or commit a record. Re-review history scope and the existing live gate.
 Any financial extension separately needs an approved effective, immutable tariff
 version and seller/rate/currency terms; never infer them from mutable estimates.
+
+## Audited performed-procedure write draft
+
+`PerformedProcedureService.SignAsync` is an internal service with no route.
+It refuses to write except in a Testing host using in-memory SQLite. It
+re-resolves the authenticated active assigned doctor, begun confirmed
+same-clinic encounter and active service label inside one write transaction.
+The service must be the encounter's booked service, with a current active
+matching `DoctorServices` assignment; this deliberately does not infer
+substitute services or wider clinical permission from booking data.
+
+A signed item stores the server-resolved clinic-scoped visit, clinician and
+service IDs, its service label at signing, the explicit target and UTC
+timestamp, and the caller's nonempty visit-scoped replay UUID. The patient
+link stays on the immutable visit identity. A retry with the same signer,
+service and target returns only replay status, not the stored text; changed
+target is refused, and current authority is checked again. Catalog renames
+do not change the stored label. No price, revision, seller or payment data is
+accepted, selected or stored.
+
+The item and its metadata-only `TreatmentRecorded` audit event commit or
+roll back together (the existing audit action is shared with signed notes).
+Provider migrations are additive and use tenant links plus signer/assignment,
+target and append-only guards; original notes and addenda are untouched.
+PostgreSQL source SQL is checked offline only. The seven-migration live
+safeguards remain closed and no persistent migration was run. Before any
+clinician-facing route, review approved procedure permission, independent
+audit/export and real target validation under separate approval. Billing
+requires separate effective approved tariffs and is not inferred here.
