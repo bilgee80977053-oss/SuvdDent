@@ -244,6 +244,54 @@ namespace DentalApi.Migrations.PostgreSql
                     b.ToTable("ClinicPatientLinks");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.ClinicalAuditEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    NpgsqlPropertyBuilderExtensions.UseIdentityByDefaultColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("character varying(24)");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("uuid");
+
+                    b.Property<DateTimeOffset>("OccurredUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ActorUserId");
+
+                    b.HasIndex("ClinicId", "AppointmentId", "OccurredUtc");
+
+                    b.ToTable("ClinicalAuditEvents", null, t =>
+                        {
+                            t.HasTrigger("TR_ClinicalAuditEvents_NoMutation");
+
+                            t.HasTrigger("TR_ClinicalAuditEvents_NoTruncate");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_Action", "\"Action\" IN ('HistoryRead','TreatmentRecorded','TreatmentAmended')");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_CorrelationId", "\"CorrelationId\" <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_OccurredUtc", "isfinite(\"OccurredUtc\")");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.DoctorProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -941,6 +989,23 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasOne("DentalApi.Models.Patient", null)
                         .WithMany()
                         .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.ClinicalAuditEvent", b =>
+                {
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ActorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

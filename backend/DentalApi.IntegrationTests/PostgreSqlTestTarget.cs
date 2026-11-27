@@ -1,3 +1,5 @@
+using DentalApi.Data;
+using Microsoft.EntityFrameworkCore;
 using Npgsql;
 using Xunit;
 
@@ -49,8 +51,17 @@ internal static class PostgreSqlTestTarget
         return settings.ConnectionString;
     }
 
+    internal static void RequireReviewedSourceHistory()
+    {
+        using var modelOnly = new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
+        var ids = modelOnly.Database.GetMigrations().ToArray();
+        if (ids.Length != 7 || ids[6] != "20261127122656_AddPostgreSqlAppointmentReschedules")
+            throw new InvalidOperationException("The review-only PostgreSQL source history is not approved for live tests. No connection was opened.");
+    }
+
     internal static async Task VerifyAsync(string connectionString)
     {
+        RequireReviewedSourceHistory();
         connectionString = Validate(connectionString);
         try
         {

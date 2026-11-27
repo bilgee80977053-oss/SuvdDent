@@ -36,10 +36,13 @@ time ranges. PostgreSQL truncates the generated FK name with one trailing `~`;
 the SQL-name allowlist permits only that optional terminal character while
 continuing to reject quotes, whitespace, and SQL syntax.
 
-Migration-history validation includes all seven ordered PostgreSQL IDs, ending in
-`20261127122656_AddPostgreSqlAppointmentReschedules`. The structured test-result gate
-requires exactly 13 passed results with no failures or skips; failure details
-are sanitized before entering the report.
+The reviewed live history contains seven ordered PostgreSQL IDs, ending in
+`20261127122656_AddPostgreSqlAppointmentReschedules`. The clinical audit review
+overlay declares eight source migrations; live integration and rehearsal stop
+before credential entry on that branch. The development fixtures also reject it
+before writes. No audit migration approval is defined. The existing test-result
+gate for the seven-migration candidate requires exactly 13 passed results with
+no failures or skips; failure details are sanitized before entering the report.
 
 Run the offline automation helper regression checks in a PowerShell environment
 where organizational policy permits the test script:

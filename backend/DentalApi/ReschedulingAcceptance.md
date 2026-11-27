@@ -51,6 +51,11 @@ not satisfy this gate. Test only with disposable synthetic records.
   notification to an external provider. Do not enable public access or weaken
   TLS, authentication or tenant controls.
 
+The later clinical-audit review overlay has eight PostgreSQL source
+migrations and deliberately blocks these live workflows. The seven-migration
+rescheduling candidate is the scope of this checklist; do not reuse its
+approvals for the audit overlay.
+
 ## 2. Verify in the same revision
 
 Confirm the Flutter LIVE client points at the approved API, not the demo.

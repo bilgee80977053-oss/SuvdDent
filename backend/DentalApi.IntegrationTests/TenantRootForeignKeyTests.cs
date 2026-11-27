@@ -189,9 +189,16 @@ public sealed class TenantRootForeignKeyTests
         var pgMigration = ReadMigration(pg, PostgreSqlMigration);
         AssertTenantRootOperations(sqliteMigration);
         AssertTenantRootOperations(pgMigration);
-        Assert.Equal(7, pg.Database.GetMigrations().Count());
+        var sourceHistory = pg.Database.GetMigrations().ToArray();
+        Assert.Equal(18, sqlite.Database.GetMigrations().Count());
+        Assert.Equal(8, sourceHistory.Length);
+        Assert.Equal("20261127122656_AddPostgreSqlAppointmentReschedules", sourceHistory[6]);
+        Assert.Equal("20261127123142_AddPostgreSqlClinicalAuditTrail", sourceHistory[7]);
+        // The eighth source migration is not reviewed for live fixture writes.
         Assert.Equal(7, DevelopmentFixture.ExpectedMigrationCount);
         Assert.Equal(7, CrossTenantFixture.ExpectedMigrationCount);
+        var unapprovedSource = Assert.Throws<InvalidOperationException>(PostgreSqlTestTarget.RequireReviewedSourceHistory);
+        Assert.Contains("No connection was opened", unapprovedSource.Message);
 
         var pgScript = pg.GetService<IMigrator>().GenerateScript(
             "20261102180315_AddPostgreSqlPhoneVerificationChallenges",

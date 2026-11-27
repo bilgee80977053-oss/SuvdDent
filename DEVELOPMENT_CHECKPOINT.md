@@ -27,8 +27,8 @@ suite remain separately gated by operator approval.
 ## Verified implementation and tests
 
 The backend includes appointment booking and provider-specific integrity
-migrations. The latest source histories contain 16 SQLite migrations and 6
-PostgreSQL migrations. Provider histories are independent; snapshots report no
+migrations. This original handover captured 16 SQLite migrations and 6
+PostgreSQL migrations; newer isolated review branches are recorded below. Provider histories are independent; snapshots report no
 pending model changes.
 
 Executed on this checkout:
@@ -177,10 +177,46 @@ branch nor `main` was changed.
 | GitHub Actions | Workflow from PR #3 included; check the candidate PR for hosted results. |
 | PostgreSQL/real Flutter-to-API | Not run. No server contacted and no persistent database migrated. |
 
-The separately approved seventh migration is
+The seventh migration, which requires separate approval, is
 `20261127122656_AddPostgreSqlAppointmentReschedules`. The existing 13 opt-in
 PostgreSQL tests do not verify rescheduling. Follow the guarded
 [PostgreSQL and Flutter LIVE checklist](backend/DentalApi/ReschedulingAcceptance.md)
 after target verification and approval. Keep clinical history gated on durable
 audit; billing, invoices, receipts and remaining clinic administration are not
 accepted. Do not estimate whole-project completion without a bounded workload.
+
+
+## Clinical access and audit overlay on atomic rescheduling (2026-11-27)
+
+The review-only `dot/clinical-on-reschedule` branch is based on
+`ed373eb` (atomic rescheduling). It adds an internal appointment-scoped
+check for the active assigned doctor and prevents clinical fields from being
+read or updated through demographic profile routes. It does not expose a
+clinical endpoint or add treatment records. The audit service stages only
+same-clinic actor/encounter identifiers, action, UTC time and a correlation
+UUID. A future audited clinical edit must commit its event and record together;
+a history read must not release records if its audit cannot be persisted.
+
+Source inventory is now **18 SQLite and 8 PostgreSQL migrations**. The
+rescheduling migration IDs and history are unchanged. The clinical audit
+migrations (`20261127123139_AddClinicalAuditTrail` and
+`20261127123142_AddPostgreSqlClinicalAuditTrail`) follow them and add only
+a new table, indexes, and provider-specific append-only triggers. The
+SQLite upgrade test verifies an existing reschedule link and all four appointment
+overlap triggers survive audit migration. PostgreSQL SQL is reviewed offline.
+
+The live PostgreSQL integration and rehearsal wrappers, direct test
+preflight and fixture executables must remain fail-closed at the last
+reviewed seven-migration source configuration. No audit migration approval
+or workflow token was added. This eight-migration overlay is offline-only;
+do not run it against an active PostgreSQL database. No PostgreSQL server
+was contacted or persistent database migrated.
+
+| Local overlay check | Result |
+| --- | --- |
+| .NET 10.0.402 Release | Build succeeded; 0 warnings, 0 errors |
+| Focused clinical, tenant and provider migration tests | 64 passed, 0 failed, 0 skipped |
+| Full offline backend regression filter | 539 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
+| SQLite audit upgrade | Preserved existing reschedule linkage and all four appointment overlap triggers; synthetic rollback and immutability passed |
+| Provider model and SQL | Both EF snapshots current; audit SQL adds no changes to existing tables; PostgreSQL checked offline only |
+| PowerShell | Four files parsed; offline automation helper tests passed |

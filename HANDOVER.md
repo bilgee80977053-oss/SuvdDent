@@ -26,9 +26,22 @@ not silently submit another move.
 
 The provider-specific migration adds only `AppointmentReschedules` and its
 constraints/index. No PostgreSQL server was contacted. The seventh
-PostgreSQL migration has its own approval and must not be run on any
+PostgreSQL migration requires its own approval and must not be run on any
 unauthorized database. See `DEVELOPMENT_CHECKPOINT.md` for exact offline
 evidence and remaining PostgreSQL/Flutter-to-backend validation.
+
+## Clinical review overlay
+
+The `dot/clinical-on-reschedule` branch stacks encounter access and
+append-only audit metadata on the rescheduling candidate. It adds no clinical
+API or treatment records. Its current combined snapshots have 18 SQLite and
+8 PostgreSQL migrations; the original rescheduling history is unchanged.
+Use this branch for offline review. The PostgreSQL live runners and fixtures
+remain intentionally fenced at seven migrations, so this overlay is not for
+a live rehearsal or application startup with the old PostgreSQL history.
+Before clinical exposure, implement the audited treatment record and verify
+role separation, amendments, scoped history and retention against the
+[clinical acceptance criteria](backend/DentalApi/ClinicalHistoryAcceptance.md).
 
 ## Architecture
 

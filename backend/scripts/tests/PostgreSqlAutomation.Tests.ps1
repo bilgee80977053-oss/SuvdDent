@@ -24,11 +24,12 @@ try {
         "20261102180315_AddPostgreSqlPhoneVerificationChallenges",
         "20261125115303_AddPostgreSqlClinicTenantRootForeignKeys",
         "20261126070352_EnforceAppointmentIntegrity",
-        "20261127122656_AddPostgreSqlAppointmentReschedules"
+        "20261127122656_AddPostgreSqlAppointmentReschedules",
+        "20261127123142_AddPostgreSqlClinicalAuditTrail"
     )
-    Assert-OfflineTest ($migrationIds.Count -eq 7) "migration IDs are a flat seven-element array"
+    Assert-OfflineTest ($migrationIds.Count -eq 8) "source migration IDs are a flat eight-element array"
     Assert-OfflineTest (@($migrationIds | Where-Object { $_ -is [array] }).Count -eq 0) "migration IDs are not nested"
-    Assert-OfflineTest ((Compare-Object -ReferenceObject $expectedIds -DifferenceObject $migrationIds).Count -eq 0) `
+    Assert-OfflineTest (($expectedIds -join "|") -ceq ($migrationIds -join "|")) `
         "migration IDs have the exact expected chronological order"
     Assert-OfflineTest (Test-PgConstraintName -Name "FK_Appointments_DoctorServices_ClinicId_DoctorProfileId_Servic~") `
         "EF-generated tilde-suffixed constraint names are accepted"
@@ -140,11 +141,20 @@ try {
     Assert-OfflineTest ($priorGuard.Contains("actual_count <> 6") -and
         -not $priorGuard.Contains("AddPostgreSqlAppointmentReschedules")) "six-migration prefix remains independently fenced"
     $completeGuard = New-PgWriteGuardSql -Database "nexora_dental_test" -RepositoryRoot $root `
-        -ExpectedMigrationIds $migrationIds
+        -ExpectedMigrationIds @($migrationIds[0..6])
     Assert-OfflineTest ($completeGuard.Contains("'20261126070352_EnforceAppointmentIntegrity'") -and
         $completeGuard.Contains("'20261127122656_AddPostgreSqlAppointmentReschedules'") -and
-        $completeGuard.Contains("actual_count <> 7")) `
-        "approved write guard verifies the exact seven-migration history, including the reschedule ledger"
+        $completeGuard.Contains("actual_count <> 7") -and
+        -not $completeGuard.Contains("AddPostgreSqlClinicalAuditTrail")) `
+        "reviewed write guard stops at the reschedule ledger, excluding the audit migration"
+    foreach ($workflow in @("Invoke-PostgreSqlIntegrationTests.ps1", "Invoke-PostgreSqlMigrationWorkflow.ps1")) {
+        $path = Join-Path (Join-Path $root "backend\scripts") $workflow
+        $script = [IO.File]::ReadAllText($path)
+        $sourceGate = $script.IndexOf('$expectedMigrations.Count -ne 7', [StringComparison]::Ordinal)
+        $credentialPrompt = $script.IndexOf('Read-PgSecurePassword', [StringComparison]::Ordinal)
+        Assert-OfflineTest ($sourceGate -ge 0 -and $credentialPrompt -gt $sourceGate) `
+            "$workflow blocks the eight-migration source history before any credential prompt"
+    }
 
     $rows = @(
         [PSCustomObject]@{ Table = "Clinics"; Json = '{"Id":2,"Name":"B"}' },
