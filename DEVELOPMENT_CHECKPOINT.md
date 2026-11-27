@@ -306,3 +306,22 @@ catalog changes, real database use or remote publication was included.
 | Full offline backend regression filter | 560 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
 | Synthetic discovery | Paging bounds, UUID tie-break order, metadata-only projection, denied cross-tenant/unassigned access, no-store and fail-closed audit passed |
 | PowerShell helper | Passed offline |
+
+## Flutter clinician API adapter draft (2026-11-27)
+
+The isolated `dot/clinician-mobile` branch stacks on PR #10. Its verified
+code commit `0cf62d7` adds only a typed Flutter adapter and mock HTTP
+tests. Clinic, user and Doctor role are verified before the adapter accepts
+a session. It reads a single encounter note, a page of addenda references,
+or one keyed addendum. The adapter keeps only the active token in memory;
+it does not log, cache or persist clinical responses and discards pending
+responses after logout. Errors do not surface server-provided content.
+
+- Flutter analyze: no issues. Full offline Flutter test suite: 151/151,
+  including 16 new clinician mock HTTP cases.
+- No default UI wiring, treatment writes, broader discovery, dependencies,
+  backend changes, migrations, or live traffic. The backend clinical
+  routes remain off by default and gated to Development/Testing with
+  in-memory SQLite. No same-version end-to-end run was performed.
+- Next: test the gated clinic workflow end-to-end on authorized synthetic
+  data, and keep audit/privacy checks before any actual clinician release.
