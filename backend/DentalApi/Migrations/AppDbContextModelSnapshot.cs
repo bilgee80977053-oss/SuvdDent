@@ -240,6 +240,54 @@ namespace DentalApi.Migrations
                     b.ToTable("ClinicPatientLinks");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.ClinicalAuditEvent", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasMaxLength(24)
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("ActorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("CorrelationId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("OccurredUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ClinicId", "ActorUserId");
+
+                    b.HasIndex("ClinicId", "AppointmentId", "OccurredUtc");
+
+                    b.ToTable("ClinicalAuditEvents", null, t =>
+                        {
+                            t.HasTrigger("TR_ClinicalAuditEvents_NoDelete");
+
+                            t.HasTrigger("TR_ClinicalAuditEvents_NoReplace");
+
+                            t.HasTrigger("TR_ClinicalAuditEvents_NoUpdate");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_Action", "\"Action\" IN ('HistoryRead','TreatmentRecorded','TreatmentAmended')");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_CorrelationId", "\"CorrelationId\" <> '00000000-0000-0000-0000-000000000000' AND typeof(\"CorrelationId\") = 'text' AND length(CAST(\"CorrelationId\" AS BLOB)) = 36\n AND substr(\"CorrelationId\", 9, 1) = '-' AND substr(\"CorrelationId\", 14, 1) = '-'\n AND substr(\"CorrelationId\", 19, 1) = '-' AND substr(\"CorrelationId\", 24, 1) = '-'\n AND length(replace(\"CorrelationId\", '-', '')) = 32\n AND replace(\"CorrelationId\", '-', '') NOT GLOB '*[^0-9A-Fa-f]*'");
+
+                            t.HasCheckConstraint("CK_ClinicalAuditEvents_OccurredUtc", "typeof(\"OccurredUtc\") = 'integer' AND \"OccurredUtc\" BETWEEN 1 AND 3155378975999999998");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.DoctorProfile", b =>
                 {
                     b.Property<int>("Id")
@@ -917,6 +965,23 @@ namespace DentalApi.Migrations
                     b.HasOne("DentalApi.Models.Patient", null)
                         .WithMany()
                         .HasForeignKey("ClinicId", "PatientId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.ClinicalAuditEvent", b =>
+                {
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ActorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
                         .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();

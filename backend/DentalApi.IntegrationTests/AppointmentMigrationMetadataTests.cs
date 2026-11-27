@@ -135,9 +135,12 @@ public sealed class AppointmentMigrationMetadataTests
             : new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
         var assembly = db.GetService<IMigrationsAssembly>();
         var entries = assembly.Migrations.ToArray();
-        var last = entries[^1];
-        Assert.EndsWith("AppointmentReschedules", last.Key);
-        var migration = assembly.CreateMigration(last.Value, db.Database.ProviderName!);
+        var expectedId = useSqlite ? "20261127122653_AddAppointmentReschedules"
+            : "20261127122656_AddPostgreSqlAppointmentReschedules";
+        var indexInHistory = Array.FindIndex(entries, entry => entry.Key == expectedId);
+        Assert.True(indexInHistory > 0);
+        var reschedule = entries[indexInHistory];
+        var migration = assembly.CreateMigration(reschedule.Value, db.Database.ProviderName!);
         var table = Assert.IsType<CreateTableOperation>(migration.UpOperations[0]);
         Assert.Equal("AppointmentReschedules", table.Name);
         Assert.Equal(new[] { "ClinicId", "SourceId" }, table.PrimaryKey!.Columns);
@@ -156,7 +159,7 @@ public sealed class AppointmentMigrationMetadataTests
         Assert.Equal("AppointmentReschedules", index.Table);
         Assert.Equal(new[] { "ClinicId", "ReplacementId" }, index.Columns);
         Assert.Equal("AppointmentReschedules", Assert.IsType<DropTableOperation>(Assert.Single(migration.DownOperations)).Name);
-        var sql = db.GetService<IMigrator>().GenerateScript(entries[^2].Key, last.Key);
+        var sql = db.GetService<IMigrator>().GenerateScript(entries[indexInHistory - 1].Key, reschedule.Key);
         Assert.Contains("CREATE TABLE \"AppointmentReschedules\"", sql);
         Assert.DoesNotContain("ALTER TABLE \"Appointments\"", sql);
         Assert.DoesNotContain("DROP ", sql);

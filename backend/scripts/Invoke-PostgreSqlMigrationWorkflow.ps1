@@ -48,6 +48,10 @@ try {
     Assert-PgAutomationEnvironmentClear
     $targetDatabase = "nexora_dental_rehearsal"
     $expectedMigrations = @(Get-PgExpectedMigrationIds -RepositoryRoot $root)
+    if ($expectedMigrations.Count -ne 7 -or
+        $expectedMigrations[6] -cne "20261127122656_AddPostgreSqlAppointmentReschedules") {
+        throw "The reviewed PostgreSQL migration chain must contain exactly seven migrations ending at the reschedule ledger. No connection was opened."
+    }
     $fromIndex = [Array]::IndexOf($expectedMigrations, $FromMigration)
     $toIndex = [Array]::IndexOf($expectedMigrations, $ToMigration)
     if ($fromIndex -lt 0 -or $toIndex -le $fromIndex) {

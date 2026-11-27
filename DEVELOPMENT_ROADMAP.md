@@ -57,10 +57,11 @@ This is a development branch, not production release approval.
 
 ### P2 — Clinical treatment and patient history
 
-1. Review encounter-scoped access for active assigned clinicians and keep
-   unaudited history endpoints unavailable.
-2. Verify minimal, durable clinical audit before exposing records. A failed
-   audit must not expose history or commit a clinical edit.
+1. Review the draft overlay's encounter-scoped access and metadata-only,
+   append-only audit storage. The overlay exposes no clinical endpoint.
+2. Implement the audited treatment write. A failed audit must not expose
+   history or commit a clinical edit. Review retention and the separate
+   PostgreSQL migration/validation gate before any live trial.
 3. Verify treatment record creation and amendment, approved tooth notation,
    historical procedure/tariff snapshots, and scoped medical history using
    synthetic data. Separate clinical and billing access.
