@@ -59,9 +59,10 @@ This is a development branch, not production release approval.
 
 1. Review the draft overlay's encounter-scoped access and metadata-only,
    append-only audit storage. The overlay exposes no clinical endpoint.
-2. Implement the audited treatment write. A failed audit must not expose
-   history or commit a clinical edit. Review retention and the separate
-   PostgreSQL migration/validation gate before any live trial.
+2. Review the [first immutable encounter-note draft](backend/DentalApi/EncounterTreatmentApi.md).
+   It is gated off by default and refuses production, persistent SQLite and
+   PostgreSQL. Review retention and the separate PostgreSQL migration/validation
+   gate before any live trial.
 3. Verify treatment record creation and amendment, approved tooth notation,
    historical procedure/tariff snapshots, and scoped medical history using
    synthetic data. Separate clinical and billing access.
