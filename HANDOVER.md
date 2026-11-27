@@ -14,6 +14,20 @@ providers, an xUnit integration suite, guarded PostgreSQL tooling, and a Flutter
 DEMO/LIVE client. The exact test outcomes and unapplied migration history are in
 `DEVELOPMENT_CHECKPOINT.md`; ordered next work is in `DEVELOPMENT_ROADMAP.md`.
 
+## Latest booking milestone
+
+The rescheduling branch adds the authenticated advisory slot endpoint for an
+owned future appointment, plus a Flutter LIVE API adapter. It does not
+expose an enabled reschedule action in the UI, change booking state, or add
+a migration. The endpoint preserves ordinary booking behavior and does not
+ignore any other doctor's or patient's conflicting booking.
+
+The next booking increment is a reviewed atomic move: ownership and current
+state checks, durable idempotency, preservation of the original booking on
+failure, a traceable history, and concurrency and notification tests. Do not
+implement this by calling cancellation and creation as two independent writes.
+See the latest section of `DEVELOPMENT_CHECKPOINT.md` for runtime evidence.
+
 ## Architecture
 
 - `backend/DentalApi/Program.cs` composes controllers, DI, auth, rate limiting,

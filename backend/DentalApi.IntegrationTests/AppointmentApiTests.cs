@@ -116,6 +116,58 @@ public sealed class AppointmentApiTests
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
     }
 
+    [Fact]
+    public async Task Reschedule_slots_exclude_only_the_owned_original_and_make_no_changes()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var other = await app.AsAsync(27);
+        var original = await Book(owner);
+        await Book(other, Request("2026-11-02T10:15:00+08:00"));
+        await Book(owner, Request("2026-11-02T11:15:00+08:00", doctor: 36));
+        var outboxBefore = (await Outbox(app)).Length;
+
+        var unchanged = await owner.GetFromJsonAsync<AppointmentSlotsResponse>(
+            Url + "/slots?doctorProfileId=31&serviceId=51&date=2026-11-02");
+        var options = await owner.GetFromJsonAsync<AppointmentSlotsResponse>(
+            $"{Url}/{original.Id}/reschedule-slots?date=2026-11-02&doctorProfileId=36&serviceId=61");
+        Assert.Equal("2026-11-02", options!.Date);
+        Assert.Equal("Asia/Ulaanbaatar", options.TimeZoneId);
+        Assert.DoesNotContain(unchanged!.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(15));
+        Assert.Contains(options.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(15));
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc); // no-op
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(30)); // other booking
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc.AddHours(2)); // patient's other doctor
+        Assert.Equal(original, await owner.GetFromJsonAsync<AppointmentResponse>($"{Url}/{original.Id}"));
+        Assert.Equal(3, await Count(app));
+        Assert.Equal(outboxBefore, (await Outbox(app)).Length);
+    }
+
+    [Fact]
+    public async Task Reschedule_slots_enforce_ownership_and_require_future_confirmed_appointment()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var sameClinic = await app.AsAsync(27);
+        using var otherClinic = await app.AsAsync(12, 202);
+        using var anonymous = app.Client();
+        var original = await Book(owner);
+        var route = $"{Url}/{original.Id}/reschedule-slots?date=2026-11-02";
+        await AssertStatus(await anonymous.GetAsync(route), HttpStatusCode.Unauthorized);
+        foreach (var client in new[] { sameClinic, otherClinic })
+            await AssertStatus(await client.GetAsync(route + "&clinicId=101&userId=11"), HttpStatusCode.NotFound);
+        await AssertStatus(await owner.GetAsync($"{Url}/2147483647/reschedule-slots?date=2026-11-02"), HttpStatusCode.NotFound);
+        await AssertStatus(await owner.GetAsync($"{Url}/0/reschedule-slots?date=2026-11-02"), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.GetAsync($"{Url}/{original.Id}/reschedule-slots?date=02-11-2026"), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.GetAsync($"{Url}/{original.Id}/reschedule-slots?date=2026-12-15"), HttpStatusCode.BadRequest);
+        var start = app.Time.Now;
+        app.Time.Now = original.StartUtc;
+        await AssertStatus(await owner.GetAsync(route), HttpStatusCode.Conflict);
+        app.Time.Now = start;
+        await AssertStatus(await owner.PostAsync($"{Url}/{original.Id}/cancel", null), HttpStatusCode.OK);
+        await AssertStatus(await owner.GetAsync(route), HttpStatusCode.Conflict);
+    }
+
     [Theory]
     [InlineData(0, 401)] [InlineData(13, 403)] [InlineData(15, 403)] [InlineData(16, 403)]
     public async Task Cancellation_HTTP_requires_authenticated_patient(int user, int expected)

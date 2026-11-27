@@ -266,6 +266,14 @@ class DentalApi {
       'date': date,
     },
   );
+  Future<SlotPage> rescheduleSlots(int appointmentId, String date) =>
+      _request('GET', '/api/appointments/$appointmentId/reschedule-slots', (v) {
+        final result = SlotPage.fromJson(object(v));
+        if (result.date != date) {
+          throw const ApiFailure('Боломжит цагийн огноо буруу байна.');
+        }
+        return result;
+      }, query: {'date': date});
   Future<Appointment> book(
     int doctorId,
     int serviceId,

@@ -92,6 +92,29 @@ unrelated coursework; only synthetic test data, fixed local test targets and
 secret-handling code were found. Existing unrelated mobile coursework/student
 metadata was not modified.
 
+## Follow-up: advisory rescheduling slots (2026-11-27)
+
+Branch: `dot/reschedule-availability`, based on the published handover
+`5ad45df`. This increment adds the authenticated HTTP slot lookup and
+Flutter client adapter for an owned future confirmed appointment. The
+original remains unchanged; the lookup neither reserves a slot nor queues
+a notification. Regression tests cover scope across patients/clinics,
+ignored client identity overrides, future/state validation, and how only
+the original appointment is excluded from conflict detection.
+
+| Check | Result |
+| --- | --- |
+| .NET 10.0.402 Release build | Passed; 0 warnings, 0 errors |
+| Offline backend regression filter | 522 passed, 0 failed, 0 skipped |
+| New rescheduling HTTP tests | 2 passed using the in-memory SQLite fixture |
+| Flutter 3.47.7 | Analyze clean; 124 tests passed |
+| Live PostgreSQL or LIVE Flutter-to-backend | Not run; isolated target/preflight unapproved |
+
+The remaining booking milestone is an atomic, idempotent commit of the
+change and an enabled Flutter workflow. No provider schema change, live
+database write, payment, or deployment was performed. The original Windows
+handover evidence below is retained for provenance.
+
 ## Remaining blockers
 
 - Execute the PowerShell helper tests in an environment that permits the

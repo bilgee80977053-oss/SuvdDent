@@ -162,6 +162,44 @@ void main() {
       expect(requests, 0);
     },
   );
+  test('Rescheduling slot discovery is authenticated and advisory', () async {
+    const date = '2030-01-02';
+    var dateFromServer = date;
+    var discoveryCalls = 0;
+    final api = makeApi((r) {
+      if (r.url.path != '/api/appointments/41/reschedule-slots') {
+        return standard(r);
+      }
+      discoveryCalls++;
+      expect(r.method, 'GET');
+      expect(r.url.queryParameters, {'date': date});
+      expect(r.headers['authorization'], 'Bearer synthetic-test-token');
+      expect(r.body, isEmpty);
+      return response({
+        'date': dateFromServer,
+        'timeZoneId': 'Asia/Ulaanbaatar',
+        'slots': [slotJson],
+      });
+    });
+    addTearDown(api.close);
+    await expectLater(
+      api.rescheduleSlots(41, date),
+      throwsA(isA<ApiFailure>()),
+    );
+    expect(discoveryCalls, 0);
+    await api.login('synthetic@example.invalid', 'synthetic-password');
+    final options = await api.rescheduleSlots(41, date);
+    expect(options.date, date);
+    expect(options.timeZoneId, 'Asia/Ulaanbaatar');
+    expect(options.slots, hasLength(1));
+    dateFromServer = '2030-01-03';
+    await expectLater(
+      api.rescheduleSlots(41, date),
+      throwsA(isA<ApiFailure>()),
+    );
+    expect(discoveryCalls, 2);
+  });
+
   test(
     'Login sends exact clinic contract and bearer auth; logout removes it',
     () async {

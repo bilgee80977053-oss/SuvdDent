@@ -97,19 +97,42 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
              (a.PatientId == patient && a.StartUtc < slot.EndUtc && slot.StartUtc < a.EndUtc)));
     }
 
-    public async Task<AppointmentResult> Slots(int clinic, int user, int doctor, int service, string? dateText)
+    private static bool ParseSlotDate(string? text, out DateOnly date) =>
+        DateOnly.TryParseExact(text, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out date);
+
+    public Task<AppointmentResult> Slots(int clinic, int user, int doctor, int service, string? dateText) =>
+        doctor <= 0 || service <= 0 || !ParseSlotDate(dateText, out var date)
+            ? Task.FromResult(Error(400, "Огноо эсвэл дугаар буруу байна."))
+            : FindSlots(clinic, user, date, doctor, service);
+
+    public Task<AppointmentResult> RescheduleSlots(int clinic, int user, int id, string? dateText) =>
+        id <= 0 || !ParseSlotDate(dateText, out var date)
+            ? Task.FromResult(Error(400, "Огноо эсвэл дугаар буруу байна."))
+            : FindSlots(clinic, user, date, sourceId: id);
+
+    private async Task<AppointmentResult> FindSlots(int clinic, int user, DateOnly date,
+        int doctor = 0, int service = 0, int? sourceId = null)
     {
-        if (doctor <= 0 || service <= 0 || !DateOnly.TryParseExact(dateText, "yyyy-MM-dd", CultureInfo.InvariantCulture,
-                DateTimeStyles.None, out var date)) return Error(400, "Огноо эсвэл дугаар буруу байна.");
         try
         {
             // Uses the same provider-aware transaction and policy as booking. No writes occur.
             await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
             if (patient is null) return Error(404, "Өвчтөний бүртгэл олдсонгүй.");
+            var now = clock.GetUtcNow();
+            DateTimeOffset? previousStart = null;
+            if (sourceId is int id)
+            {
+                var source = await Own(clinic, patient.Value).SingleOrDefaultAsync(a => a.Id == id);
+                if (source is null) return Error(404, "Захиалга олдсонгүй.");
+                if (source.Status != AppointmentStatus.Confirmed || source.StartUtc <= now)
+                    return Error(409, "Зөвхөн эхлээгүй баталгаажсан захиалгын цагийг өөрчилж болно.");
+                doctor = source.DoctorProfileId;
+                service = source.ServiceId;
+                previousStart = source.StartUtc;
+            }
             var decision = await policy.RequireVerifiedAsync(clinic);
             if (decision.TimeZone is null) return Error(409, "Эмнэлгийн цагийн бүсийг баталгаажуулах шаардлагатай.");
-            var now = clock.GetUtcNow();
             if (!InWindow(date, decision.TimeZone, now)) return Error(400, "Дараагийн 30 хоногийн огноог сонгоно уу.");
             var config = await Configuration(clinic, doctor, service);
             if (config is null) return Error(404, "Эмч эсвэл үйлчилгээ олдсонгүй.");
@@ -118,17 +141,18 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             for (var minute = 0; minute < 1440; minute += 15)
             {
                 var slot = Candidate(date, minute, decision.TimeZone, config, hours, now);
-                if (slot is not null) candidates.Add(slot);
+                if (slot is not null && slot.StartUtc != previousStart) candidates.Add(slot);
             }
             var available = new List<AppointmentSlot>();
             if (candidates.Count > 0)
             {
                 var first = candidates.Min(s => s.StartUtc).AddMinutes(-config.BufferBeforeMinutes);
                 var last = candidates.Max(s => s.EndUtc).AddMinutes(config.BufferAfterMinutes);
-                var blocked = await db.Appointments.AsNoTracking().Where(a => a.ClinicId == clinic &&
+                var blocking = db.Appointments.AsNoTracking().Where(a => a.ClinicId == clinic &&
                     a.Status == AppointmentStatus.Confirmed && (a.DoctorProfileId == doctor || a.PatientId == patient.Value) &&
-                    a.OccupiedStartUtc < last && first < a.OccupiedEndUtc)
-                    .Select(a => new { a.DoctorProfileId, a.PatientId, a.StartUtc, a.EndUtc, a.OccupiedStartUtc, a.OccupiedEndUtc }).ToArrayAsync();
+                    a.OccupiedStartUtc < last && first < a.OccupiedEndUtc);
+                if (sourceId is int ignoredId) blocking = blocking.Where(a => a.Id != ignoredId);
+                var blocked = await blocking.Select(a => new { a.DoctorProfileId, a.PatientId, a.StartUtc, a.EndUtc, a.OccupiedStartUtc, a.OccupiedEndUtc }).ToArrayAsync();
                 available.AddRange(candidates.Where(s => !blocked.Any(a =>
                     (a.DoctorProfileId == doctor && a.OccupiedStartUtc < s.EndUtc.AddMinutes(config.BufferAfterMinutes) &&
                         s.StartUtc.AddMinutes(-config.BufferBeforeMinutes) < a.OccupiedEndUtc) ||
