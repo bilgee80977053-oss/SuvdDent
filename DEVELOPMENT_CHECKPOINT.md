@@ -6,6 +6,24 @@
 **Upstream before handover:** `origin/feature/suvd-dent-backend-completion`
 **Implementation commit:** `cd0c066` (`feat(appointments): enforce database booking integrity`)
 
+## Follow-up: appointment catalog verification
+
+The previous handover fixed lookup of EF's truncated foreign-key name. A
+separate mismatch remained: the catalog can render the exclusion predicate
+with an explicit text cast on `"Status"` and an outer parenthesis pair. The
+previous verifier rejected that documented output even when the constraint was
+validated. The verifier now accepts the equivalent catalog forms and optional
+spacing before the foreign key's referenced columns. It still requires the
+same tables, columns, delete rule, exclusion operators, half-open range and
+confirmed-only predicate.
+
+The new offline regression failed on the handover revision and passed with
+PowerShell 7.5.4 on the isolated Linux checkout after the fix. No execution
+policy was changed. The new cases also reject another status, additional
+conditions and unbalanced parentheses. No PostgreSQL server, migration,
+credentials or patient data were used. Live verification and the write-capable
+suite remain separately gated by operator approval.
+
 ## Verified implementation and tests
 
 The backend includes appointment booking and provider-specific integrity
