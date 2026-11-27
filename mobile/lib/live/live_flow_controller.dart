@@ -45,6 +45,23 @@ String newRequestId() {
   return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
 }
 
+class RescheduleDraft {
+  final Appointment source;
+  String date;
+  SlotPage? availability;
+  BookingSlot? selection;
+  String? _requestId;
+  bool uncertain = false;
+  Appointment? replacement;
+
+  RescheduleDraft(this.source, this.date);
+
+  void clearSelection() {
+    selection = null;
+    _requestId = null;
+  }
+}
+
 class LiveFlowController extends ChangeNotifier {
   DentalApi api;
   final String Function() requestIdFactory;
@@ -68,6 +85,7 @@ class LiveFlowController extends ChangeNotifier {
   String? requestId;
   Appointment? appointment;
   AppointmentPage? history;
+  RescheduleDraft? reschedule;
   NotificationPreferences? notificationPreferences;
   bool emailConsent = false, smsConsent = false;
   final Set<int> uncertainCancellations = {};
@@ -129,6 +147,7 @@ class LiveFlowController extends ChangeNotifier {
     appointment = null;
     history = null;
     uncertainCancellations.clear();
+    reschedule = null;
     notificationPreferences = null;
     emailConsent = false;
     smsConsent = false;
@@ -460,8 +479,154 @@ class LiveFlowController extends ChangeNotifier {
     }
   });
   bool canCancel(Appointment value) =>
+      !(reschedule?.uncertain == true && reschedule?.source.id == value.id) &&
       value.status == 'Confirmed' &&
       value.startUtc.isAfter(DateTime.now().toUtc());
+
+  bool canReschedule(Appointment value) =>
+      canCancel(value) &&
+      !uncertainCancellations.contains(value.id) &&
+      reschedule?.uncertain != true;
+
+  bool beginReschedule(Appointment source) {
+    if (busy || session == null || !canReschedule(source)) return false;
+    try {
+      final clinicToday = tz.TZDateTime.now(
+        ClinicClock.location(source.clinicTimeZoneId),
+      );
+      reschedule = RescheduleDraft(source, calendarDate(clinicToday));
+      error = null;
+      notice = null;
+      changed();
+      return true;
+    } on ApiFailure catch (failure) {
+      error = failure.message;
+      changed();
+      return false;
+    }
+  }
+
+  void selectRescheduleSlot(BookingSlot value) {
+    final draft = reschedule;
+    if (busy ||
+        draft == null ||
+        draft.uncertain ||
+        draft.replacement != null ||
+        !(draft.availability?.slots.contains(value) ?? false)) {
+      return;
+    }
+    if (draft.selection?.startUtc != value.startUtc) {
+      draft.selection = value;
+      draft._requestId = requestIdFactory();
+      error = null;
+      notice = null;
+      changed();
+    }
+  }
+
+  Future<void> _loadRescheduleSlots(
+    RescheduleDraft draft,
+    bool Function() current,
+  ) async {
+    final options = await api.rescheduleSlots(draft.source.id, draft.date);
+    ClinicClock.location(options.timeZoneId);
+    if (!current()) return;
+    draft.availability = options;
+  }
+
+  Future<void> loadRescheduleSlots({String? onDate}) => run((current) async {
+    final draft = reschedule;
+    if (session == null ||
+        draft == null ||
+        draft.uncertain ||
+        draft.replacement != null) {
+      return;
+    }
+    draft.date = onDate ?? draft.date;
+    draft.availability = null;
+    draft.clearSelection();
+    changed();
+    await _loadRescheduleSlots(draft, current);
+  });
+
+  Future<void> submitReschedule() => run((current) async {
+    final draft = reschedule;
+    final selection = draft?.selection;
+    final requestId = draft?._requestId;
+    if (session == null ||
+        draft == null ||
+        selection == null ||
+        requestId == null ||
+        draft.replacement != null) {
+      return;
+    }
+
+    final wasUncertain = draft.uncertain;
+    draft.uncertain = true;
+    changed();
+    Appointment replacement;
+    try {
+      replacement = await api.rescheduleAppointment(
+        draft.source,
+        selection.startUtc,
+        requestId,
+      );
+      ClinicClock.location(replacement.clinicTimeZoneId);
+    } on ApiFailure catch (failure) {
+      if (!current()) return;
+      // A 409 follows an authoritative, serialized source/ledger lookup.
+      // Retriable database ambiguity is 503, and retains the original key.
+      if (failure.status == 409) {
+        draft.uncertain = false;
+        draft.availability = null;
+        draft.clearSelection();
+        try {
+          await _loadRescheduleSlots(draft, current);
+          if (!current()) return;
+          error =
+              'Сонгосон цаг боломжгүй болсон. Шинэ боломжит цагаас сонгоно уу.';
+        } on ApiFailure {
+          if (!current()) return;
+          error = 'Цаг шилжүүлэлт батлагдсангүй. Захиалгын төлөвөө шинэчилж шалгана уу.';
+        }
+        return;
+      }
+      if (!wasUncertain &&
+          (failure.status == 400 ||
+              failure.status == 403 ||
+              failure.status == 404)) {
+        draft.uncertain = false;
+        rethrow;
+      }
+      // Network errors, malformed success, throttling and server failures do
+      // not establish whether a previous POST committed. Retain the exact key.
+      throw const ApiFailure(
+        'Цаг шилжүүлэлтийн үр дүн тодорхойгүй байна. Ижил хүсэлтээр дахин шалгана уу.',
+      );
+    }
+    if (!current()) return;
+    draft.uncertain = false;
+    draft.replacement = replacement;
+    if (appointment?.id == draft.source.id) appointment = replacement;
+    // The only prior list is stale. Do not display the old confirmed state
+    // if refresh fails. The confirmed new appointment remains on screen.
+    history = null;
+    final stillConfirmed = replacement.status == 'Confirmed';
+    notice = stillConfirmed
+        ? 'Шинэ цаг баталгаажлаа.'
+        : 'Цаг шилжсэн боловч тухайн шинэ захиалга одоо идэвхгүй байна.';
+    changed();
+    try {
+      final refreshed = await api.appointments(1);
+      if (current()) history = refreshed;
+    } on ApiFailure {
+      if (current()) {
+        error = stillConfirmed
+            ? 'Шинэ цаг баталгаажсан. Захиалгын жагсаалтыг дахин шинэчилнэ үү.'
+            : 'Тухайн шинэ захиалга идэвхгүй. Захиалгын жагсаалтыг дахин шинэчилнэ үү.';
+      }
+    }
+  });
 
   void _replaceAppointment(Appointment value) {
     if (appointment?.id == value.id) appointment = value;

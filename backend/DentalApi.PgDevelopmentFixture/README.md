@@ -12,12 +12,12 @@ never falls back to API/test configuration.
   variable `NEXORA_PG_DEVELOPMENT_DB_PASSWORD`.
 - All modes perform a read-only preflight of database/user/server identity,
   PostgreSQL migration history, exact EF table/column inventory, and row counts.
-  The public schema must contain exactly 18 tables: 17 application tables and
+  The public schema must contain exactly 19 tables: 18 application tables and
   `__EFMigrationsHistory`, whose two columns are checked separately. Migration
   history is not considered application data. The expected migration history
-  now has five PostgreSQL migrations; a database still at the previous
-  four-migration baseline is rejected until the migration is separately
-  authorized and applied.
+  contains seven PostgreSQL migrations. A database with an older history is
+  rejected until the outstanding migrations are separately authorized and
+  applied; fixture commands never apply migrations.
 - `plan` and `create` refuse any nonempty application table. `inspect` reports
   counts without writing.
 - `create` additionally requires the exact approval value

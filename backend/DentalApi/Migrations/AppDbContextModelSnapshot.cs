@@ -113,6 +113,33 @@ namespace DentalApi.Migrations
                         });
                 });
 
+            modelBuilder.Entity("DentalApi.Models.AppointmentReschedule", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SourceId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("ReplacementId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("ClinicId", "SourceId");
+
+                    b.HasIndex("ClinicId", "ReplacementId")
+                        .IsUnique();
+
+                    b.ToTable("AppointmentReschedules", t =>
+                        {
+                            t.HasCheckConstraint("CK_AppointmentReschedules_Distinct", "\"SourceId\" <> \"ReplacementId\"");
+
+                            t.HasCheckConstraint("CK_AppointmentReschedules_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.Clinic", b =>
                 {
                     b.Property<int>("Id")
@@ -849,6 +876,23 @@ namespace DentalApi.Migrations
                         .WithMany()
                         .HasForeignKey("ClinicId", "DoctorProfileId", "ServiceId")
                         .HasPrincipalKey("ClinicId", "DoctorProfileId", "ServiceId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.AppointmentReschedule", b =>
+                {
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "ReplacementId")
+                        .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.Appointment", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "SourceId")
+                        .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

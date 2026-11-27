@@ -5,6 +5,7 @@ namespace DentalApi.Contracts;
 // String input requires an explicit timezone offset; offset-free JSON is never guessed.
 public record CreateAppointmentRequest(int DoctorProfileId, int ServiceId,
     [Required] string StartUtc, Guid RequestId);
+public record RescheduleAppointmentRequest([Required] string StartUtc, Guid RequestId);
 public record AppointmentResponse(int Id, int DoctorProfileId, int ServiceId,
     DateTimeOffset StartUtc, DateTimeOffset EndUtc, DateTimeOffset OccupiedStartUtc,
     DateTimeOffset OccupiedEndUtc, string ClinicTimeZoneId, string Status, DateTimeOffset CreatedAtUtc);

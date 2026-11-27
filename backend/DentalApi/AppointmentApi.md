@@ -1,8 +1,8 @@
-# Patient appointment booking API (University MVP, Step 3)
+# Patient appointment booking API
 
 All routes below require the existing clinic JWT and Patient role. Clinic and
 user identity come exclusively from validated claims. Platform tokens cannot
-substitute for clinic tokens. Existing endpoints and contracts are unchanged.
+substitute for clinic tokens.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -10,6 +10,7 @@ substitute for clinic tokens. Existing endpoints and contracts are unchanged.
 | GET | `/api/appointments/doctors?serviceId=51` | Active, published doctors with active Doctor users and an active association to the selected service |
 | GET | `/api/appointments/slots?doctorProfileId=31&serviceId=51&date=2026-11-02` | Advisory available slots for one clinic-local date |
 | POST | `/api/appointments` | Atomically confirm an appointment |
+| POST | `/api/appointments/{id}/cancel` | Cancel an own future booking and free its slot |
 | GET | `/api/appointments/me?page=1&pageSize=20` | Own bookings, newest start then ID first |
 | GET | `/api/appointments/{id}` | One own booking; inaccessible IDs return 404 |
 
@@ -76,20 +77,67 @@ a consistent view; SQLite briefly takes a write reservation despite making no
 writes. Blocking appointments are fetched in one bounded date-range query.
 POST repeats validation and overlap checks regardless of earlier availability.
 
+## Rescheduling slot discovery
+
+`GET /api/appointments/{id}/reschedule-slots?date=YYYY-MM-DD` returns the
+same slots DTO as ordinary booking, for the existing appointment's doctor
+and service. No clinic, patient, doctor or service override is accepted.
+Only the authenticated owner's future confirmed appointment qualifies.
+Invalid input returns 400, missing or inaccessible appointments return 404,
+and a started or cancelled appointment returns 409.
+
+The query ignores only the source appointment's overlap and omits its
+current start time. Other confirmed doctor and patient bookings still block
+slots. Results are advisory. This endpoint does not reserve a slot, change
+an appointment, or enqueue a notification. Flutter LIVE uses this advisory list before submitting a move.
+
+## Atomic rescheduling
+
+`POST /api/appointments/{id}/reschedule` requires the authenticated patient
+and JSON `{"startUtc":"2026-11-30T09:30:00+08:00","requestId":"<uuid>"}`.
+The clinic, patient, doctor and service derive from claims and the stored
+appointment. A new move requires an active patient with verified email and
+a future confirmed source. The clinic must have a verified timezone; all
+eligibility, schedules and overlap checks run again at confirmation.
+
+On success HTTP 200 returns the replacement appointment (a new ID); the
+source remains in history as `Cancelled`. The source status update,
+replacement insert, clinic-scoped move ledger and new outbox entries use one
+transaction. No separate cancellation message is queued; queued old
+confirmation/reminders are suppressed before delivery by the existing worker.
+Notifications already delivered before the move cannot be withdrawn.
+
+Reusing the same request UUID and instant for that source returns its recorded
+replacement, including its current status if later cancelled or moved again.
+Another request/instant for a moved source returns 409. Retries are never
+applied as new writes when that result can be found. A rejected or failed
+uncommitted move preserves the original booking and notification state.
+A transport error or transient database 503 is not proof of failure; retry
+the same UUID or refresh the authoritative history. A 409 returned by the
+move endpoint is a definitive conflict, not an unresolved provider error. Flutter retains the retry UUID for that choice in the
+current sign-in session.
+
+The ledger has restrictive compound clinic foreign keys to both appointments.
+The service requires the same owner for the two rows; the ledger does not
+independently enforce matching patient IDs in direct database writes.
+SQLite and PostgreSQL retain their existing overlap enforcement. Both
+migrations only add the ledger table and its unique replacement index.
+
 ## Concurrency and request identity
 
 SQLite uses DatabaseCompatibility's non-deferred write transaction, obtaining its
 write reservation before eligibility/overlap reads. PostgreSQL uses Serializable
 isolation. The provider-specific database overlap guards are the final integrity
 boundary; the service's transactional checks also produce early conflicts and keep
-availability behavior consistent. No advisory lock is needed for this create-only
-path.
+availability behavior consistent. Moves lock the source row for update on PostgreSQL and reuse the
+SQLite write reservation. Existing booking creation does not lock a source row.
 
 SQLSTATE 23505, 23P01, 40001 and 40P01 and SQLite busy/locked/unique/trigger
-conflicts return safe 409 messages. Failed transactions dispose/roll back before
+conflicts return safe messages. Creation returns 409; a move that cannot yet
+be determined returns 503 unless a fresh read finds a committed move. Failed transactions dispose/roll back before
 any duplicate lookup.
 There is no automatic transaction retry. A single fresh lookup can recognize a
-concurrently committed duplicate; if it cannot yet be recognized, return 409.
+concurrently committed duplicate.
 
 For the same authenticated clinic/patient and RequestId, matching doctor, service
 and start instant return the original appointment with 200, preserving its original
@@ -102,6 +150,19 @@ Malformed input returns 400, missing authentication 401, wrong role 403,
 inaccessible resources 404 and unavailable times/conflicts 409. New domain messages
 use Mongolian. Existing framework validation and global exception handling remain
 in force; database details are not returned to clients.
+
+## Cancellation contract
+
+Send a POST with the appointment ID in the route and no body. The caller's
+validated clinic and user determine ownership. Nonpositive IDs return 400;
+inaccessible or missing appointments return 404. A confirmed appointment that
+has already started returns 409. Successful cancellation returns 200 with
+the existing appointment response and status `Cancelled`. The record remains in
+history and its interval no longer blocks slots. Repeating a successful
+cancellation returns that same status without queuing a duplicate event.
+An eligible notification outbox entry and the status change are committed together.
+Client reconciliation after an uncertain outcome can use the existing detail GET.
+This endpoint does not reschedule an appointment.
 
 ## Validation and limits
 
@@ -123,6 +184,8 @@ or production database. No database connection is configured by this document.
 
 The relationship and database-overlap migrations are documented in
 [appointment persistence](AppointmentPersistence.md). PostgreSQL startup
-migration guard remains enabled. Flutter integration, rescheduling, payments
-and treatment history are outside this step. Notifications remain transactional
-outbox work and are not sent before commit.
+migration guard remains enabled. Flutter LIVE uses the cancellation endpoint
+from appointment history; same-revision end-to-end verification with an approved
+PostgreSQL target is separate from the offline API and widget tests. Rescheduling,
+payments and treatment history are outside this API. Notifications remain
+transactional outbox work and are not sent before commit.

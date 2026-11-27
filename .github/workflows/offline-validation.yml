@@ -1,0 +1,74 @@
+name: Offline validation
+
+'on':
+  pull_request:
+    branches: [feature/suvd-dent-backend-completion]
+  push:
+    branches: [feature/suvd-dent-backend-completion]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: offline-validation-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  backend:
+    name: .NET and PostgreSQL helper (offline)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Build and run isolated .NET tests
+        shell: bash
+        run: |
+          if [[ -v NEXORA_PG_TEST_CONNECTION || -v PGPASSWORD ]]; then
+            echo 'PostgreSQL opt-in variables must be absent in offline CI.' >&2
+            exit 1
+          fi
+          dotnet build backend/NexoraDental.sln --configuration Release
+          dotnet test backend/NexoraDental.sln --configuration Release --no-build \
+            --filter 'Category!=PostgreSqlIntegration&Category!=PostgreSqlConcurrency'
+      - name: Run offline PostgreSQL helper tests
+        shell: pwsh
+        run: |
+          if ((Test-Path Env:NEXORA_PG_TEST_CONNECTION) -or (Test-Path Env:PGPASSWORD)) {
+            throw 'PostgreSQL opt-in variables must be absent in offline CI.'
+          }
+          ./backend/scripts/tests/PostgreSqlAutomation.Tests.ps1
+
+  flutter:
+    name: Flutter (offline tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    env:
+      FLUTTER_SUPPRESS_ANALYTICS: 'true'
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - name: Install the pinned Flutter SDK
+        shell: bash
+        env:
+          FLUTTER_REVISION: abaf9c523780a608bd46686fd5e53740a07077f8 # 3.47.7
+        run: |
+          sdk="$RUNNER_TEMP/flutter-sdk"
+          git init "$sdk"
+          git -C "$sdk" remote add origin https://github.com/flutter/flutter.git
+          git -C "$sdk" fetch --depth=1 origin refs/tags/3.47.7:refs/tags/3.47.7
+          git -C "$sdk" checkout --detach "$FLUTTER_REVISION"
+          test "$(git -C "$sdk" rev-parse 'refs/tags/3.47.7^{commit}')" = "$FLUTTER_REVISION"
+          echo "$sdk/bin" >> "$GITHUB_PATH"
+      - name: Analyze and test Flutter
+        working-directory: mobile
+        shell: bash
+        run: |
+          flutter pub get --enforce-lockfile
+          flutter analyze --no-pub
+          flutter test --no-pub

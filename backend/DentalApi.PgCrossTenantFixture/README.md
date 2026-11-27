@@ -8,13 +8,14 @@ single-clinic PostgreSQL fixture. It is restricted in code to PostgreSQL 18 at
 ## What it checks and creates
 
 `plan`, `create`, and `inspect` all use read-only preflight checks for database
-identity, exact five-migration history, the public schema inventory, and table
-counts. The schema must have the expected 17 application tables plus the EF
+identity, exact seven-migration history, the public schema inventory, and table
+counts. The schema must have the expected 18 application tables plus the EF
 migration-history table. The preflight requires Clinic 1 to have the exact
 original synthetic clinic name, nine expected `development.*@example.invalid`
 users with their expected names and roles, three doctor profiles, five
 patients, six named synthetic services, six doctor-service links, 15 working
-hour rows, and exactly three appointments. It also checks global counts so
+hour rows, exactly three appointments, and no appointment reschedule rows. It
+also checks global counts so
 records outside Clinic 1 and the known second-clinic fixture are rejected.
 Notification outbox rows are the exception: rows from previous appointment
 tests are allowed only when they belong to one of Clinic 1's three baseline

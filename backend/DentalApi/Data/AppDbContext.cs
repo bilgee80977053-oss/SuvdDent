@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     protected AppDbContext(DbContextOptions options) : base(options) { }
     public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<AppointmentReschedule> AppointmentReschedules => Set<AppointmentReschedule>();
 
     public DbSet<User> Users => Set<User>();
 

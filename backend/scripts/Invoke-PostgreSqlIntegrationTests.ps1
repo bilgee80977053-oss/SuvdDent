@@ -32,8 +32,8 @@ $testResultsDirectory = $null
 try {
     Assert-PgAutomationEnvironmentClear
     $expectedMigrations = @(Get-PgExpectedMigrationIds -RepositoryRoot $root)
-    if ($expectedMigrations.Count -ne 6) {
-        throw "The reviewed PostgreSQL migration chain must contain exactly six migrations."
+    if ($expectedMigrations.Count -ne 7) {
+        throw "The reviewed PostgreSQL migration chain must contain exactly seven migrations."
     }
 
     $stage = "offline-release-build"
@@ -61,8 +61,8 @@ try {
         $stage = "migration-history"
         $history = Assert-PgHistoryPrefix -Database "nexora_dental_test" -RepositoryRoot $root
         $appliedCount = $history.Applied.Count
-        if ($appliedCount -notin @(4, 5, 6)) {
-            throw "The isolated test database must have the reviewed four-, five-, or six-migration history."
+        if ($appliedCount -notin @(4, 5, 6, 7)) {
+            throw "The isolated test database must have the reviewed four- through seven-migration history."
         }
         $report.appliedMigrationCount = $appliedCount
 
@@ -79,6 +79,7 @@ try {
             $approvalToken = switch ($newMigration) {
                 "20261125115303_AddPostgreSqlClinicTenantRootForeignKeys" { "APPLY_TENANT_ROOT_FK_MIGRATION" }
                 "20261126070352_EnforceAppointmentIntegrity" { "APPLY_APPOINTMENT_INTEGRITY_MIGRATION" }
+                "20261127122656_AddPostgreSqlAppointmentReschedules" { "APPLY_APPOINTMENT_RESCHEDULE_MIGRATION" }
                 default { throw "No explicit write approval is defined for the next migration." }
             }
             $sqlDirectory = Join-Path $root "artifacts\sql\PostgreSql"
@@ -94,7 +95,7 @@ try {
             )
             $null = & dotnet @dotnetArgs 2>&1
             if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $migrationSqlPath -PathType Leaf)) {
-                throw "Tenant-root migration SQL generation failed."
+                throw "Migration SQL generation failed."
             }
             $scriptText = [IO.File]::ReadAllText($migrationSqlPath)
             if (-not $scriptText.Contains($newMigration)) {

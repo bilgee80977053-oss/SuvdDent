@@ -23,9 +23,10 @@ try {
         "20261102165221_AddPostgreSqlNotificationOutbox",
         "20261102180315_AddPostgreSqlPhoneVerificationChallenges",
         "20261125115303_AddPostgreSqlClinicTenantRootForeignKeys",
-        "20261126070352_EnforceAppointmentIntegrity"
+        "20261126070352_EnforceAppointmentIntegrity",
+        "20261127122656_AddPostgreSqlAppointmentReschedules"
     )
-    Assert-OfflineTest ($migrationIds.Count -eq 6) "migration IDs are a flat six-element array"
+    Assert-OfflineTest ($migrationIds.Count -eq 7) "migration IDs are a flat seven-element array"
     Assert-OfflineTest (@($migrationIds | Where-Object { $_ -is [array] }).Count -eq 0) "migration IDs are not nested"
     Assert-OfflineTest ((Compare-Object -ReferenceObject $expectedIds -DifferenceObject $migrationIds).Count -eq 0) `
         "migration IDs have the exact expected chronological order"
@@ -71,6 +72,38 @@ try {
         -Definition ($validConstraints[2].Definition.Replace("'[)", "'[]")))) `
         "appointment exclusion verification requires half-open interval boundaries"
 
+    # PostgreSQL 18 may print the varchar Status comparison with a text cast.
+    $catalogPredicates = @(
+        '(("Status")::text = ''Confirmed''::text)',
+        '((("Status")::text = ''Confirmed''::text))'
+    )
+    foreach ($constraint in $validConstraints[2..3]) {
+        $definitionPrefix = ($constraint.Definition -split ' WHERE ', 2)[0]
+        foreach ($catalogPredicate in $catalogPredicates) {
+            Assert-OfflineTest (Test-PgAppointmentIntegrityConstraintRow -Table $constraint.Table `
+                -Name $constraint.Name -Validated $constraint.Validated `
+                -Definition "$definitionPrefix WHERE $catalogPredicate") `
+                "accepts the PostgreSQL 18 catalog form of the confirmed-only predicate"
+        }
+        $catalogDefinition = "$definitionPrefix WHERE $($catalogPredicates[1])"
+        Assert-OfflineTest (-not (Test-PgAppointmentIntegrityConstraintRow -Table $constraint.Table `
+            -Name $constraint.Name -Validated $constraint.Validated `
+            -Definition ($catalogDefinition.Replace("Confirmed", "Cancelled")))) `
+            "rejects a different booking status"
+        Assert-OfflineTest (-not (Test-PgAppointmentIntegrityConstraintRow -Table $constraint.Table `
+            -Name $constraint.Name -Validated $constraint.Validated `
+            -Definition ($catalogDefinition + ' OR true'))) `
+            "rejects an extra predicate"
+        Assert-OfflineTest (-not (Test-PgAppointmentIntegrityConstraintRow -Table $constraint.Table `
+            -Name $constraint.Name -Validated $constraint.Validated `
+            -Definition ($catalogDefinition.Substring(0, $catalogDefinition.Length - 1)))) `
+            "rejects unbalanced predicate parentheses"
+    }
+    Assert-OfflineTest (Test-PgAppointmentIntegrityConstraintRow -Table "Appointments" `
+        -Name $validConstraints[1].Name -Validated "true" `
+        -Definition ($validConstraints[1].Definition.Replace('"DoctorServices" (', '"DoctorServices"('))) `
+        "catalog FK accepts optional spacing before referenced columns"
+
     $readOnlySql = New-PgReadOnlySqlText -Sql "SELECT current_database();"
     Assert-OfflineTest ($readOnlySql -match '\ABEGIN TRANSACTION READ ONLY;') "inspection SQL starts a read-only transaction"
     Assert-OfflineTest ($readOnlySql -match 'SELECT current_database\(\);' -and $readOnlySql -match 'ROLLBACK;\s*\z') `
@@ -102,11 +135,16 @@ try {
     Assert-OfflineTest ($guard.Contains("actual_ids IS DISTINCT FROM ARRAY['20261027132306_PostgreSqlBaseline', '20261027180725_AddPostgreSqlAppointmentFoundation', '20261102165221_AddPostgreSqlNotificationOutbox', '20261102180315_AddPostgreSqlPhoneVerificationChallenges', '20261125115303_AddPostgreSqlClinicTenantRootForeignKeys']::text[]")) `
         "approved write guard checks the exact ordered current migration history"
     Assert-OfflineTest ($guard.Contains("ProductVersion")) "approved write guard checks EF product versions"
+    $priorGuard = New-PgWriteGuardSql -Database "nexora_dental_test" -RepositoryRoot $root `
+        -ExpectedMigrationIds @($migrationIds[0..5])
+    Assert-OfflineTest ($priorGuard.Contains("actual_count <> 6") -and
+        -not $priorGuard.Contains("AddPostgreSqlAppointmentReschedules")) "six-migration prefix remains independently fenced"
     $completeGuard = New-PgWriteGuardSql -Database "nexora_dental_test" -RepositoryRoot $root `
         -ExpectedMigrationIds $migrationIds
     Assert-OfflineTest ($completeGuard.Contains("'20261126070352_EnforceAppointmentIntegrity'") -and
-        $completeGuard.Contains("actual_count <> 6")) `
-        "approved write guard verifies the exact six-migration history, including migration six"
+        $completeGuard.Contains("'20261127122656_AddPostgreSqlAppointmentReschedules'") -and
+        $completeGuard.Contains("actual_count <> 7")) `
+        "approved write guard verifies the exact seven-migration history, including the reschedule ledger"
 
     $rows = @(
         [PSCustomObject]@{ Table = "Clinics"; Json = '{"Id":2,"Name":"B"}' },
