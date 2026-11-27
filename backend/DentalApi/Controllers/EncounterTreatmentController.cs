@@ -118,6 +118,23 @@ public sealed class EncounterTreatmentController(
         };
     }
 
+    [HttpGet("addenda")]
+    public async Task<IActionResult> ListAddenda(
+        int appointmentId, CancellationToken token, [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (!Enabled)
+            return NotFound();
+
+        var result = await treatments.ListAddendaAsync(User, appointmentId, page, pageSize, token);
+        return result.Outcome switch
+        {
+            EncounterTreatmentOutcome.Read => Ok(result.Record),
+            EncounterTreatmentOutcome.Missing => NotFound(),
+            EncounterTreatmentOutcome.Invalid => BadRequest(new { message = "Хуудасны дугаар 1–1000, хэмжээ 1–50 байна." }),
+            _ => StorageUnavailable()
+        };
+    }
+
     private ObjectResult StorageUnavailable() => StatusCode(StatusCodes.Status503ServiceUnavailable,
         new { message = "Тэмдэглэл эсвэл хандалтын бүртгэлийг баталгаажуулж чадсангүй." });
 }

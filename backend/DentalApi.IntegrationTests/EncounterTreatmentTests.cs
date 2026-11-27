@@ -50,6 +50,8 @@ public sealed class EncounterTreatmentTests
         using var amendmentRead = await doctor.GetAsync(AddendaRoute(301) + "/" + key);
         Assert.Equal(HttpStatusCode.NotFound, amendment.StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, amendmentRead.StatusCode);
+        using var list = await doctor.GetAsync(AddendaRoute(301));
+        Assert.Equal(HttpStatusCode.NotFound, list.StatusCode);
         await InDb(app, async db =>
         {
             Assert.Empty(await db.Set<TreatmentRecord>().ToListAsync());
@@ -314,8 +316,6 @@ public sealed class EncounterTreatmentTests
         }
         using var wrongEncounter = await doctor.GetAsync(AddendaRoute(305) + "/" + key);
         Assert.Equal(HttpStatusCode.NotFound, wrongEncounter.StatusCode);
-        using var noCollection = await doctor.GetAsync(AddendaRoute(id));
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, noCollection.StatusCode);
         using var read = await doctor.GetAsync(AddendaRoute(id) + "/" + key);
         Assert.Equal(HttpStatusCode.OK, read.StatusCode);
         Assert.True(read.Headers.CacheControl?.NoStore);
@@ -451,6 +451,105 @@ public sealed class EncounterTreatmentTests
         Assert.Contains(postgres ? "BEFORE TRUNCATE ON" : "TR_TreatmentAddenda_NoReplace", sql);
         Assert.False(db.Database.HasPendingModelChanges());
         Assert.Equal(ConnectionState.Closed, db.Database.GetDbConnection().State);
+    }
+
+    [Fact]
+    public async Task Addenda_discovery_is_bounded_metadata_only_deterministic_and_encounter_scoped()
+    {
+        using var app = await App(enabled: true);
+        using var doctor = await app.AsAsync(13);
+        using var foreign = await app.AsAsync(23, clinicId: 202);
+        using var unassigned = await app.AsAsync(17);
+        var url = AddendaRoute(301);
+        using var signed = await doctor.PostAsJsonAsync(Route(301), new { note = Note });
+        Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        var keys = new[]
+        {
+            Guid.Parse("11111111-1111-1111-1111-111111111111"),
+            Guid.Parse("55555555-5555-5555-5555-555555555555"),
+            Guid.Parse("99999999-9999-9999-9999-999999999999")
+        };
+        foreach (var key in keys.Reverse())
+        {
+            using var added = await doctor.PostAsJsonAsync(url, new { requestId = key, note = "Synthetic hidden addendum" });
+            Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        }
+
+        foreach (var denied in new[] { foreign, unassigned })
+        {
+            using var rejected = await denied.GetAsync(url);
+            Assert.Equal(HttpStatusCode.NotFound, rejected.StatusCode);
+        }
+        using var wrongEncounter = await doctor.GetAsync(AddendaRoute(305));
+        Assert.Equal(HttpStatusCode.NotFound, wrongEncounter.StatusCode);
+        foreach (var invalid in new[] { "?page=0", "?page=1001", "?pageSize=0", "?pageSize=51" })
+        {
+            using var rejected = await doctor.GetAsync(url + invalid);
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        }
+        await Review(1, keys[..2], true);
+        await Review(2, keys[2..], false);
+        await Review(3, [], false);
+        await Review(1000, [], false);
+        await InDb(app, async db =>
+        {
+            Assert.Equal(Note, (await db.Set<TreatmentRecord>().SingleAsync()).Note);
+            Assert.Equal(3, await db.Set<TreatmentAddendum>().CountAsync());
+            var reads = await db.Set<ClinicalAuditEvent>().Where(row => row.Action == ClinicalAuditAction.HistoryRead).ToArrayAsync();
+            Assert.Equal(4, reads.Length);
+            Assert.All(reads, row => Assert.Equal((101, 301, 13), (row.ClinicId, row.AppointmentId, row.ActorUserId)));
+        });
+
+        async Task Review(int page, Guid[] expected, bool hasMore)
+        {
+            using var response = await doctor.GetAsync(url + $"?page={page}&pageSize=2");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.CacheControl?.NoStore);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain("Synthetic hidden addendum", body);
+            var json = JsonSerializer.Deserialize<JsonElement>(body);
+            Assert.Equal(page, json.GetProperty("page").GetInt32());
+            Assert.Equal(2, json.GetProperty("pageSize").GetInt32());
+            Assert.Equal(hasMore, json.GetProperty("hasMore").GetBoolean());
+            var items = json.GetProperty("items").EnumerateArray().ToArray();
+            Assert.Equal(expected, items.Select(item => item.GetProperty("requestId").GetGuid()));
+            Assert.All(items, item =>
+            {
+                Assert.Equal(2, item.EnumerateObject().Count());
+                Assert.Equal(Now, item.GetProperty("signedUtc").GetDateTimeOffset());
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Addenda_discovery_returns_no_reference_if_its_audit_is_not_durable()
+    {
+        using var app = await App(enabled: true);
+        using var doctor = await app.AsAsync(13);
+        var key = Guid.NewGuid();
+        var url = AddendaRoute(301);
+        using var signed = await doctor.PostAsJsonAsync(Route(301), new { note = Note });
+        Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        using var added = await doctor.PostAsJsonAsync(url, new { requestId = key, note = "Synthetic hidden addendum" });
+        Assert.Equal(HttpStatusCode.Created, added.StatusCode);
+        await InDb(app, db => db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER "SyntheticDiscoveryAuditFailure" BEFORE INSERT ON "ClinicalAuditEvents" BEGIN
+                SELECT RAISE(ABORT, 'SyntheticDiscoveryAuditFailure');
+            END;
+            """));
+
+        using var read = await doctor.GetAsync(url);
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, read.StatusCode);
+        Assert.True(read.Headers.CacheControl?.NoStore);
+        var body = await read.Content.ReadAsStringAsync();
+        Assert.DoesNotContain(key.ToString(), body);
+        Assert.DoesNotContain("Synthetic hidden addendum", body);
+        Assert.DoesNotContain("SyntheticDiscoveryAuditFailure", body);
+        await InDb(app, async db =>
+        {
+            Assert.Equal(key, (await db.Set<TreatmentAddendum>().SingleAsync()).RequestId);
+            Assert.Equal(0, await db.Set<ClinicalAuditEvent>().CountAsync(row => row.Action == ClinicalAuditAction.HistoryRead));
+        });
     }
 
     private static string AddendaRoute(int appointmentId) => Route(appointmentId) + "/addenda";
