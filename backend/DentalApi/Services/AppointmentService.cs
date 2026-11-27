@@ -193,7 +193,7 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             await tx.CommitAsync();
             return new(201, Response(appointment));
         }
-        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true))
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true, sqliteTrigger: true))
         {
             // No retry of a booking transaction. One fresh read can recognize a committed duplicate.
             db.ChangeTracker.Clear();
@@ -235,7 +235,7 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             await tx.CommitAsync();
             return new(200, Response(appointment));
         }
-        catch (Exception error) when (DatabaseCompatibility.IsConflict(error, sqliteUnique: true))
+        catch (Exception error) when (DatabaseCompatibility.IsConflict(error, sqliteUnique: true, sqliteTrigger: true))
         {
             db.ChangeTracker.Clear();
             return Conflict();

@@ -107,6 +107,18 @@ public sealed class CrossTenantIsolationTests
         };
         db.DoctorProfiles.AddRange(doctorOne, doctorProfileTwo);
         await db.SaveChangesAsync();
+        db.DoctorServices.AddRange(
+            new DoctorService
+            {
+                ClinicId = 101, DoctorProfileId = doctorOne.Id, ServiceId = serviceOne.Id,
+                DurationMinutes = 30, BufferBeforeMinutes = 0, BufferAfterMinutes = 0
+            },
+            new DoctorService
+            {
+                ClinicId = 202, DoctorProfileId = doctorProfileTwo.Id, ServiceId = serviceTwo.Id,
+                DurationMinutes = 30, BufferBeforeMinutes = 0, BufferAfterMinutes = 0
+            });
+        await db.SaveChangesAsync();
 
         var start = DateTimeOffset.UtcNow.AddDays(1);
         var appointment = new Appointment

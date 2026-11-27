@@ -63,7 +63,10 @@ choosing a timezone offset by guesswork.
 Confirmed doctor occupied intervals and confirmed patient treatment intervals
 block slots. Half-open overlap means `existingStart < proposedEnd &&
 proposedStart < existingEnd`; exactly touching boundaries are allowed. Cancelled
-storage records do not block time; cancellation is not implemented by this API.
+storage records do not block time. The database enforces these intervals in
+addition to the availability and booking checks: PostgreSQL exclusion
+constraints and SQLite insert/update triggers cover direct and concurrent
+writers. Cancellation marks a row cancelled and releases its interval.
 All snapshots come from current trusted database configuration. The whole-minute
 grid avoids PostgreSQL/SQLite fractional start-time precision differences.
 
@@ -77,14 +80,14 @@ POST repeats validation and overlap checks regardless of earlier availability.
 
 SQLite uses DatabaseCompatibility's non-deferred write transaction, obtaining its
 write reservation before eligibility/overlap reads. PostgreSQL uses Serializable
-isolation. Every booking reads the doctor/patient overlap predicate before inserting;
-Serializable snapshot isolation detects competing absent-row reads and inserts.
-No additional advisory lock is needed for this create-only path. The protocol
-requires all future booking writers to preserve these transactional predicates;
-ordinary unique indexes do not prevent arbitrary overlapping time intervals.
+isolation. The provider-specific database overlap guards are the final integrity
+boundary; the service's transactional checks also produce early conflicts and keep
+availability behavior consistent. No advisory lock is needed for this create-only
+path.
 
-SQLSTATE 23505, 40001 and 40P01 and SQLite busy/locked/unique conflicts return safe
-409 messages. Failed transactions dispose/roll back before any duplicate lookup.
+SQLSTATE 23505, 23P01, 40001 and 40P01 and SQLite busy/locked/unique/trigger
+conflicts return safe 409 messages. Failed transactions dispose/roll back before
+any duplicate lookup.
 There is no automatic transaction retry. A single fresh lookup can recognize a
 concurrently committed duplicate; if it cannot yet be recognized, return 409.
 
@@ -103,12 +106,13 @@ in force; database details are not returned to clients.
 ## Validation and limits
 
 AppointmentApiTests use synthetic in-memory SQLite, real JWT validation, independent
-HTTP request connections, and an injected commit failure. AppointmentProviderTests
-suppress all PostgreSQL connection opens and check Serializable selection and
-SQLSTATE handling. Two opt-in PostgreSqlAppointmentTests coordinate independent
-snapshots before overlap reads, assert one committed booking and test duplicate
-replay. They reuse the existing approved target guard and require the appointment
-migration to have already been applied by an authorized operator. Tests never
+HTTP request connections, concurrent booking attempts, and an injected commit
+failure. AppointmentProviderTests suppress all PostgreSQL connection opens and
+check Serializable selection and SQLSTATE handling. Two opt-in
+PostgreSqlAppointmentTests coordinate independent snapshots before overlap reads,
+assert one committed booking and test duplicate replay. They reuse the existing
+approved target guard and require the appointment migration to have already been
+applied by an authorized operator. Tests never
 apply PostgreSQL migrations or reset schema. Cleanup removes only generated request
 keys in an ownership-checked synthetic clinic, followed by existing fixture cleanup.
 
@@ -117,7 +121,8 @@ NEXORA_PG_TEST_CONNECTION absent for normal offline validation. The opt-in targe
 must satisfy all existing disposable database safety checks; do not use a shared
 or production database. No database connection is configured by this document.
 
-No schema changes or migrations are introduced. PostgreSQL startup migration guard
-remains enabled. Flutter integration, email/outbox delivery, cancellation,
-rescheduling, payments and treatment history are outside this step. No message is
-sent before or after booking; later email work must run only after commit.
+The relationship and database-overlap migrations are documented in
+[appointment persistence](AppointmentPersistence.md). PostgreSQL startup
+migration guard remains enabled. Flutter integration, rescheduling, payments
+and treatment history are outside this step. Notifications remain transactional
+outbox work and are not sent before commit.

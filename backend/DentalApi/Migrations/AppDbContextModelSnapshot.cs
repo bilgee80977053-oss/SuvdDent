@@ -78,6 +78,8 @@ namespace DentalApi.Migrations
 
                     b.HasIndex("ClinicId", "ServiceId");
 
+                    b.HasIndex("ClinicId", "DoctorProfileId", "ServiceId");
+
                     b.HasIndex("ClinicId", "PatientId", "RequestId")
                         .IsUnique();
 
@@ -87,6 +89,14 @@ namespace DentalApi.Migrations
 
                     b.ToTable("Appointments", t =>
                         {
+                            t.HasTrigger("TR_Appointments_NoDoctorOccupiedOverlap_Insert");
+
+                            t.HasTrigger("TR_Appointments_NoDoctorOccupiedOverlap_Update");
+
+                            t.HasTrigger("TR_Appointments_NoPatientTreatmentOverlap_Insert");
+
+                            t.HasTrigger("TR_Appointments_NoPatientTreatmentOverlap_Update");
+
                             t.HasCheckConstraint("CK_Appointments_Interval", "\"OccupiedStartUtc\" <= \"StartUtc\" AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= \"OccupiedEndUtc\"");
 
                             t.HasCheckConstraint("CK_Appointments_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
@@ -285,9 +295,6 @@ namespace DentalApi.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("ClinicId", "ServiceId");
-
-                    b.HasIndex("ClinicId", "DoctorProfileId", "ServiceId")
-                        .IsUnique();
 
                     b.ToTable("DoctorServices", t =>
                         {
@@ -835,6 +842,13 @@ namespace DentalApi.Migrations
                         .WithMany()
                         .HasForeignKey("ClinicId", "ServiceId")
                         .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.DoctorService", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "DoctorProfileId", "ServiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

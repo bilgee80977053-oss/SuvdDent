@@ -189,9 +189,9 @@ public sealed class TenantRootForeignKeyTests
         var pgMigration = ReadMigration(pg, PostgreSqlMigration);
         AssertTenantRootOperations(sqliteMigration);
         AssertTenantRootOperations(pgMigration);
-        Assert.Equal(5, pg.Database.GetMigrations().Count());
-        Assert.Equal(5, DevelopmentFixture.ExpectedMigrationCount);
-        Assert.Equal(5, CrossTenantFixture.ExpectedMigrationCount);
+        Assert.Equal(6, pg.Database.GetMigrations().Count());
+        Assert.Equal(6, DevelopmentFixture.ExpectedMigrationCount);
+        Assert.Equal(6, CrossTenantFixture.ExpectedMigrationCount);
 
         var pgScript = pg.GetService<IMigrator>().GenerateScript(
             "20261102180315_AddPostgreSqlPhoneVerificationChallenges",

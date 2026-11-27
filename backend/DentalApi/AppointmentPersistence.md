@@ -1,62 +1,80 @@
-# Appointment persistence foundation
+# Appointment persistence and integrity
 
-This document records the Step 2 storage foundation. Step 3 adds the
-[patient booking API](AppointmentApi.md) without further schema changes.
-Existing API contracts and the Flutter demonstration remain unchanged.
+This document records the appointment storage, tenant relationship, and database
+integrity guarantees used by the [patient booking API](AppointmentApi.md).
 
 ## Model and tenant boundaries
 
-`Appointment` records clinic, patient, doctor profile and service IDs. Composite
-foreign keys include `ClinicId` for every tenant-owned reference. All four
-relationships use restrictive deletion; a referenced record cannot be removed.
-No medical notes or additional patient contact data are copied into appointments.
+`Appointment` records clinic, patient, doctor profile, service, and the assigned
+doctor-service association. Composite foreign keys include `ClinicId` for every
+tenant-owned reference. All are restrictive: referenced records cannot be
+physically removed. The appointment-to-doctor-service foreign key requires an
+assignment for the same clinic, doctor, and service. It intentionally does not
+require `IsActive`, so deactivating a service assignment does not orphan or
+rewrite historical appointments. `SchedulingService.WriteServices` deactivates
+omitted assignments; a referenced assignment cannot be hard-deleted.
 
 Treatment uses `[StartUtc, EndUtc)` and occupied time uses
 `[OccupiedStartUtc, OccupiedEndUtc)`. Duration and before/after buffer snapshots
 must exactly match these intervals. Duration is 1-1440 minutes, buffers are
-nonnegative and total occupied time cannot exceed 1440 minutes, following the
-existing doctor-service configuration limits. The clinic timezone snapshot
-follows the booking-history requirement in `ClinicSchedulingPolicy`; changing
-clinic or doctor-service configuration does not rewrite these stored snapshots.
+nonnegative, and total occupied time cannot exceed 1440 minutes. The clinic
+timezone snapshot and interval/configuration snapshots are immutable booking
+history; later clinic or doctor-service edits do not rewrite them.
 
-Statuses are `Confirmed` and `Cancelled`; these are persistence values, not new
-API operations. A nonempty GUID `RequestId` is unique per clinic and patient.
-The Step 3 booking service now implements replay handling using this constraint.
+Statuses are `Confirmed` and `Cancelled`. A nonempty GUID `RequestId` is unique
+per clinic and patient. SQLite stores UTC .NET ticks as integers; PostgreSQL uses
+`timestamp with time zone`, normalized to UTC by EF converters.
 
-SQLite stores UTC .NET ticks as integers, preserving ordering and 100 ns
-precision. PostgreSQL uses `timestamp with time zone`, with values normalized to
-UTC by EF converters; PostgreSQL storage precision is microseconds. The Step 3
-booking service uses whole-minute starts and interval lengths. Database checks
-validate finite/representable times, interval relationships and snapshot metadata.
-Timezone identifiers still require application validation against supported zones.
+## Database overlap protection
 
-Indexes support patient history and doctor occupied-time lookups. Ordinary indexes
-DO NOT prevent all overlapping bookings. Step 3 implements transactional booking
-validation and concurrency protection in the service. Appointment updates and
-transaction-safe confirmation delivery remain later work.
+Both providers enforce non-overlap independently of application checks:
 
-## Separate additive migrations
+- PostgreSQL uses partial GiST exclusion constraints for confirmed doctor
+  occupied-time intervals and patient treatment-time intervals. The
+  `btree_gist` extension supports equality comparisons in the composite keys.
+- SQLite uses insert and update triggers with the same clinic-scoped identities
+  and half-open interval comparisons. Its normal write transaction serializes
+  competing writers.
 
-- SQLite: `20261027180600_AddAppointmentFoundation`
-- PostgreSQL: `20261027180725_AddPostgreSqlAppointmentFoundation`
+Only `Confirmed` rows block time. `Cancelled` appointments do not; adjacent
+intervals are permitted. Expected PostgreSQL exclusion violations (`23P01`) and
+SQLite trigger conflicts (`1811`) map to HTTP 409. PostgreSQL booking continues
+to use Serializable transactions; the constraints also protect against writers
+that do not follow the booking service's predicate reads.
 
-Each creates only `Appointments`, its constraints and indexes. Existing EF
-migration C# files, historical designers and SQL fixtures are preserved. Only
-the two current EF model snapshots advance. Follow the
-[migration workflow](Migrations/README.md) with the explicit provider context.
-SQLite SQL scripts must NEVER be applied to PostgreSQL.
+## Additive migrations and legacy-data checks
 
-No migration has been applied to a real database for this step. PostgreSQL's
-startup migration guard remains enabled. Review generated SQL and obtain the
-appropriate operational approval before any later database deployment. The new
-`Down` migrations drop `Appointments` and would delete its data; do not use them
-as a data-preserving rollback.
+- SQLite relationship/preflight migration:
+  `20261126070328_EnforceAppointmentIntegrity`
+- SQLite overlap-trigger migration:
+  `20261126073027_ProtectAppointmentOverlap`
+- PostgreSQL relationship, preflight, and exclusion migration:
+  `20261126070352_EnforceAppointmentIntegrity`
+
+Before adding the relationship and overlap guards, each provider migration
+checks for appointments without a matching doctor-service assignment or with
+existing confirmed interval overlaps. It fails without deleting or rewriting
+appointments if incompatible records exist; investigate and resolve them through
+an explicitly reviewed data plan before considering deployment. The SQLite
+migration retains the existing unique parent index while rebuilding
+`Appointments`; the index is a valid SQLite parent key for the composite
+foreign key. SQLite triggers are installed in the follow-on migration, after the
+table rebuild, so the rebuild cannot discard them.
+
+The PostgreSQL migration adds `btree_gist` with `IF NOT EXISTS` and does not
+drop that extension on `Down`, because it may predate this migration or serve
+other objects. Do not apply a `Down` migration as a data-preserving rollback.
+SQLite SQL must NEVER be applied to PostgreSQL.
+
+No persistent database migration or live PostgreSQL test has been authorized
+for this work. Review generated SQL and obtain the appropriate operator
+approval before any database deployment.
 
 ## Offline validation
 
-`AppointmentPersistenceTests` migrate disposable in-memory SQLite databases,
-exercise tenant/check/unique constraints, verify UTC and snapshot persistence,
-and compare all 13 pre-existing tables' rows and schema before/after both EF and
-SQL-script upgrades. `AppointmentMigrationMetadataTests` inspect both providers'
-migration operations, mappings and generated PostgreSQL SQL without connecting.
-These offline checks do not establish behavior on a live PostgreSQL server.
+`AppointmentPersistenceTests` use disposable in-memory SQLite databases to
+exercise scoped assignment references, historical-row preflight, trigger
+overlaps, touching/cancelled/cross-clinic cases, service deactivation, and
+request-key behavior. `AppointmentMigrationMetadataTests` inspect both
+provider-specific migrations and snapshots and generate PostgreSQL SQL without
+connecting. These checks do not establish behavior on a live PostgreSQL server.

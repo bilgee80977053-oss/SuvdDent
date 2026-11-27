@@ -21,6 +21,7 @@ namespace DentalApi.Migrations.PostgreSql
                 .HasAnnotation("ProductVersion", "10.0.13")
                 .HasAnnotation("Relational:MaxIdentifierLength", 63);
 
+            NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "btree_gist");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
             modelBuilder.Entity("DentalApi.Models.Appointment", b =>
@@ -85,6 +86,8 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasKey("Id");
 
                     b.HasIndex("ClinicId", "ServiceId");
+
+                    b.HasIndex("ClinicId", "DoctorProfileId", "ServiceId");
 
                     b.HasIndex("ClinicId", "PatientId", "RequestId")
                         .IsUnique();
@@ -300,9 +303,6 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasKey("Id");
 
                     b.HasIndex("ClinicId", "ServiceId");
-
-                    b.HasIndex("ClinicId", "DoctorProfileId", "ServiceId")
-                        .IsUnique();
 
                     b.ToTable("DoctorServices", t =>
                         {
@@ -866,6 +866,13 @@ namespace DentalApi.Migrations.PostgreSql
                         .WithMany()
                         .HasForeignKey("ClinicId", "ServiceId")
                         .HasPrincipalKey("ClinicId", "Id")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.DoctorService", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "DoctorProfileId", "ServiceId")
+                        .HasPrincipalKey("ClinicId", "DoctorProfileId", "ServiceId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

@@ -16,14 +16,15 @@ internal static class DatabaseCompatibility
             ? db.Database.BeginTransactionAsync(IsolationLevel.Serializable)
             : db.Database.BeginTransactionAsync();
 
-    internal static bool IsConflict(Exception error, bool sqliteUnique = false, bool sqlitePrimaryKey = false)
+    internal static bool IsConflict(Exception error, bool sqliteUnique = false, bool sqlitePrimaryKey = false,
+        bool sqliteTrigger = false)
     {
         if (error is DbUpdateConcurrencyException) return true;
         // Npgsql's non-retrying execution strategy may wrap transient errors in
         // InvalidOperationException, including a DbUpdateException from SaveChanges.
         for (Exception? cause = error; cause is not null; cause = cause.InnerException)
             if (cause is PostgresException pg)
-                return pg.SqlState is "23505" or "40001" or "40P01";
+                return pg.SqlState is "23505" or "23P01" or "40001" or "40P01";
 
         // Preserve each caller's existing SQLite constraint handling.
         var provider = error is DbUpdateException ? error.InnerException : error;
@@ -31,7 +32,8 @@ internal static class DatabaseCompatibility
         {
             SqliteException sqlite => sqlite.SqliteErrorCode is 5 or 6 ||
                 (sqliteUnique && sqlite.SqliteExtendedErrorCode == 2067) ||
-                (sqlitePrimaryKey && sqlite.SqliteExtendedErrorCode == 1555),
+                (sqlitePrimaryKey && sqlite.SqliteExtendedErrorCode == 1555) ||
+                (sqliteTrigger && sqlite.SqliteExtendedErrorCode == 1811),
             _ => false
         };
     }

@@ -28,8 +28,8 @@ public sealed class AppointmentProviderTests
     }
 
     [Theory]
-    [InlineData("23505", false)] [InlineData("40001", false)] [InlineData("40P01", false)]
-    [InlineData("23505", true)] [InlineData("40001", true)] [InlineData("40P01", true)]
+    [InlineData("23505", false)] [InlineData("23P01", false)] [InlineData("40001", false)] [InlineData("40P01", false)]
+    [InlineData("23505", true)] [InlineData("23P01", true)] [InlineData("40001", true)] [InlineData("40P01", true)]
     public async Task PostgreSql_booking_and_slots_use_Serializable_and_safe_SQLSTATE_conflicts_offline(string state, bool wrapped)
     {
         foreach (var slots in new[] {false, true})

@@ -43,7 +43,6 @@ $password = $null
 $ownsPgPassword = $false
 $failed = $false
 $stage = "initialization"
-$temporaryDataDump = $null
 
 try {
     Assert-PgAutomationEnvironmentClear
@@ -94,12 +93,12 @@ try {
     }
 
     $stage = "backup"
-    $pgDump = Get-Command pg_dump -ErrorAction Stop
+    $pgDump = Get-PgExecutable -Name pg_dump
     $backupPath = Join-Path $resolvedBackupDirectory "nexora_dental_rehearsal-$runId.backup"
     if (Test-Path -LiteralPath $backupPath) {
         throw "The backup output path already exists."
     }
-    $null = & $pgDump.Source --no-password --format=custom --no-owner --no-privileges `
+    $null = & $pgDump --no-password --format=custom --no-owner --no-privileges `
         --host 127.0.0.1 --port 5432 --username nexora_dev --dbname $targetDatabase `
         --file $backupPath 2>$null
     if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $backupPath -PathType Leaf)) {
@@ -115,8 +114,8 @@ try {
     $backupHash = (Get-FileHash -LiteralPath $backupPath -Algorithm SHA256).Hash
     $report.backupPath = $backupPath
     $report.backupSha256 = $backupHash
-    $pgRestore = Get-Command pg_restore -ErrorAction Stop
-    $null = & $pgRestore.Source --list $backupPath 2>$null
+    $pgRestore = Get-PgExecutable -Name pg_restore
+    $null = & $pgRestore --list $backupPath 2>$null
     if ($LASTEXITCODE -ne 0) {
         throw "The generated PostgreSQL backup archive did not pass its format check."
     }
@@ -151,19 +150,8 @@ try {
     $report.migrationSqlPath = $migrationSqlPath
 
     $stage = "before-data-fingerprint"
-    $pgDump = Get-Command pg_dump -ErrorAction Stop
-    $temporaryDataDump = Join-Path ([IO.Path]::GetTempPath()) "SuvdDent-DataBefore-$runId.sql"
-    $null = & $pgDump.Source --no-password --data-only --column-inserts --no-owner --no-privileges `
-        '--exclude-table-data=public."__EFMigrationsHistory"' `
-        --host 127.0.0.1 --port 5432 --username nexora_dev --dbname $targetDatabase `
-        --file $temporaryDataDump 2>$null
-    if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $temporaryDataDump -PathType Leaf)) {
-        throw "Before-migration data fingerprint generation failed."
-    }
-    $beforeHash = (Get-FileHash -LiteralPath $temporaryDataDump -Algorithm SHA256).Hash
+    $beforeHash = Get-PgApplicationDataFingerprint -Database $targetDatabase
     $report.beforeDataSha256 = $beforeHash
-    Remove-Item -LiteralPath $temporaryDataDump -Force
-    $temporaryDataDump = $null
 
     if ($Mode -eq "Prepare") {
         $report.status = "prepared-no-schema-write"
@@ -171,20 +159,21 @@ try {
     else {
         $stage = "migration-write-approval"
         $approval = Read-Host "Target is fixed to nexora_dental_rehearsal. Type APPLY_MIGRATION_TO_REHEARSAL to execute the generated SQL"
-        if ($approval -cne "APPLY_MIGRATION_TO_REHEARSAL") {
+        if (-not (Test-PgApproval -Response $approval -Token "APPLY_MIGRATION_TO_REHEARSAL")) {
             $report.status = "approval-required"
         }
         elseif ($AllowDataFingerprintChange) {
             $stage = "data-change-approval"
             $dataApproval = Read-Host "The migration is authorized to change application data. Type APPROVE_DATA_FINGERPRINT_CHANGE"
-            if ($dataApproval -cne "APPROVE_DATA_FINGERPRINT_CHANGE") {
+            if (-not (Test-PgApproval -Response $dataApproval -Token "APPROVE_DATA_FINGERPRINT_CHANGE")) {
                 $report.status = "approval-required"
             }
         }
 
         if ($report.status -ne "approval-required") {
             $stage = "migration-application"
-            Invoke-PgSqlFile -Database $targetDatabase -Path $migrationSqlPath
+            Invoke-PgSqlFile -Database $targetDatabase -Path $migrationSqlPath `
+                -RepositoryRoot $root -ExpectedMigrationIds @($history.Expected[0..$fromIndex])
             $report.migrationApplied = $true
 
             $stage = "post-migration-history"
@@ -222,18 +211,8 @@ try {
             }
 
             $stage = "after-data-fingerprint"
-            $temporaryDataDump = Join-Path ([IO.Path]::GetTempPath()) "SuvdDent-DataAfter-$runId.sql"
-            $null = & $pgDump.Source --no-password --data-only --column-inserts --no-owner --no-privileges `
-                '--exclude-table-data=public."__EFMigrationsHistory"' `
-                --host 127.0.0.1 --port 5432 --username nexora_dev --dbname $targetDatabase `
-                --file $temporaryDataDump 2>$null
-            if ($LASTEXITCODE -ne 0 -or -not (Test-Path -LiteralPath $temporaryDataDump -PathType Leaf)) {
-                throw "After-migration data fingerprint generation failed."
-            }
-            $afterHash = (Get-FileHash -LiteralPath $temporaryDataDump -Algorithm SHA256).Hash
+            $afterHash = Get-PgApplicationDataFingerprint -Database $targetDatabase
             $report.afterDataSha256 = $afterHash
-            Remove-Item -LiteralPath $temporaryDataDump -Force
-            $temporaryDataDump = $null
 
             if ($beforeHash -cne $afterHash -and -not $AllowDataFingerprintChange) {
                 throw "Application-data fingerprint changed without prior explicit authorization."
@@ -252,9 +231,6 @@ finally {
         Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
     }
     $password = $null
-    if ($null -ne $temporaryDataDump -and (Test-Path -LiteralPath $temporaryDataDump -PathType Leaf)) {
-        Remove-Item -LiteralPath $temporaryDataDump -Force -ErrorAction SilentlyContinue
-    }
     try {
         Write-PgJsonReport -Path $reportPath -Report $report
     }

@@ -19,6 +19,10 @@ internal static class AppointmentModelConfiguration
         appointment.HasOne<Service>().WithMany()
             .HasForeignKey(a => new { a.ClinicId, a.ServiceId })
             .HasPrincipalKey(s => new { s.ClinicId, s.Id }).OnDelete(DeleteBehavior.Restrict);
+        appointment.HasOne<DoctorService>().WithMany()
+            .HasForeignKey(a => new { a.ClinicId, a.DoctorProfileId, a.ServiceId })
+            .HasPrincipalKey(s => new { s.ClinicId, s.DoctorProfileId, s.ServiceId })
+            .OnDelete(DeleteBehavior.Restrict);
         appointment.Property(a => a.Status).HasConversion<string>().HasMaxLength(20)
             .HasDefaultValue(AppointmentStatus.Confirmed);
         appointment.Property(a => a.ClinicTimeZoneIdSnapshot).HasMaxLength(100);
@@ -40,6 +44,13 @@ internal static class AppointmentModelConfiguration
 
         appointment.ToTable(table =>
         {
+            if (sqlite)
+            {
+                table.HasTrigger("TR_Appointments_NoDoctorOccupiedOverlap_Insert");
+                table.HasTrigger("TR_Appointments_NoDoctorOccupiedOverlap_Update");
+                table.HasTrigger("TR_Appointments_NoPatientTreatmentOverlap_Insert");
+                table.HasTrigger("TR_Appointments_NoPatientTreatmentOverlap_Update");
+            }
             table.HasCheckConstraint("CK_Appointments_Interval",
                 "\"OccupiedStartUtc\" <= \"StartUtc\" AND \"StartUtc\" < \"EndUtc\" AND \"EndUtc\" <= \"OccupiedEndUtc\"");
             table.HasCheckConstraint("CK_Appointments_SnapshotBounds",

@@ -65,6 +65,12 @@ public sealed class NotificationMigrationTests
         db.DoctorProfiles.Add(new DoctorProfile { Id = 31, ClinicId = 101, UserId = 13 });
         db.Services.Add(new Service { Id = 51, ClinicId = 101 });
         await db.SaveChangesAsync();
+        db.DoctorServices.Add(new DoctorService
+        {
+            Id = 71, ClinicId = 101, DoctorProfileId = 31, ServiceId = 51,
+            DurationMinutes = 30, BufferBeforeMinutes = 0, BufferAfterMinutes = 0
+        });
+        await db.SaveChangesAsync();
         var start = new DateTimeOffset(2026,11,5,1,0,0,TimeSpan.Zero);
         db.Appointments.Add(new Appointment { Id = 301, ClinicId = 101, PatientId = 41, DoctorProfileId = 31,
             ServiceId = 51, StartUtc = start, EndUtc = start.AddMinutes(30), OccupiedStartUtc = start,

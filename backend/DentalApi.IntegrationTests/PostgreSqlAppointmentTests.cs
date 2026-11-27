@@ -66,12 +66,13 @@ public sealed class PostgreSqlAppointmentTests
     {
         await using var app = await PostgreSqlApiFactory.StartAsync();
         var keys = new[] {Guid.NewGuid(), Guid.NewGuid()};
+        var integrityProbeKey = Guid.NewGuid();
         var hasAppointments = false;
         try
         {
             await using var setup = app.Context();
-            if (!(await setup.Database.GetAppliedMigrationsAsync()).Contains("20261027180725_AddPostgreSqlAppointmentFoundation"))
-                throw new InvalidOperationException("Appointment migration must already be applied by an authorized operator. This test will not apply migrations.");
+            if (!(await setup.Database.GetAppliedMigrationsAsync()).Contains("20261126070352_EnforceAppointmentIntegrity"))
+                throw new InvalidOperationException("Appointment integrity migration must already be applied by an authorized operator. This test will not apply migrations.");
             hasAppointments = true;
             await app.CreatePatientAsync();
             var clinic = await setup.Clinics.SingleAsync(c => c.Id == app.ClinicA.Id);
@@ -110,6 +111,26 @@ public sealed class PostgreSqlAppointmentTests
             await using var verify=app.Context();
             var row=Assert.Single(await verify.Appointments.AsNoTracking().Where(a=>a.ClinicId==clinic.Id).ToArrayAsync());
             Assert.Equal(start,row.StartUtc); Assert.Equal(30,row.DurationMinutesSnapshot);
+            verify.Appointments.Add(new Appointment
+            {
+                ClinicId = row.ClinicId,
+                PatientId = row.PatientId,
+                DoctorProfileId = row.DoctorProfileId,
+                ServiceId = row.ServiceId,
+                StartUtc = row.StartUtc,
+                EndUtc = row.EndUtc,
+                OccupiedStartUtc = row.OccupiedStartUtc,
+                OccupiedEndUtc = row.OccupiedEndUtc,
+                DurationMinutesSnapshot = row.DurationMinutesSnapshot,
+                BufferBeforeMinutesSnapshot = row.BufferBeforeMinutesSnapshot,
+                BufferAfterMinutesSnapshot = row.BufferAfterMinutesSnapshot,
+                ClinicTimeZoneIdSnapshot = row.ClinicTimeZoneIdSnapshot,
+                RequestId = integrityProbeKey,
+                CreatedAtUtc = now
+            });
+            var overlapError = await Assert.ThrowsAsync<DbUpdateException>(() => verify.SaveChangesAsync());
+            Assert.Equal("23P01", Assert.IsType<PostgresException>(overlapError.GetBaseException()).SqlState);
+            verify.ChangeTracker.Clear();
             if (duplicate)
             {
                 var replay=await Service(verify).Create(clinic.Id,app.PatientA.Id,firstRequest);
@@ -126,7 +147,8 @@ public sealed class PostgreSqlAppointmentTests
                 await using var cleanup=app.Context();
                 if (!await cleanup.Clinics.AnyAsync(c=>c.Id==app.ClinicA.Id && c.Name==app.Marker+"-A"))
                     throw new InvalidOperationException("Synthetic clinic ownership changed; no appointment cleanup attempted.");
-                await cleanup.Appointments.Where(a=>a.ClinicId==app.ClinicA.Id && keys.Contains(a.RequestId)).ExecuteDeleteAsync();
+                await cleanup.Appointments.Where(a=>a.ClinicId==app.ClinicA.Id &&
+                    keys.Append(integrityProbeKey).Contains(a.RequestId)).ExecuteDeleteAsync();
             }
         }
     }

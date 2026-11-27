@@ -78,7 +78,7 @@ public sealed class PostgreSqlTenantRootForeignKeyTests
         await transaction.CreateSavepointAsync("delete_clinic");
         var deleteError = await Assert.ThrowsAsync<PostgresException>(() =>
             db.Database.ExecuteSqlRawAsync("DELETE FROM public.\"Clinics\" WHERE \"Id\" = {0}", clinicA.Id));
-        Assert.Equal("23503", deleteError.SqlState);
+        Assert.Equal("23001", deleteError.SqlState);
         await transaction.RollbackToSavepointAsync("delete_clinic");
         Assert.True(await db.Clinics.AnyAsync(clinic => clinic.Id == clinicA.Id));
         Assert.Null(await db.Patients.Where(patient => patient.Id == unlinkedPatient.Id)

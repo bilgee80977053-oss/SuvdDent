@@ -657,11 +657,13 @@ public sealed class AppointmentApiTests
     }
 
     [Theory]
-    [InlineData("sqlite")] [InlineData("23505")] [InlineData("40001")] [InlineData("40P01")]
+    [InlineData("sqlite")] [InlineData("sqlite-trigger")] [InlineData("23505")] [InlineData("23P01")] [InlineData("40001")] [InlineData("40P01")]
     public async Task Failure_at_commit_rolls_back_insert_and_returns_safe_conflict(string state)
     {
         using var app = await App(); using var client = await app.AsAsync(11);
-        if (state != "sqlite") app.Failure.Error = new DbUpdateException("synthetic-private-wrapper",
+        if (state == "sqlite-trigger")
+            app.Failure.Error = new SqliteException("synthetic-private-trigger-conflict", 19, 1811);
+        else if (state != "sqlite") app.Failure.Error = new DbUpdateException("synthetic-private-wrapper",
             new PostgresException("synthetic-private-provider", "ERROR", "ERROR", state));
         app.Failure.Enabled = true;
         using var failed = await client.PostAsJsonAsync(Url, Request());

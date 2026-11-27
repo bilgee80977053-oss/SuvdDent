@@ -1,13 +1,70 @@
 # PostgreSQL workflow scripts
 
 These scripts are reviewable automation for the isolated PostgreSQL test and
-migration-rehearsal databases. They were not executed as part of this change.
+migration-rehearsal databases. No live database workflow was executed as part
+of this change.
 Run them only in a PowerShell environment where organizational policy permits
 the reviewed scripts; do not lower or bypass execution policy for convenience.
 They never accept a database name or host from the caller: the test runner is
 fixed to `127.0.0.1:5432/nexora_dental_test`, and the migration workflow is fixed
 to `127.0.0.1:5432/nexora_dental_rehearsal`, both using role `nexora_dev`.
 Development, production, and any unlisted database names are rejected.
+
+## Automation hardening and offline checks
+
+The shared helper supports Windows PowerShell 5.1. It discovers PostgreSQL 18
+tools from `PATH` or the fixed PostgreSQL 18 `bin` locations under Program
+Files, and verifies each executable's reported major version before use.
+Inspection SQL is restricted to a single `SELECT`, written to a temporary
+UTF-8 file without a BOM, and run inside a read-only transaction. Approved
+migration SQL is combined with a same-`psql`-session guard that rechecks the
+fixed database, role, local endpoint, schema, PostgreSQL version, and exact
+ordered current migration history before executing the migration file.
+
+The migration rehearsal fingerprints application rows as canonical JSON data,
+sorted by table and row content, and hashes that representation with SHA-256.
+This avoids treating nondeterministic `pg_dump` output as a data-change signal;
+the separate custom-format backup continues to receive its own archive SHA-256.
+The integration runner reads test counts from the structured TRX result file
+rather than relying on console summary wording.
+
+Appointment constraint verification checks the exact public constraint names,
+owning tables, validated state, definition type and key columns. It requires the
+doctor-service FK to use `ON DELETE RESTRICT`, and both GiST exclusions to use
+clinic-scoped equality, confirmed-only predicates, overlap operators, and `[)`
+time ranges. PostgreSQL truncates the generated FK name with one trailing `~`;
+the SQL-name allowlist permits only that optional terminal character while
+continuing to reject quotes, whitespace, and SQL syntax.
+
+Migration-history validation includes all six ordered PostgreSQL IDs, including
+`20261126070352_EnforceAppointmentIntegrity`. The structured test-result gate
+requires exactly 13 passed results with no failures or skips; failure details
+are sanitized before entering the report.
+
+Run the offline automation helper regression checks in a PowerShell environment
+where organizational policy permits the test script:
+
+```powershell
+.\backend\scripts\tests\PostgreSqlAutomation.Tests.ps1
+```
+
+Appointment-integrity and automation validation:
+
+- PowerShell 5.1 parser: all four scripts/modules parsed successfully.
+- Offline helper test invocation was blocked by the effective `Restricted`
+  execution policy. The policy was not changed or bypassed; run the helper test
+  later in an approved PowerShell environment. Cases cover the generated single
+  trailing `~`, rejection of multiple terminal tildes and SQL injection, exact
+  constraint definitions, the sixth migration, and the 13-test TRX gate.
+- Release build: `dotnet build .\backend\NexoraDental.sln --configuration Release
+  --no-restore` succeeded with 0 warnings and 0 errors.
+- Offline backend tests: 520 passed, 0 failed, 0 skipped using the filter
+  `Category!=PostgreSqlIntegration&Category!=PostgreSqlConcurrency`.
+- Both SQLite and PostgreSQL `has-pending-model-changes` checks reported no
+  pending model changes. Provider SQL was generated and reviewed offline; it was
+  not applied to a database.
+- Live PostgreSQL integration tests and migrations were not run, and no
+  database was accessed.
 
 ## PostgreSQL integration tests
 
@@ -24,13 +81,17 @@ prompts for the PostgreSQL password as a `SecureString`. It validates the exact
 local endpoint, database, role, public schema, PostgreSQL major version 18, and
 the ordered EF migration history/product version.
 
-The expected history is exactly the five PostgreSQL migration IDs in the
-repository. If the isolated test database has only the first four, the runner
-checks the tenant-root orphan preflight and generates UTF-8 SQL without a BOM
-for the fifth migration. It requires the exact approval token
-`APPLY_TENANT_ROOT_FK_MIGRATION` before applying that SQL. It never applies a
-migration automatically. If all five migrations already exist, it verifies the
-three validated restrictive clinic-root FKs directly.
+The expected history is exactly the six PostgreSQL migration IDs in the
+repository. The runner accepts only the reviewed four-, five-, or
+six-migration ordered prefixes. At four migrations it prepares only the
+tenant-root migration and requires `APPLY_TENANT_ROOT_FK_MIGRATION`; rerun the
+runner after that migration is independently applied to prepare the appointment
+integrity migration, which requires the distinct exact token
+`APPLY_APPOINTMENT_INTEGRITY_MIGRATION`. Each approved write rechecks the exact
+same-session database identity and migration prefix. The runner never applies a
+migration automatically, and it will not execute tests while the history is
+incomplete. With all six migrations applied, it verifies the tenant-root and
+appointment-integrity constraints before test approval.
 
 Before running the tests, it asks for a separate `RUN_13_POSTGRESQL_TESTS`
 approval. The test filter includes both PostgreSQL integration categories. A
@@ -91,6 +152,27 @@ review the generated SQL, expected history, and `-RequiredConstraint` names.
 This project-specific workflow always performs the tenant-root orphan preflight;
 adapt it only through a separately reviewed change. Do not point it at
 `nexora_dental_dev`, a production database, or an arbitrary database.
+
+To prepare/rehearse the appointment-integrity migration on an isolated rehearsal
+database, use the exact ordered fifth-to-sixth migration range and explicitly
+require all new PostgreSQL constraints:
+
+```powershell
+.\backend\scripts\Invoke-PostgreSqlMigrationWorkflow.ps1 `
+  -Mode Prepare `
+  -FromMigration 20261125115303_AddPostgreSqlClinicTenantRootForeignKeys `
+  -ToMigration 20261126070352_EnforceAppointmentIntegrity `
+  -RequiredConstraint @(
+    'AK_DoctorServices_ClinicId_DoctorProfileId_ServiceId',
+    'FK_Appointments_DoctorServices_ClinicId_DoctorProfileId_Servic~',
+    'EX_Appointments_ConfirmedDoctorOccupied_NoOverlap',
+    'EX_Appointments_ConfirmedPatientTreatment_NoOverlap'
+  ) `
+  -BackupDirectory 'D:\SuvdDent-PostgreSqlBackups'
+```
+
+`Prepare` performs no schema writes. `Rehearse` still requires its separate
+exact write approval and same-session identity/history guard.
 
 ## Secret and artifact handling
 

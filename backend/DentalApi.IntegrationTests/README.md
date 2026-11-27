@@ -259,12 +259,14 @@ historical migration test fails; do not edit migration history or SQL contents
 to bypass the failure. This validation must not connect to an existing database.
 
 
-## Appointment persistence foundation (University MVP, Step 2)
+## Appointment persistence and integrity
 
 `AppointmentPersistenceTests` use only disposable in-memory SQLite databases.
 They cover additive migration and generated SQL upgrades, preservation of all
-13 historical tables, composite tenant foreign keys, invalid intervals and
-snapshots, UTC ordering, request-key uniqueness and half-open boundaries.
+13 historical tables, scoped doctor-service assignment references, incompatible
+history preflight, database-level doctor/patient overlap protection, cancellation,
+cross-clinic isolation, invalid intervals and snapshots, UTC ordering, and
+request-key uniqueness.
 `AppointmentMigrationMetadataTests` inspect provider-specific migrations and
 PostgreSQL SQL offline; they never open a PostgreSQL connection.
 
@@ -274,7 +276,7 @@ when stopped at its historical target. Their historical schema/data and SQL
 fixture assertions remain in place.
 
 For offline validation, require `NEXORA_PG_TEST_CONNECTION` to be absent using the
-check above. All ten live PostgreSQL tests should skip. See the
+check above. All thirteen live PostgreSQL tests should skip. See the
 [appointment storage scope](../DentalApi/AppointmentPersistence.md) for schema
 semantics, precision differences and booking behavior reserved for later steps.
 
@@ -285,14 +287,14 @@ See [AppointmentApi.md](../DentalApi/AppointmentApi.md) for contracts, grid,
 timezone, overlap and idempotency rules. `AppointmentApiTests` exercise real JWT
 requests in isolated SQLite memory databases, including independent connections
 for races, commit rollback and safe responses. `AppointmentProviderTests` check
-PostgreSQL Serializable selection and 23505/40001/40P01 handling with connection
-opening suppressed.
+PostgreSQL Serializable selection and 23505/23P01/40001/40P01 handling with
+connection opening suppressed.
 
 `PostgreSqlAppointmentTests` adds two explicitly opt-in races using the existing
 approved disposable target guard. Both booking snapshots reach the overlap check
 before INSERT. The tests verify independent PostgreSQL backend connections,
 Serializable isolation, a real serialization failure and one committed booking.
-They require the Step 2 appointment migration to be applied beforehand; they never
+They require the appointment integrity migration to be applied beforehand; they never
 apply migrations. They delete only their generated request keys in an ownership-
 checked synthetic clinic before normal fixture cleanup. No broad purge or schema
 reset is used. These tests have not been run against PostgreSQL in offline

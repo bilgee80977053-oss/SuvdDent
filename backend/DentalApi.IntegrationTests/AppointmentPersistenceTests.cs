@@ -17,7 +17,8 @@ public sealed class AppointmentPersistenceTests
     {
         internal SqliteConnection Connection { get; } = new("Data Source=:memory:;Foreign Keys=True");
         internal AppDbContext Db { get; }
-        internal string Target => Db.Database.GetMigrations().Single(m => m.EndsWith("_AddAppointmentFoundation"));
+        internal string Foundation => Db.Database.GetMigrations().Single(m => m.EndsWith("_AddAppointmentFoundation"));
+        internal string Target => Db.Database.GetMigrations().Single(m => m.EndsWith("_ProtectAppointmentOverlap"));
         private Database() => Db = new(new DbContextOptionsBuilder<AppDbContext>().UseSqlite(Connection).Options);
 
         internal static async Task<Database> Create(bool upgrade = true)
@@ -33,15 +34,27 @@ public sealed class AppointmentPersistenceTests
                     new User { Id = 11, ClinicId = 101, Role = Role.Patient, FullName = "Synthetic A", PasswordHash = "synthetic-only" },
                     new User { Id = 12, ClinicId = 202, Role = Role.Patient, FullName = "Synthetic B", PasswordHash = "synthetic-only" },
                     new User { Id = 13, ClinicId = 101, Role = Role.Doctor, FullName = "Synthetic doctor A", PasswordHash = "synthetic-only" },
+                    new User { Id = 14, ClinicId = 101, Role = Role.Doctor, FullName = "Synthetic doctor A2", PasswordHash = "synthetic-only" },
                     new User { Id = 23, ClinicId = 202, Role = Role.Doctor, FullName = "Synthetic doctor B", PasswordHash = "synthetic-only" });
                 await test.Db.SaveChangesAsync();
-                test.Db.Patients.AddRange(new Patient { Id = 41, ClinicId = 101, UserId = 11, FullName = "Synthetic A" }, new Patient { Id = 42, ClinicId = 202, UserId = 12, FullName = "Synthetic B" });
-                test.Db.DoctorProfiles.AddRange(new DoctorProfile { Id = 31, ClinicId = 101, UserId = 13 }, new DoctorProfile { Id = 32, ClinicId = 202, UserId = 23 });
-                test.Db.Services.AddRange(new Service { Id = 51, ClinicId = 101, Name = "Synthetic A" }, new Service { Id = 61, ClinicId = 202, Name = "Synthetic B" });
+                test.Db.Patients.AddRange(new Patient { Id = 41, ClinicId = 101, UserId = 11, FullName = "Synthetic A" },
+                    new Patient { Id = 42, ClinicId = 202, UserId = 12, FullName = "Synthetic B" },
+                    new Patient { Id = 43, ClinicId = 101, FullName = "Synthetic unlinked A" });
+                test.Db.DoctorProfiles.AddRange(new DoctorProfile { Id = 31, ClinicId = 101, UserId = 13 },
+                    new DoctorProfile { Id = 32, ClinicId = 202, UserId = 23 },
+                    new DoctorProfile { Id = 33, ClinicId = 101, UserId = 14 });
+                test.Db.Services.AddRange(new Service { Id = 51, ClinicId = 101, Name = "Synthetic A" },
+                    new Service { Id = 52, ClinicId = 101, Name = "Unassigned A" },
+                    new Service { Id = 61, ClinicId = 202, Name = "Synthetic B" });
                 test.Db.PlatformAccounts.Add(new PlatformAccount { Id = 91, Email = "synthetic@example.invalid", PasswordHash = "synthetic-only" });
                 await test.Db.SaveChangesAsync();
-                test.Db.DoctorServices.Add(new DoctorService { Id = 71, ClinicId = 101, DoctorProfileId = 31, ServiceId = 51,
-                    DurationMinutes = 30, BufferBeforeMinutes = 5, BufferAfterMinutes = 10 });
+                test.Db.DoctorServices.AddRange(
+                    new DoctorService { Id = 71, ClinicId = 101, DoctorProfileId = 31, ServiceId = 51,
+                        DurationMinutes = 30, BufferBeforeMinutes = 5, BufferAfterMinutes = 10 },
+                    new DoctorService { Id = 72, ClinicId = 202, DoctorProfileId = 32, ServiceId = 61,
+                        DurationMinutes = 30, BufferBeforeMinutes = 5, BufferAfterMinutes = 10 },
+                    new DoctorService { Id = 73, ClinicId = 101, DoctorProfileId = 33, ServiceId = 51,
+                        DurationMinutes = 30, BufferBeforeMinutes = 5, BufferAfterMinutes = 10 });
                 test.Db.DoctorWorkingHours.Add(new DoctorWorkingHours { Id = 81, ClinicId = 101, DoctorProfileId = 31, DayOfWeek = 1, StartMinute = 540, EndMinute = 1020 });
                 test.Db.VerificationCodes.Add(new VerificationCode { Id = 101, UserId = 11, Channel = "email", Purpose = "registration", CodeHash = "synthetic-only", ExpiresAt = DateTime.UtcNow.AddMinutes(10) });
                 test.Db.PlatformVerificationCodes.Add(new PlatformVerificationCode { Id = 111, PlatformAccountId = 91, Channel = "email", Purpose = "registration", CodeHash = "synthetic-only", ExpiresAt = DateTime.UtcNow.AddMinutes(10) });
@@ -113,13 +126,13 @@ public sealed class AppointmentPersistenceTests
         var schema = await Query(test.Connection, schemaQuery);
         var migrator = test.Db.GetService<IMigrator>();
         if (script)
-            await test.Db.Database.ExecuteSqlRawAsync(migrator.GenerateScript(Previous, test.Target));
+            await test.Db.Database.ExecuteSqlRawAsync(migrator.GenerateScript(Previous, test.Foundation));
         else
-            await migrator.MigrateAsync(test.Target);
+            await migrator.MigrateAsync(test.Foundation);
         foreach (var table in tables) Assert.Equal(before[table], await Query(test.Connection, $"SELECT * FROM \"{table}\" ORDER BY rowid"));
         Assert.Equal(schema, await Query(test.Connection, schemaQuery));
         Assert.Empty(await test.Db.Appointments.ToArrayAsync());
-        Assert.Equal(test.Db.Database.GetMigrations().SkipWhile(m => m != test.Target).Skip(1),
+        Assert.Equal(test.Db.Database.GetMigrations().SkipWhile(m => m != test.Foundation).Skip(1),
             await test.Db.Database.GetPendingMigrationsAsync());
         Assert.False(test.Db.Database.HasPendingModelChanges());
         Assert.Equal("[]", await Query(test.Connection, "PRAGMA foreign_key_check"));
@@ -159,6 +172,7 @@ public sealed class AppointmentPersistenceTests
     [InlineData("PatientId", 42)]
     [InlineData("DoctorProfileId", 32)]
     [InlineData("ServiceId", 61)]
+    [InlineData("ServiceId", 52)]
     [InlineData("PatientId", 9999)]
     [InlineData("DoctorProfileId", 9999)]
     [InlineData("ServiceId", 9999)]
@@ -219,10 +233,87 @@ public sealed class AppointmentPersistenceTests
             case "long-timezone": appointment.ClinicTimeZoneIdSnapshot = new string('x', 101); break;
             default: throw new InvalidOperationException(scenario);
         }
+
         test.Db.Appointments.Add(appointment);
         var error = await Assert.ThrowsAsync<DbUpdateException>(() => test.Db.SaveChangesAsync());
         Assert.Equal(275, Assert.IsType<SqliteException>(error.InnerException).SqliteExtendedErrorCode);
         Assert.Empty(await test.Db.Appointments.AsNoTracking().ToArrayAsync());
+    }
+
+    [Fact]
+    public async Task Migration_refuses_incompatible_historical_appointments_without_deleting_them()
+    {
+        await using var test = await Database.Create(upgrade: false);
+        await test.Db.GetService<IMigrator>().MigrateAsync(test.Foundation);
+        var historical = Valid();
+        historical.ServiceId = 52;
+        await Insert(test, historical);
+
+        var error = await Assert.ThrowsAsync<SqliteException>(() =>
+            test.Db.GetService<IMigrator>().MigrateAsync(test.Target));
+
+        Assert.Equal(1811, error.SqliteExtendedErrorCode);
+        Assert.Equal(historical.RequestId, (await test.Db.Appointments.AsNoTracking().SingleAsync()).RequestId);
+        Assert.Contains(test.Target, await test.Db.Database.GetPendingMigrationsAsync());
+    }
+
+    [Fact]
+    public async Task Database_prevents_confirmed_doctor_and_patient_overlaps_but_allows_touching_cancelled_and_other_clinic_intervals()
+    {
+        await using var test = await Database.Create();
+        var first = Valid();
+        await Insert(test, first);
+
+        var doctorOverlap = Valid(start: first.StartUtc.AddMinutes(15));
+        doctorOverlap.PatientId = 43;
+        var doctorError = await Assert.ThrowsAsync<DbUpdateException>(() => Insert(test, doctorOverlap));
+        Assert.Equal(1811, Assert.IsType<SqliteException>(doctorError.InnerException).SqliteExtendedErrorCode);
+        test.Db.ChangeTracker.Clear();
+
+        var patientOverlap = Valid();
+        patientOverlap.DoctorProfileId = 33;
+        var patientError = await Assert.ThrowsAsync<DbUpdateException>(() => Insert(test, patientOverlap));
+        Assert.Equal(1811, Assert.IsType<SqliteException>(patientError.InnerException).SqliteExtendedErrorCode);
+        test.Db.ChangeTracker.Clear();
+
+        var touching = Valid(start: first.OccupiedEndUtc.AddMinutes(5));
+        touching.PatientId = 43;
+        await Insert(test, touching);
+
+        await test.Db.Appointments.Where(a => a.Id == first.Id)
+            .ExecuteUpdateAsync(update => update.SetProperty(a => a.Status, AppointmentStatus.Cancelled));
+        var reclaimed = Valid();
+        await Insert(test, reclaimed);
+
+        var otherClinic = Valid();
+        otherClinic.ClinicId = 202;
+        otherClinic.PatientId = 42;
+        otherClinic.DoctorProfileId = 32;
+        otherClinic.ServiceId = 61;
+        await Insert(test, otherClinic);
+
+        Assert.Equal(4, await test.Db.Appointments.CountAsync());
+        Assert.Equal(1, await test.Db.Appointments.CountAsync(a => a.Status == AppointmentStatus.Cancelled));
+        Assert.Equal("[]", await Query(test.Connection, "PRAGMA foreign_key_check"));
+    }
+
+    [Fact]
+    public async Task Scheduling_service_deactivates_removed_doctor_service_without_orphaning_history()
+    {
+        await using var test = await Database.Create();
+        var appointment = Valid();
+        await Insert(test, appointment);
+        var profile = await test.Db.DoctorProfiles.SingleAsync(d => d.ClinicId == 101 && d.Id == 31);
+
+        var result = await new DentalApi.Services.SchedulingService(test.Db)
+            .WriteServices(101, 31, new(profile.Version, []));
+
+        Assert.Equal(200, result.Status);
+        var association = await test.Db.DoctorServices.SingleAsync(d =>
+            d.ClinicId == 101 && d.DoctorProfileId == 31 && d.ServiceId == 51);
+        Assert.False(association.IsActive);
+        Assert.Equal(appointment.RequestId,
+            (await test.Db.Appointments.AsNoTracking().SingleAsync()).RequestId);
     }
 
     [Fact]
@@ -245,14 +336,15 @@ public sealed class AppointmentPersistenceTests
     {
         await using var test = await Database.Create();
         var request = Guid.NewGuid();
-        await Insert(test, Valid(request));
-        test.Db.Appointments.Add(Valid(request));
+        var first = Valid(request);
+        await Insert(test, first);
+        test.Db.Appointments.Add(Valid(request, first.OccupiedEndUtc.AddMinutes(5)));
         var error = await Assert.ThrowsAsync<DbUpdateException>(() => test.Db.SaveChangesAsync());
         Assert.Equal(2067, Assert.IsType<SqliteException>(error.InnerException).SqliteExtendedErrorCode);
         test.Db.ChangeTracker.Clear();
-        test.Db.Patients.Add(new Patient { Id = 43, ClinicId = 101, FullName = "Synthetic unlinked patient" });
+        test.Db.Patients.Add(new Patient { Id = 44, ClinicId = 101, FullName = "Synthetic unlinked patient" });
         await test.Db.SaveChangesAsync();
-        var otherPatient = Valid(request); otherPatient.PatientId = 43;
+        var otherPatient = Valid(request, first.OccupiedEndUtc.AddMinutes(50)); otherPatient.PatientId = 44;
         await Insert(test, otherPatient);
         var otherClinic = Valid(request); otherClinic.ClinicId = 202; otherClinic.PatientId = 42;
         otherClinic.DoctorProfileId = 32; otherClinic.ServiceId = 61;
@@ -261,7 +353,7 @@ public sealed class AppointmentPersistenceTests
     }
 
     [Fact]
-    public async Task Touching_half_open_boundaries_are_valid_and_lookup_indexes_do_not_prevent_all_overlaps()
+    public async Task Touching_half_open_boundaries_are_valid_and_overlapping_intervals_are_rejected()
     {
         await using var test = await Database.Create();
         var first = Valid();
@@ -269,12 +361,12 @@ public sealed class AppointmentPersistenceTests
         var touching = Valid(start: first.OccupiedEndUtc.AddMinutes(5));
         Assert.Equal(first.OccupiedEndUtc, touching.OccupiedStartUtc);
         await Insert(test, touching);
-        // This intentionally documents the boundary of the persistence foundation:
-        // a distinct request at an overlapping time still needs booking-service validation.
-        await Insert(test, Valid(start: first.StartUtc.AddMinutes(10)));
+        var overlap = Valid(start: first.StartUtc.AddMinutes(10));
+        var error = await Assert.ThrowsAsync<DbUpdateException>(() => Insert(test, overlap));
+        Assert.Equal(1811, Assert.IsType<SqliteException>(error.InnerException).SqliteExtendedErrorCode);
         var sorted = await test.Db.Appointments.AsNoTracking().Where(a => a.ClinicId == 101 && a.StartUtc >= first.StartUtc)
             .OrderBy(a => a.StartUtc).Select(a => a.StartUtc).ToArrayAsync();
-        Assert.Equal(new[] { first.StartUtc, first.StartUtc.AddMinutes(10), touching.StartUtc }, sorted);
+        Assert.Equal(new[] { first.StartUtc, touching.StartUtc }, sorted);
         Assert.All(sorted, time => Assert.Equal(TimeSpan.Zero, time.Offset));
     }
 }

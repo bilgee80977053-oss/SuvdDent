@@ -18,16 +18,16 @@ The C# migrations, their `.Designer.cs` target models and the corresponding
 snapshot are the schema history. SQL files are derived review/test artifacts,
 not a second independently maintained migration system. Preserve all historical
 C# migrations. Do not edit snapshots by hand; for future approved model changes,
-let EF generate new migrations and update the corresponding snapshots. This
-cleanup modifies neither migration C# files nor snapshots.
+let EF generate new migrations and update the corresponding snapshots.
 A shared model change may require a new migration in each provider's set. Review
 both providers separately; never move SQLite migrations into the PostgreSQL set.
 
-SQLite has ten historical migrations, from `20261021062135_initialCreate` through
-`20261026131551_AddPlatformAccounts`. PostgreSQL starts independently at
-`20261027132306_PostgreSqlBaseline`; it does not replay SQLite history or import
-SQLite data. Its baseline is for a new PostgreSQL schema, not an upgrade script
-for an existing populated database.
+SQLite's earlier history contains ten migrations, from
+`20261021062135_initialCreate` through `20261026131551_AddPlatformAccounts`;
+the current chain adds the appointment integrity and overlap migrations below.
+PostgreSQL starts independently at `20261027132306_PostgreSqlBaseline`; it does
+not replay SQLite history or import SQLite data. Its baseline is for a new
+PostgreSQL schema, not an upgrade script for an existing populated database.
 
 ## SQLite workflow
 
@@ -136,12 +136,40 @@ dependent foreign keys. Offline migration tests must exercise the rebuild with
 foreign-key enforcement enabled and verify row preservation and
 `PRAGMA foreign_key_check`.
 
-Both PostgreSQL fixture programs pin the expected migration count. Update that
-count to include the new migration while retaining exact ordered migration
-history, target identity, table inventory, and write guards. Until the new
-PostgreSQL migration is separately authorized and applied, existing four-
-migration databases must continue to be rejected by those fixtures. The
-migration does not add or remove application tables.
+Both PostgreSQL fixture programs pin the expected migration count and require
+the exact ordered history, target identity, table inventory, and write guards.
+The migration does not add or remove application tables.
+
+## Appointment assignment and overlap integrity
+
+The appointment migration preflights existing rows before adding a composite
+foreign key from `(ClinicId, DoctorProfileId, ServiceId)` to the matching
+`DoctorServices` assignment. It also checks for confirmed doctor occupied-time
+and patient treatment-time overlaps. If any incompatible relationship or
+overlap exists, the migration fails and preserves all historical appointments;
+resolve records only through a separately reviewed data plan.
+
+Provider-specific migration IDs:
+
+- SQLite `20261126070328_EnforceAppointmentIntegrity` adds the assignment
+  relationship. It retains the pre-existing unique index as the SQLite parent
+  key while rebuilding `Appointments`.
+- SQLite `20261126073027_ProtectAppointmentOverlap` installs insert/update
+  triggers after the table rebuild. Confirmed intervals use half-open semantics;
+  adjacent appointments are valid and cancelled rows do not block time.
+- PostgreSQL `20261126070352_EnforceAppointmentIntegrity` adds the relationship,
+  preflight, `btree_gist` (with `IF NOT EXISTS`), and partial GiST exclusion
+  constraints for confirmed doctor occupied intervals and patient treatment
+  intervals. `Down` intentionally leaves the extension installed.
+
+Doctor-service removal remains a soft deactivation: omitted assignments are
+marked inactive, preserving referenced history. Physical deletion of an
+assignment referenced by an appointment is restrictive. New bookings still
+require an active assignment in application validation.
+
+The appointment integrity migrations are additive and have not been applied to
+any persistent database. Generate both providers' SQL and run model/snapshot
+checks offline before requesting isolated PostgreSQL operator approval.
 
 ## Migration safety and startup behavior
 

@@ -26,7 +26,7 @@ public sealed class ProviderCompatibilityTests
     {
         foreach (var operation in new[] { "read-services", "read-availability", "services", "availability",
                      "doctor-create", "doctor-update", "location", "register", "challenge", "verify" })
-        foreach (var state in new[] { "23505", "40001", "40P01" })
+        foreach (var state in new[] { "23505", "23P01", "40001", "40P01" })
         foreach (var wrapped in new[] { false, true })
             yield return [operation, state, wrapped];
     }

@@ -18,6 +18,7 @@ $report = [ordered]@{
     migrationPrepared = $false
     migrationApplied = $false
     testResults = $null
+    testDiagnostics = $null
     failureStage = $null
 }
 $password = $null
@@ -26,12 +27,13 @@ $ownsPgPassword = $false
 $ownsTestConnection = $false
 $failed = $false
 $stage = "initialization"
+$testResultsDirectory = $null
 
 try {
     Assert-PgAutomationEnvironmentClear
     $expectedMigrations = @(Get-PgExpectedMigrationIds -RepositoryRoot $root)
-    if ($expectedMigrations.Count -ne 5) {
-        throw "The reviewed PostgreSQL migration chain must contain exactly five migrations."
+    if ($expectedMigrations.Count -ne 6) {
+        throw "The reviewed PostgreSQL migration chain must contain exactly six migrations."
     }
 
     $stage = "offline-release-build"
@@ -42,7 +44,7 @@ try {
 
     $stage = "test-database-preflight-approval"
     $preflightApproval = Read-Host "To connect read-only to the fixed isolated test database, type CONNECT_TO_TEST_PREFLIGHT"
-    if ($preflightApproval -cne "CONNECT_TO_TEST_PREFLIGHT") {
+    if (-not (Test-PgApproval -Response $preflightApproval -Token "CONNECT_TO_TEST_PREFLIGHT")) {
         $report.status = "approval-required"
     }
     else {
@@ -59,8 +61,8 @@ try {
         $stage = "migration-history"
         $history = Assert-PgHistoryPrefix -Database "nexora_dental_test" -RepositoryRoot $root
         $appliedCount = $history.Applied.Count
-        if ($appliedCount -notin @(4, 5)) {
-            throw "The isolated test database must have the reviewed four- or five-migration history."
+        if ($appliedCount -notin @(4, 5, 6)) {
+            throw "The isolated test database must have the reviewed four-, five-, or six-migration history."
         }
         $report.appliedMigrationCount = $appliedCount
 
@@ -70,13 +72,18 @@ try {
             throw "Tenant-root orphan preflight found records; migration and tests are blocked."
         }
 
-        if ($appliedCount -eq 4) {
+        if ($appliedCount -lt $expectedMigrations.Count) {
             $stage = "migration-sql-preparation"
-            $lastApplied = $history.Applied[3].Id
-            $newMigration = $history.Expected[4]
+            $lastApplied = $history.Applied[$appliedCount - 1].Id
+            $newMigration = $history.Expected[$appliedCount]
+            $approvalToken = switch ($newMigration) {
+                "20261125115303_AddPostgreSqlClinicTenantRootForeignKeys" { "APPLY_TENANT_ROOT_FK_MIGRATION" }
+                "20261126070352_EnforceAppointmentIntegrity" { "APPLY_APPOINTMENT_INTEGRITY_MIGRATION" }
+                default { throw "No explicit write approval is defined for the next migration." }
+            }
             $sqlDirectory = Join-Path $root "artifacts\sql\PostgreSql"
             [void][IO.Directory]::CreateDirectory($sqlDirectory)
-            $migrationSqlPath = Join-Path $sqlDirectory "TenantRootForeignKeys-Test-$runId.sql"
+            $migrationSqlPath = Join-Path $sqlDirectory "Migration-$newMigration-Test-$runId.sql"
             $dotnetArgs = @(
                 "ef", "migrations", "script", $lastApplied, $newMigration,
                 "--context", "PostgreSqlAppDbContext",
@@ -91,7 +98,7 @@ try {
             }
             $scriptText = [IO.File]::ReadAllText($migrationSqlPath)
             if (-not $scriptText.Contains($newMigration)) {
-                throw "Generated migration SQL does not identify the required fifth migration."
+                throw "Generated migration SQL does not identify the next required migration."
             }
             $utf8NoBom = New-Object System.Text.UTF8Encoding -ArgumentList $false
             [IO.File]::WriteAllText($migrationSqlPath, $scriptText, $utf8NoBom)
@@ -100,29 +107,36 @@ try {
                 throw "Generated migration SQL must be UTF-8 without a byte-order mark."
             }
             $report.migrationPrepared = $true
+            $report.migrationIdPrepared = $newMigration
             $report.migrationSqlPath = $migrationSqlPath
 
             $stage = "migration-write-approval"
-            $migrationApproval = Read-Host "Migration SQL is prepared for nexora_dental_test. Type APPLY_TENANT_ROOT_FK_MIGRATION to apply it"
-            if ($migrationApproval -cne "APPLY_TENANT_ROOT_FK_MIGRATION") {
+            $migrationApproval = Read-Host "Migration $newMigration is prepared for nexora_dental_test. Type $approvalToken to apply it"
+            if (-not (Test-PgApproval -Response $migrationApproval -Token $approvalToken)) {
                 $report.status = "approval-required"
             }
             else {
                 $stage = "migration-application"
-                Invoke-PgSqlFile -Database "nexora_dental_test" -Path $migrationSqlPath
+                Invoke-PgSqlFile -Database "nexora_dental_test" -Path $migrationSqlPath `
+                    -RepositoryRoot $root -ExpectedMigrationIds @($expectedMigrations[0..($appliedCount - 1)])
                 $report.migrationApplied = $true
-                $history = Assert-PgHistoryPrefix -Database "nexora_dental_test" -RepositoryRoot $root -ExpectedCount 5
+                $history = Assert-PgHistoryPrefix -Database "nexora_dental_test" -RepositoryRoot $root `
+                    -ExpectedCount ($appliedCount + 1)
                 $report.appliedMigrationCount = $history.Applied.Count
+                if ($history.Applied.Count -lt $expectedMigrations.Count) {
+                    $report.status = "migration-applied-awaiting-next-approval"
+                }
             }
         }
 
-        if ($report.status -ne "approval-required") {
+        if ($report.status -eq "started") {
             $stage = "required-constraint-verification"
             $null = Assert-PgTenantRootConstraints -Database "nexora_dental_test"
+            $null = Assert-PgAppointmentIntegrityConstraints -Database "nexora_dental_test"
 
             $stage = "test-execution-approval"
             $testApproval = Read-Host "Type RUN_13_POSTGRESQL_TESTS to execute the write-capable integration tests"
-            if ($testApproval -cne "RUN_13_POSTGRESQL_TESTS") {
+            if (-not (Test-PgApproval -Response $testApproval -Token "RUN_13_POSTGRESQL_TESTS")) {
                 $report.status = "approval-required"
             }
             else {
@@ -134,22 +148,29 @@ try {
 
                 $stage = "postgresql-integration-tests"
                 $filter = "Category=PostgreSqlIntegration|Category=PostgreSqlConcurrency"
-                $testOutput = @(& dotnet test (Join-Path $root "backend\NexoraDental.sln") `
-                    --configuration Release --no-build --filter $filter 2>&1)
+                $testResultsDirectory = Join-Path ([IO.Path]::GetTempPath()) "SuvdDent-TestResults-$runId"
+                [void][IO.Directory]::CreateDirectory($testResultsDirectory)
+                $trxFileName = "PostgreSqlIntegration-$runId.trx"
+                $testOutput = @(& dotnet test (Join-Path $root "backend\DentalApi.IntegrationTests\DentalApi.IntegrationTests.csproj") `
+                    --configuration Release --no-build --no-restore --filter $filter `
+                    --logger "trx;LogFileName=$trxFileName" `
+                    --results-directory $testResultsDirectory 2>&1)
                 $testExitCode = $LASTEXITCODE
-                $testText = $testOutput -join "`n"
-                $summaryMatch = [regex]::Match($testText, 'Failed:\s*(\d+),\s*Passed:\s*(\d+),\s*Skipped:\s*(\d+),\s*Total:\s*(\d+)')
-                if (-not $summaryMatch.Success) {
-                    throw "PostgreSQL integration test summary could not be parsed."
+                $trxFiles = @(Get-ChildItem -LiteralPath $testResultsDirectory -Filter $trxFileName -File -Recurse)
+                if ($trxFiles.Count -ne 1) {
+                    $report.testDiagnostics = ConvertTo-PgSanitizedTestOutput -Lines $testOutput
+                    throw "The .NET test runner did not produce exactly one structured TRX result file."
                 }
-                $results = [PSCustomObject]@{
-                    Failed = [int]$summaryMatch.Groups[1].Value
-                    Passed = [int]$summaryMatch.Groups[2].Value
-                    Skipped = [int]$summaryMatch.Groups[3].Value
-                    Total = [int]$summaryMatch.Groups[4].Value
+                try {
+                    $results = Get-PgTrxTestResults -Path $trxFiles[0].FullName
+                }
+                catch {
+                    $report.testDiagnostics = ConvertTo-PgSanitizedTestOutput -Lines $testOutput
+                    throw "The .NET test runner produced an unreadable structured TRX result file."
                 }
                 $report.testResults = $results
-                if ($testExitCode -ne 0 -or $results.Failed -ne 0 -or $results.Skipped -ne 0 -or $results.Total -ne 13) {
+                $report.testDiagnostics = $results.Diagnostics
+                if ($testExitCode -ne 0 -or -not (Test-PgIntegrationTestResults -Results $results)) {
                     throw "The PostgreSQL run must finish with exactly 13 passing tests and no skipped or failed tests."
                 }
                 $report.status = "passed"
@@ -169,6 +190,18 @@ finally {
     if ($ownsPgPassword) {
         Remove-Item Env:\PGPASSWORD -ErrorAction SilentlyContinue
     }
+    if ($null -ne $testResultsDirectory -and (Test-Path -LiteralPath $testResultsDirectory -PathType Container)) {
+        try {
+            Remove-Item -LiteralPath $testResultsDirectory -Recurse -Force -ErrorAction Stop
+        }
+        catch {
+            $failed = $true
+            if ($report.status -ne "failed") {
+                $report.status = "failed"
+                $report.failureStage = "test-results-cleanup"
+            }
+        }
+    }
     $password = $null
     $connectionString = $null
     try {
@@ -187,5 +220,8 @@ if ($failed) {
 Write-Output "PostgreSQL integration workflow status: $($report.status)"
 if ($null -ne $report.testResults) {
     Write-Output "Tests: $($report.testResults.Passed) passed, $($report.testResults.Failed) failed, $($report.testResults.Skipped) skipped, $($report.testResults.Total) total."
+}
+if ($null -ne $report.testDiagnostics -and @($report.testDiagnostics).Count -gt 0) {
+    Write-Output ("Sanitized test diagnostics: " + (ConvertTo-Json -InputObject $report.testDiagnostics -Depth 4 -Compress))
 }
 Write-Output "Secret-free report: $reportPath"

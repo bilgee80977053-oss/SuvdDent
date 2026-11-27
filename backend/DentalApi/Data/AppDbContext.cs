@@ -133,7 +133,6 @@ public class AppDbContext : DbContext
         b.Entity<DoctorService>().HasOne<Service>().WithMany()
             .HasForeignKey(x => new { x.ClinicId, x.ServiceId })
             .HasPrincipalKey(x => new { x.ClinicId, x.Id }).OnDelete(DeleteBehavior.Restrict);
-        b.Entity<DoctorService>().HasIndex(x => new { x.ClinicId, x.DoctorProfileId, x.ServiceId }).IsUnique();
         b.Entity<DoctorService>().ToTable(t => t.HasCheckConstraint("CK_DoctorServices_Duration",
             "\"DurationMinutes\" > 0 AND \"BufferBeforeMinutes\" >= 0 AND \"BufferAfterMinutes\" >= 0 AND \"DurationMinutes\" + \"BufferBeforeMinutes\" + \"BufferAfterMinutes\" <= 1440"));
         b.Entity<PatientAvailabilitySchedule>().HasKey(x => new { x.ClinicId, x.PatientId });
@@ -176,6 +175,7 @@ public class AppDbContext : DbContext
         else if (Database.IsNpgsql())
         {
             // PostgreSQL has no SQLite NOCASE collation. ICU provides case-insensitive uniqueness.
+            b.HasPostgresExtension("btree_gist");
             b.HasCollation("platform_email_nocase", locale: "und-u-ks-level2", provider: "icu", deterministic: false);
             b.Entity<PlatformAccount>().Property(x => x.Email).UseCollation("platform_email_nocase");
             // Birth dates are calendar values, not UTC instants. Preserve the DateTime API.

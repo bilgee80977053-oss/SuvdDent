@@ -77,4 +77,52 @@ public sealed class AppointmentMigrationMetadataTests
         Assert.Equal(ConnectionState.Closed, sqlite.Database.GetDbConnection().State);
         Assert.Equal(ConnectionState.Closed, pg.Database.GetDbConnection().State);
     }
+
+    [Fact]
+    public void Appointment_integrity_migrations_add_the_scoped_assignment_FK_and_provider_overlap_guards()
+    {
+        using var sqlite = new AppDbContextDesignTimeFactory().CreateDbContext([]);
+        using var pg = new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
+        var sqliteAssembly = sqlite.GetService<IMigrationsAssembly>();
+        var pgAssembly = pg.GetService<IMigrationsAssembly>();
+        var sqliteEntry = Assert.Single(sqliteAssembly.Migrations, m => m.Key.EndsWith("_EnforceAppointmentIntegrity"));
+        var pgEntry = Assert.Single(pgAssembly.Migrations, m => m.Key.EndsWith("_EnforceAppointmentIntegrity"));
+        var sqliteMigration = sqliteAssembly.CreateMigration(sqliteEntry.Value, sqlite.Database.ProviderName!);
+        var pgMigration = pgAssembly.CreateMigration(pgEntry.Value, pg.Database.ProviderName!);
+        var sqliteForeignKey = Assert.Single(sqliteMigration.UpOperations.OfType<AddForeignKeyOperation>(),
+            operation => operation.PrincipalTable == "DoctorServices");
+        var pgForeignKey = Assert.Single(pgMigration.UpOperations.OfType<AddForeignKeyOperation>(),
+            operation => operation.PrincipalTable == "DoctorServices");
+        Assert.Equal(new[] { "ClinicId", "DoctorProfileId", "ServiceId" }, sqliteForeignKey.Columns);
+        Assert.Equal(sqliteForeignKey.Columns, sqliteForeignKey.PrincipalColumns);
+        Assert.Equal(ReferentialAction.Restrict, sqliteForeignKey.OnDelete);
+        Assert.Equal(new[] { "ClinicId", "DoctorProfileId", "ServiceId" }, pgForeignKey.Columns);
+        Assert.Equal(pgForeignKey.Columns, pgForeignKey.PrincipalColumns);
+        Assert.Equal(ReferentialAction.Restrict, pgForeignKey.OnDelete);
+
+        var sqliteSql = string.Join("\n", sqliteMigration.UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql));
+        Assert.Contains("Existing appointments violate doctor-service or overlap integrity", sqliteSql);
+        Assert.DoesNotContain("CREATE TRIGGER", sqliteSql);
+
+        var sqliteOverlapEntry = Assert.Single(sqliteAssembly.Migrations, m => m.Key.EndsWith("_ProtectAppointmentOverlap"));
+        var sqliteOverlapMigration = sqliteAssembly.CreateMigration(sqliteOverlapEntry.Value, sqlite.Database.ProviderName!);
+        var sqliteOverlapSql = string.Join("\n", sqliteOverlapMigration.UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql));
+        Assert.Contains("TR_Appointments_NoDoctorOccupiedOverlap_Insert", sqliteOverlapSql);
+        Assert.Contains("TR_Appointments_NoPatientTreatmentOverlap_Update", sqliteOverlapSql);
+        Assert.Contains("NEW.\"OccupiedStartUtc\" < existing.\"OccupiedEndUtc\"", sqliteOverlapSql);
+        Assert.Contains("NEW.\"StartUtc\" < existing.\"EndUtc\"", sqliteOverlapSql);
+
+        var pgSql = string.Join("\n", pgMigration.UpOperations.OfType<SqlOperation>().Select(operation => operation.Sql));
+        Assert.Contains("Existing appointments reference no matching doctor-service association", pgSql);
+        Assert.Contains("EXCLUDE USING gist", pgSql);
+        Assert.Contains("tstzrange", pgSql);
+        Assert.Contains("'[)'", pgSql);
+        Assert.Contains("WHERE (\"Status\" = 'Confirmed')", pgSql);
+        Assert.Contains(pgMigration.UpOperations.OfType<AlterDatabaseOperation>(),
+            operation => operation.GetAnnotations().Any(annotation => annotation.Name == "Npgsql:PostgresExtension:btree_gist"));
+        Assert.False(sqlite.Database.HasPendingModelChanges());
+        Assert.False(pg.Database.HasPendingModelChanges());
+        Assert.Equal(ConnectionState.Closed, sqlite.Database.GetDbConnection().State);
+        Assert.Equal(ConnectionState.Closed, pg.Database.GetDbConnection().State);
+    }
 }
