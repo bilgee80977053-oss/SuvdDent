@@ -339,3 +339,19 @@ Release build passed with 0 warnings/errors. All 27 focused cases passed,
 including the exhaustive 16,384 ASCII-pair test. The full offline backend
 filter passed 587/587 (0 failures/skips; live PostgreSQL excluded). The offline
 PowerShell helper passed, and no live database was contacted.
+
+## Structured procedure validation draft
+
+The isolated `dot/structured-procedure-draft` starts from exact PR #12 head
+`c000f65`. Its internal validation binds a routine tooth/visit target to a
+current authorized encounter and active same-clinic service ID/label. It
+returns only immutable nonfinancial identity and label data. No audit row,
+record, HTTP route, migration, tariff or payment support was added; no live
+database was contacted. See
+[the structured draft and remaining gates](backend/DentalApi/StructuredTreatmentTarget.md).
+
+Release build passed with 0 warnings/errors; the focused service and target
+tests passed 30/30 and the full offline backend suite 590/590, with 0 failures
+or skips. The offline PowerShell helper passed. Tests exercised the exact
+internal service entry point on synthetic in-memory SQLite, not an HTTP
+procedure flow or PostgreSQL server.

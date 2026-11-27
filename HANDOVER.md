@@ -185,3 +185,12 @@ visit scope has no tooth, and single-tooth scope requires a canonical
 routine FDI identifier. It does not enable a procedure workflow or change
 audited notes, prices, database schema or live controls. See
 [validation scope and sources](backend/DentalApi/StructuredTreatmentTarget.md).
+
+## Structured procedure validation draft
+
+The separate structured-procedure draft combines a validated routine
+tooth/visit target with server-resolved current encounter identity and an
+active same-clinic catalog label. It is an internal, nonfinancial snapshot,
+not authorization to perform or sign a procedure. No route, persistence,
+schema, audit behavior, original note or price changed. See
+[remaining authorization and signing gates](backend/DentalApi/StructuredTreatmentTarget.md).

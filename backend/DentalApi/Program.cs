@@ -2,6 +2,7 @@
 using System.Threading.RateLimiting;
 using System.Text;
 using DentalApi.Data;
+using DentalApi.Clinical;
 using DentalApi.Services;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -63,6 +64,7 @@ builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();
 builder.Services.AddScoped<ClinicalEncounterAccess>();
+builder.Services.AddScoped<StructuredProcedureDraftService>();
 builder.Services.AddScoped<ClinicalAuditTrail>();
 builder.Services.AddScoped<IEncounterTreatmentService, EncounterTreatmentService>();
 builder.Services.AddScoped<NotificationPreferenceService>();
