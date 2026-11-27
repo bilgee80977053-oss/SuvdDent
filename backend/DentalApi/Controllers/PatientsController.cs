@@ -26,6 +26,7 @@ public record UpdateMyPatientRequest(
 [ApiController]
 [Route("api/[controller]")]
 [Authorize(Roles = "Patient")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 public class PatientsController(AppDbContext db) : ControllerBase
 {
     // 1. Өөрийн мэдээллийг харах

@@ -62,6 +62,7 @@ builder.Services.AddHostedService<NotificationWorker>();
 builder.Services.AddScoped<DoctorProfileService>();
 builder.Services.AddScoped<SchedulingService>();
 builder.Services.AddScoped<AppointmentService>();
+builder.Services.AddScoped<ClinicalEncounterAccess>();
 builder.Services.AddScoped<NotificationPreferenceService>();
 builder.Services.AddScoped<PhoneVerificationService>();
 builder.Services.AddScoped<IPhoneVerificationSmsSender, PhoneVerificationSmsSender>();
