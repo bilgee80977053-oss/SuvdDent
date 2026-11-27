@@ -167,3 +167,13 @@ commands, counts and limitations.
    same reviewed backend revision on an authorized synthetic environment.
 5. Continue from `DEVELOPMENT_ROADMAP.md`; keep financial and production work
    behind their own security, business and operator reviews.
+
+## Flutter clinician adapter follow-up
+
+`dot/clinician-mobile` adds a staged, read-only clinician client atop the
+one-encounter API. It is not connected to the default Flutter app. Use
+only mock HTTP for its unit tests, and keep credentials and returned
+record contents out of logs and persistent storage. Backend development
+gates and the authorized PostgreSQL rehearsal boundary are unchanged.
+See `DEVELOPMENT_CHECKPOINT.md` for the 151 passing Flutter tests and the
+remaining end-to-end acceptance work.
