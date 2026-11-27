@@ -36,8 +36,8 @@ time ranges. PostgreSQL truncates the generated FK name with one trailing `~`;
 the SQL-name allowlist permits only that optional terminal character while
 continuing to reject quotes, whitespace, and SQL syntax.
 
-Migration-history validation includes all six ordered PostgreSQL IDs, including
-`20261126070352_EnforceAppointmentIntegrity`. The structured test-result gate
+Migration-history validation includes all seven ordered PostgreSQL IDs, ending in
+`20261127122656_AddPostgreSqlAppointmentReschedules`. The structured test-result gate
 requires exactly 13 passed results with no failures or skips; failure details
 are sanitized before entering the report.
 
@@ -81,16 +81,16 @@ prompts for the PostgreSQL password as a `SecureString`. It validates the exact
 local endpoint, database, role, public schema, PostgreSQL major version 18, and
 the ordered EF migration history/product version.
 
-The expected history is exactly the six PostgreSQL migration IDs in the
-repository. The runner accepts only the reviewed four-, five-, or
-six-migration ordered prefixes. At four migrations it prepares only the
+The expected history is exactly the seven PostgreSQL migration IDs in the
+repository. The runner accepts only the reviewed four- through seven-migration ordered prefixes. At four migrations it prepares only the
 tenant-root migration and requires `APPLY_TENANT_ROOT_FK_MIGRATION`; rerun the
 runner after that migration is independently applied to prepare the appointment
 integrity migration, which requires the distinct exact token
-`APPLY_APPOINTMENT_INTEGRITY_MIGRATION`. Each approved write rechecks the exact
+`APPLY_APPOINTMENT_INTEGRITY_MIGRATION`. The seventh migration adds the
+reschedule ledger and requires `APPLY_APPOINTMENT_RESCHEDULE_MIGRATION`. Each approved write rechecks the exact
 same-session database identity and migration prefix. The runner never applies a
 migration automatically, and it will not execute tests while the history is
-incomplete. With all six migrations applied, it verifies the tenant-root and
+incomplete. With all seven migrations applied, it verifies the tenant-root and
 appointment-integrity constraints before test approval.
 
 Before running the tests, it asks for a separate `RUN_13_POSTGRESQL_TESTS`

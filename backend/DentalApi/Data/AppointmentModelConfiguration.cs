@@ -7,6 +7,19 @@ internal static class AppointmentModelConfiguration
 {
     internal static void Configure(ModelBuilder model, bool sqlite)
     {
+        var move = model.Entity<AppointmentReschedule>();
+        move.HasKey(m => new { m.ClinicId, m.SourceId });
+        move.HasIndex(m => new { m.ClinicId, m.ReplacementId }).IsUnique();
+        move.HasOne<Appointment>().WithMany().HasForeignKey(m => new { m.ClinicId, m.SourceId })
+            .HasPrincipalKey(a => new { a.ClinicId, a.Id }).OnDelete(DeleteBehavior.Restrict);
+        move.HasOne<Appointment>().WithMany().HasForeignKey(m => new { m.ClinicId, m.ReplacementId })
+            .HasPrincipalKey(a => new { a.ClinicId, a.Id }).OnDelete(DeleteBehavior.Restrict);
+        move.ToTable(table =>
+        {
+            table.HasCheckConstraint("CK_AppointmentReschedules_Distinct", "\"SourceId\" <> \"ReplacementId\"");
+            table.HasCheckConstraint("CK_AppointmentReschedules_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
+        });
+
         var appointment = model.Entity<Appointment>();
         appointment.HasOne<Clinic>().WithMany().HasForeignKey(a => a.ClinicId)
             .OnDelete(DeleteBehavior.Restrict);

@@ -12,7 +12,9 @@ This is a development branch, not production release approval.
   phone-verification challenges.
 - Patient booking endpoints for service/doctor/slot discovery, create, list and
   detail. Booking validates eligibility and snapshots, uses idempotent request
-  IDs, and handles provider concurrency conflicts.
+  IDs, and handles provider concurrency conflicts. A patient can cancel their
+  own future appointment in the API and Flutter LIVE history; cancellation
+  preserves the record and releases the occupied slot.
 - Appointment integrity is enforced in SQLite by triggers and in PostgreSQL by
   composite foreign keys and partial GiST exclusion constraints. The PostgreSQL
   constraint verifier accepts the one trailing `~` used by the EF-generated
@@ -35,31 +37,49 @@ This is a development branch, not production release approval.
    rehearsal workflow, then verify the exact migration history and required
    constraints. Obtain separate approval for the write-capable PostgreSQL
    regression suite. Record live results independently from offline tests.
-4. Execute the offline PowerShell helper tests in an approved environment; the
-   current workstation's `Restricted` policy prevents script execution.
+4. Prefer the verified offline PowerShell helper run on the review branch and
+   preserve the workstation's script policy. An offline pass never substitutes
+   for operator-authorized PostgreSQL validation.
 
 ### P1 — Complete booking operations and client integration
 
 1. Run Flutter `analyze` and `test`, then perform an authorized development-only
    end-to-end booking check after the backend environment is approved.
-2. Add a clinic discovery/onboarding workflow only after defining clinic
-   authorization and privacy requirements; do not probe arbitrary IDs.
-3. Define booking cancellation/rescheduling and notification delivery lifecycle,
-   with ownership checks, idempotency, auditability and regression tests.
+2. Define the first clinic onboarding flow and permissions. Evaluate an
+   operator-assisted listing separately from patient discovery and clinic
+   self-service; do not probe arbitrary IDs.
+3. Verify booking, cancellation and the atomic rescheduling review branch with
+   the same Flutter and backend revision on an approved development target.
+   The [LIVE acceptance checklist](backend/DentalApi/ReschedulingAcceptance.md)
+   records separate target approval and the remaining provider checks.
 4. Review the notification outbox worker, SMS/email provider configuration,
    retries and observability before relying on delivery in a live workflow.
 
-### P2 — Financial and production readiness
+### P2 — Clinical treatment and patient history
+
+1. Review encounter-scoped access for active assigned clinicians and keep
+   unaudited history endpoints unavailable.
+2. Verify minimal, durable clinical audit before exposing records. A failed
+   audit must not expose history or commit a clinical edit.
+3. Verify treatment record creation and amendment, approved tooth notation,
+   historical procedure/tariff snapshots, and scoped medical history using
+   synthetic data. Separate clinical and billing access.
+
+### P3 — Financial, clinic administration and production readiness
 
 1. Obtain and version clinic-approved tariffs; add effective dates, approvals and
    a tamper-resistant tariff audit trail.
 2. Design a payment ledger/invoice snapshot, payment gateway integration,
    verified callbacks, idempotency, refunds/reconciliation and receipt lifecycle.
    Never infer settlement from the client or label the estimate as a receipt.
-3. Complete authorization review, privacy retention/deletion policy, audit logs,
+3. Specify treatment workflow acceptance criteria before estimating functional
+   completion: which roles can add, view or amend a record, how it links to an
+   appointment, and what must be audited. Do not treat an appointment status as
+   a treatment record.
+4. Complete authorization review, privacy retention/deletion policy, audit logs,
    deployment/backup/restore/monitoring plans, accessibility and clinical-content
    review before production approval.
-4. Keep production deployment and real-data migration as a separately authorized
+5. Keep production deployment and real-data migration as a separately authorized
    release process.
 
 ## Explicitly out of scope until approved

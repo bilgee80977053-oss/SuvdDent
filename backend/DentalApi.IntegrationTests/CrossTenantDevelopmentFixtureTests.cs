@@ -29,6 +29,8 @@ public sealed class CrossTenantDevelopmentFixtureTests
         Assert.False(settings.Enlist);
         Assert.False(settings.LogParameters);
         Assert.False(settings.IncludeErrorDetail);
+        Assert.Equal(18, Fixture.TableCounts.Length);
+        Assert.Contains(Fixture.TableCounts, table => table.Name == "AppointmentReschedules");
     }
 
     [Fact]
@@ -44,6 +46,7 @@ public sealed class CrossTenantDevelopmentFixtureTests
         var before = await CrossTenantSeed.InspectAsync(db);
         Assert.Null(before.FixtureClinicId);
         Assert.Equal(3, before.ClinicOne.Counts["Appointments"]);
+        Assert.Equal(0, before.ClinicOne.Counts["AppointmentReschedules"]);
 
         const string accountPassword = "Synthetic-cross-tenant-password";
         int fixtureClinicId;
@@ -189,6 +192,30 @@ public sealed class CrossTenantDevelopmentFixtureTests
         var state = await CrossTenantSeed.InspectAsync(db);
 
         Assert.Equal(1, state.ClinicOne.Counts["NotificationOutbox"]);
+    }
+
+    [Fact]
+    public async Task Inspector_rejects_a_reschedule_ledger_row_in_the_original_baseline()
+    {
+        await using var connection = new SqliteConnection("Data Source=:memory:;Foreign Keys=True");
+        await connection.OpenAsync();
+        await using var db = await CreateClinicOneDatabaseAsync(connection);
+        var baseline = await CrossTenantSeed.InspectAsync(db);
+        var ids = await db.Appointments.OrderBy(row => row.Id).Select(row => row.Id).Take(2).ToArrayAsync();
+        db.AppointmentReschedules.Add(new AppointmentReschedule
+        {
+            ClinicId = CrossTenantSeed.BaseClinicId,
+            SourceId = ids[0],
+            ReplacementId = ids[1],
+            RequestId = Guid.NewGuid()
+        });
+        await db.SaveChangesAsync();
+
+        var changed = await ClinicOneSnapshot.CaptureAsync(db);
+        Assert.False(baseline.ClinicOne.IsUnchanged(changed));
+        Assert.NotEqual(baseline.ClinicOne.Fingerprint, changed.Fingerprint);
+        Assert.Equal(1, changed.Counts["AppointmentReschedules"]);
+        await Assert.ThrowsAsync<InvalidOperationException>(() => CrossTenantSeed.InspectAsync(db));
     }
 
     [Fact]

@@ -274,6 +274,31 @@ class DentalApi {
         }
         return result;
       }, query: {'date': date});
+  Future<Appointment> rescheduleAppointment(
+    Appointment source,
+    DateTime startUtc,
+    String requestId,
+  ) => _request(
+    'POST',
+    '/api/appointments/${source.id}/reschedule',
+    (v) {
+      final result = Appointment.fromJson(object(v));
+      if (result.id <= 0 ||
+          result.id == source.id ||
+          result.doctorProfileId != source.doctorProfileId ||
+          result.serviceId != source.serviceId ||
+          result.startUtc != startUtc.toUtc() ||
+          (result.status != 'Confirmed' && result.status != 'Cancelled')) {
+        throw const ApiFailure('Цаг шилжүүлэлтийн хариу тодорхойгүй байна.');
+      }
+      return result;
+    },
+    body: {
+      'startUtc': startUtc.toUtc().toIso8601String(),
+      'requestId': requestId,
+    },
+  );
+
   Future<Appointment> book(
     int doctorId,
     int serviceId,

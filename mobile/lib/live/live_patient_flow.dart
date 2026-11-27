@@ -11,6 +11,7 @@ import 'clinical_service_details.dart';
 import 'dental_knowledge.dart';
 import 'payment_estimate_screen.dart';
 import 'profile_settings_screen.dart';
+import 'reschedule_appointment_screen.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
@@ -576,9 +577,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (flow.appointment != null) ...[
-        const Text(
-          'Захиалга амжилттай үүслээ.',
-          style: TextStyle(fontWeight: FontWeight.bold),
+        Text(
+          flow.appointment!.status == 'Confirmed'
+              ? 'Захиалга амжилттай үүслээ.'
+              : 'Энэ захиалга одоо идэвхгүй байна.',
+          style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         details(flow.appointment!),
         button(
@@ -651,6 +654,19 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     await flow.cancelAppointment(value);
   }
 
+  void openReschedule(Appointment source, {bool resume = false}) {
+    if (flow.busy || flow.session == null) return;
+    if (!resume && !flow.beginReschedule(source)) return;
+    final draft = flow.reschedule;
+    if (draft == null || draft.source.id != source.id) return;
+    Navigator.of(context).push(
+      MaterialPageRoute<void>(
+        builder: (_) => RescheduleAppointmentScreen(flow: flow, draft: draft),
+      ),
+    );
+    if (!resume) flow.loadRescheduleSlots();
+  }
+
   Widget historyAppointment(Appointment value) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -664,6 +680,12 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         const Text('Цуцлалтын үр дүнг шалгана уу.'),
         button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
       ],
+      if (flow.canReschedule(value))
+        button(
+          'Захиалгын цаг шилжүүлэх',
+          () => openReschedule(value),
+          secondary: true,
+        ),
       if (flow.canCancel(value))
         button(
           flow.uncertainCancellations.contains(value.id)
@@ -677,6 +699,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const Text('Өмнөх болон удахгүй болох захиалгаа эндээс харна уу.'),
+      if (flow.reschedule?.uncertain == true)
+        button(
+          'Хүлээгдэж буй цаг шилжүүлэлтийг шалгах',
+          () => openReschedule(flow.reschedule!.source, resume: true),
+        ),
       const SizedBox(height: 16),
       if (flow.history != null) ...[
         Text('Хуудас ${flow.history!.page}'),
@@ -797,14 +824,14 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
       ClinicalInfoPanel(
-        title: flow.appointment == null
-            ? 'Одоогоор захиалга харагдахгүй'
-            : 'Таны захиалга баталгаажсан',
+        title: flow.appointment?.status == 'Confirmed'
+            ? 'Таны захиалга баталгаажсан'
+            : 'Одоогоор идэвхтэй захиалга харагдахгүй',
         children: [
           Text(
             flow.session == null
                 ? 'Цаг захиалахын тулд эхлээд нэвтэрнэ үү.'
-                : flow.appointment == null
+                : flow.appointment?.status != 'Confirmed'
                     ? 'Миний цаг хэсгээс захиалгаа шалгана уу.'
                     : local(flow.appointment!.startUtc,
                         flow.appointment!.clinicTimeZoneId),

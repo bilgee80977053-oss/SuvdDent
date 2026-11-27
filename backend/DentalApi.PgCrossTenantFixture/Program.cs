@@ -23,7 +23,7 @@ internal static class PgCrossTenantFixture
     internal const string Host = "127.0.0.1";
     internal const int Port = 5432;
     internal const int ExpectedPostgreSqlMajorVersion = 18;
-    internal const int ExpectedMigrationCount = 6;
+    internal const int ExpectedMigrationCount = 7;
     internal const string WriteApproval = "CREATE_SYNTHETIC_PG_CROSS_TENANT_FIXTURE";
     internal const string DatabasePasswordVariable = "NEXORA_PG_CROSS_TENANT_DB_PASSWORD";
     internal const string WriteApprovalVariable = "NEXORA_PG_CROSS_TENANT_WRITE_OPT_IN";
@@ -31,6 +31,7 @@ internal static class PgCrossTenantFixture
 
     internal static readonly (string Name, string CountSql)[] TableCounts =
     [
+        ("AppointmentReschedules", "SELECT COUNT(*) AS \"Value\" FROM public.\"AppointmentReschedules\""),
         ("Appointments", "SELECT COUNT(*) AS \"Value\" FROM public.\"Appointments\""),
         ("ClinicPatientLinks", "SELECT COUNT(*) AS \"Value\" FROM public.\"ClinicPatientLinks\""),
         ("Clinics", "SELECT COUNT(*) AS \"Value\" FROM public.\"Clinics\""),
@@ -59,6 +60,7 @@ internal static class PgCrossTenantFixture
     private const string LockAllTablesSql = """
         LOCK TABLE
             public."Appointments",
+            public."AppointmentReschedules",
             public."ClinicPatientLinks",
             public."Clinics",
             public."DoctorProfiles",
@@ -355,6 +357,8 @@ internal sealed record ClinicOneSnapshot(string Fingerprint, IReadOnlyDictionary
             .OrderBy(row => row.Id).ToArrayAsync();
         var appointments = await db.Appointments.AsNoTracking().Where(row => row.ClinicId == clinicId)
             .OrderBy(row => row.Id).ToArrayAsync();
+        var reschedules = await db.AppointmentReschedules.AsNoTracking().Where(row => row.ClinicId == clinicId)
+            .OrderBy(row => row.SourceId).ToArrayAsync();
         var patientLinks = await db.Set<ClinicPatientLink>().AsNoTracking()
             .Where(row => row.ClinicId == clinicId).OrderBy(row => row.Id).ToArrayAsync();
         var outbox = await db.Set<NotificationOutbox>().AsNoTracking()
@@ -390,6 +394,7 @@ internal sealed record ClinicOneSnapshot(string Fingerprint, IReadOnlyDictionary
             DoctorServices = doctorServices,
             WorkingHours = workingHours,
             Appointments = appointments,
+            AppointmentReschedules = reschedules,
             PatientLinks = patientLinks,
             Outbox = outbox,
             Preferences = preferences,
@@ -410,6 +415,7 @@ internal sealed record ClinicOneSnapshot(string Fingerprint, IReadOnlyDictionary
             ["DoctorServices"] = doctorServices.LongLength,
             ["DoctorWorkingHours"] = workingHours.LongLength,
             ["Appointments"] = appointments.LongLength,
+            ["AppointmentReschedules"] = reschedules.LongLength,
             ["ClinicPatientLinks"] = patientLinks.LongLength,
             ["NotificationOutbox"] = outbox.LongLength,
             ["NotificationPreference"] = preferences.LongLength,
@@ -437,6 +443,7 @@ internal static class CrossTenantDevelopmentSeed
         new Dictionary<string, long>(StringComparer.Ordinal)
         {
             ["Appointments"] = 3,
+            ["AppointmentReschedules"] = 0,
             ["ClinicPatientLinks"] = 0,
             ["Clinics"] = 1,
             ["DoctorProfiles"] = 3,
@@ -690,6 +697,7 @@ internal static class CrossTenantDevelopmentSeed
         new(StringComparer.Ordinal)
         {
             ["Appointments"] = await db.Appointments.LongCountAsync(),
+            ["AppointmentReschedules"] = await db.AppointmentReschedules.LongCountAsync(),
             ["ClinicPatientLinks"] = await db.Set<ClinicPatientLink>().LongCountAsync(),
             ["Clinics"] = await db.Clinics.LongCountAsync(),
             ["DoctorProfiles"] = await db.DoctorProfiles.LongCountAsync(),
@@ -720,7 +728,8 @@ internal static class CrossTenantDevelopmentSeed
             await db.Services.CountAsync(row => row.ClinicId == clinicId) != 1 ||
             await db.DoctorServices.CountAsync(row => row.ClinicId == clinicId) != 1 ||
             await db.DoctorWorkingHours.CountAsync(row => row.ClinicId == clinicId) != 5 ||
-            await db.Appointments.CountAsync(row => row.ClinicId == clinicId) != 0)
+            await db.Appointments.CountAsync(row => row.ClinicId == clinicId) != 0 ||
+            await db.AppointmentReschedules.AnyAsync(row => row.ClinicId == clinicId))
             throw new InvalidOperationException("Cross-tenant fixture records do not match the expected shape.");
     }
 }

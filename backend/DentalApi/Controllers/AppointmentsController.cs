@@ -35,6 +35,10 @@ public sealed class AppointmentsController(AppointmentService appointments) : Co
     public async Task<IActionResult> RescheduleSlots(int id, [FromQuery] string? date) =>
         Respond(await appointments.RescheduleSlots(ClinicId, UserId, id, date));
 
+    [HttpPost("{id:int}/reschedule")]
+    public async Task<IActionResult> Reschedule(int id, RescheduleAppointmentRequest request) =>
+        Respond(await appointments.Reschedule(ClinicId, UserId, id, request));
+
     [HttpPost("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id) =>
         Respond(await appointments.Cancel(ClinicId, UserId, id));

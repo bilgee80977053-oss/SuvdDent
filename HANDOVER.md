@@ -16,17 +16,19 @@ DEMO/LIVE client. The exact test outcomes and unapplied migration history are in
 
 ## Latest booking milestone
 
-The rescheduling branch adds the authenticated advisory slot endpoint for an
-owned future appointment, plus a Flutter LIVE API adapter. It does not
-expose an enabled reschedule action in the UI, change booking state, or add
-a migration. The endpoint preserves ordinary booking behavior and does not
-ignore any other doctor's or patient's conflicting booking.
+The isolated `dot/atomic-reschedule` review branch combines PRs #1–#4
+and adds the patient reschedule endpoint and LIVE Flutter flow. The source
+stays booked if the replacement cannot be confirmed. A successful move
+retains the cancelled source, creates a linked replacement under the same
+patient and clinic, and queues only eligible new notifications. A durable
+request key protects retries; Flutter reloads slots after a conflict and does
+not silently submit another move.
 
-The next booking increment is a reviewed atomic move: ownership and current
-state checks, durable idempotency, preservation of the original booking on
-failure, a traceable history, and concurrency and notification tests. Do not
-implement this by calling cancellation and creation as two independent writes.
-See the latest section of `DEVELOPMENT_CHECKPOINT.md` for runtime evidence.
+The provider-specific migration adds only `AppointmentReschedules` and its
+constraints/index. No PostgreSQL server was contacted. The seventh
+PostgreSQL migration has its own approval and must not be run on any
+unauthorized database. See `DEVELOPMENT_CHECKPOINT.md` for exact offline
+evidence and remaining PostgreSQL/Flutter-to-backend validation.
 
 ## Architecture
 
@@ -55,7 +57,10 @@ See the latest section of `DEVELOPMENT_CHECKPOINT.md` for runtime evidence.
 - Notification preferences/outbox and phone verification challenge workflows.
 - Patient booking discovery/create/list/detail with server-derived tenant
   identity, explicit time offsets, verified eligibility, snapshots, request-ID
-  idempotency, concurrency protection and provider conflict mapping.
+  idempotency, concurrency protection and provider conflict mapping. Patients
+  can cancel their own future appointments through the API and Flutter LIVE
+  history. Repeated cancellation preserves the response without another
+  notification event.
 - SQLite migration preflights and overlap triggers; PostgreSQL composite
   doctor-service FK and GiST exclusion constraints. The PostgreSQL verifier
   safely accepts the EF-generated FK identifier's single trailing `~`.
@@ -75,7 +80,8 @@ See the latest section of `DEVELOPMENT_CHECKPOINT.md` for runtime evidence.
 - Payment settlement, gateway callbacks, refunds, invoices, eBarimt/legal
   receipts, approved tariff versioning/audit and payment reconciliation are not
   implemented. Do not call an estimate a payment or receipt.
-- Clinic discovery/onboarding, booking cancellation/rescheduling lifecycle and
+- Same-version LIVE cancellation and rescheduling verification, clinic
+  discovery/onboarding, audited clinical records and
   production-grade delivery/audit/operations require follow-up.
 - Migration source history does not prove a deployed database is at that
   version. The exact provider histories are recorded in
@@ -99,7 +105,7 @@ See the latest section of `DEVELOPMENT_CHECKPOINT.md` for runtime evidence.
 
 ## Validation summary
 
-On 2026-11-27, Release build succeeded with 0 warnings/errors; the offline
+At the original Windows handover on 2026-11-27, Release build succeeded with 0 warnings/errors; the offline
 backend filter passed 520 tests with no failures or skips; both provider model
 checks reported no pending changes; all four PowerShell files parsed. The
 PowerShell helper tests were blocked by execution policy. Live PostgreSQL
@@ -108,12 +114,12 @@ commands, counts and limitations.
 
 ## Immediate next actions
 
-1. Run the offline PowerShell helper test in a policy-approved environment.
+1. Review the booking and clinical-access pull requests; do not merge into `main`.
 2. Ask the database operator to validate the isolated PostgreSQL target and
    approve any read-only preflight separately from each write-capable operation.
 3. Review SQL/preflight findings, apply only approved migrations to an isolated
    rehearsal database, then execute the approved live PostgreSQL test suite.
-4. Run Flutter analysis/tests and a development-only end-to-end workflow when
-   an authorized environment is available.
+4. Verify Flutter booking, reschedule, retry and cancel end-to-end against the
+   same reviewed backend revision on an authorized synthetic environment.
 5. Continue from `DEVELOPMENT_ROADMAP.md`; keep financial and production work
    behind their own security, business and operator reviews.

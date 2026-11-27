@@ -27,7 +27,8 @@ public sealed class PgDevelopmentFixtureTests
         Assert.False(settings.Enlist);
         Assert.False(settings.LogParameters);
         Assert.False(settings.IncludeErrorDetail);
-        Assert.Equal(17, Fixture.TableCounts.Length);
+        Assert.Equal(18, Fixture.TableCounts.Length);
+        Assert.Contains(Fixture.TableCounts, table => table.Name == "AppointmentReschedules");
     }
 
     [Fact]

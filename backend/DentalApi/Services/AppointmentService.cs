@@ -88,11 +88,12 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
     private Task<DoctorWorkingHours[]> Hours(int clinic, int doctor) => db.DoctorWorkingHours.AsNoTracking()
         .Where(h => h.ClinicId == clinic && h.DoctorProfileId == doctor).ToArrayAsync();
 
-    private Task<bool> Overlap(int clinic, int patient, int doctor, AppointmentSlot slot, DoctorService config)
+    private Task<bool> Overlap(int clinic, int patient, int doctor, AppointmentSlot slot, DoctorService config, int? ignoreId = null)
     {
         var start = slot.StartUtc.AddMinutes(-config.BufferBeforeMinutes);
         var end = slot.EndUtc.AddMinutes(config.BufferAfterMinutes);
         return db.Appointments.AnyAsync(a => a.ClinicId == clinic && a.Status == AppointmentStatus.Confirmed &&
+            (ignoreId == null || a.Id != ignoreId) &&
             ((a.DoctorProfileId == doctor && a.OccupiedStartUtc < end && start < a.OccupiedEndUtc) ||
              (a.PatientId == patient && a.StartUtc < slot.EndUtc && slot.StartUtc < a.EndUtc)));
     }
@@ -236,7 +237,110 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
         }
     }
 
-    // Internal application operation only: no new HTTP contract in STEP 7.2A.
+    private async Task<Appointment?> LockOwned(int clinic, int patient, int id) =>
+        db.Database.IsNpgsql()
+            ? (await db.Appointments.FromSqlInterpolated($"""
+                SELECT * FROM "Appointments" WHERE "ClinicId" = {clinic} AND "PatientId" = {patient} AND "Id" = {id} FOR UPDATE
+                """).ToListAsync()).SingleOrDefault()
+            : await db.Appointments.SingleOrDefaultAsync(a => a.ClinicId == clinic && a.PatientId == patient && a.Id == id);
+
+    private async Task<AppointmentResult?> RescheduleReplay(int clinic, int patient, int id, Guid key, DateTimeOffset start)
+    {
+        var move = await db.AppointmentReschedules.AsNoTracking()
+            .SingleOrDefaultAsync(m => m.ClinicId == clinic && m.SourceId == id);
+        if (move is null) return null;
+        if (move.RequestId != key) return Conflict();
+        var replacement = await Own(clinic, patient).SingleOrDefaultAsync(a => a.Id == move.ReplacementId);
+        return replacement?.StartUtc == start ? new(200, Response(replacement)) : Conflict();
+    }
+
+    public async Task<AppointmentResult> Reschedule(int clinic, int user, int id, RescheduleAppointmentRequest request)
+    {
+        if (id <= 0 || request.RequestId == Guid.Empty || !ParseStart(request.StartUtc, out var start))
+            return Error(400, "Захиалгын мэдээлэл буруу байна.");
+        start = start.ToUniversalTime();
+        try
+        {
+            await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
+            var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
+            if (patient is null) return Error(404, "Захиалга олдсонгүй.");
+            var source = await LockOwned(clinic, patient.Value, id);
+            if (source is null) return Error(404, "Захиалга олдсонгүй.");
+            var replay = await RescheduleReplay(clinic, patient.Value, id, request.RequestId, start);
+            if (replay is not null) return replay;
+
+            var emailVerified = await db.Users.AsNoTracking().AnyAsync(u => u.Id == user && u.ClinicId == clinic &&
+                u.IsActive && u.Role == Role.Patient && u.IsEmailVerified && u.Email != null && u.Email.Trim() != "");
+            if (!emailVerified) return Error(403, "Баталгаажсан цахим шуудан шаардлагатай.");
+            var now = clock.GetUtcNow();
+            if (source.Status != AppointmentStatus.Confirmed || source.StartUtc <= now || source.StartUtc == start)
+                return Conflict();
+            var decision = await policy.RequireVerifiedAsync(clinic);
+            if (decision.TimeZone is null) return Error(409, "Эмнэлгийн цагийн бүсийг баталгаажуулах шаардлагатай.");
+            var local = TimeZoneInfo.ConvertTime(start, decision.TimeZone);
+            var date = DateOnly.FromDateTime(local.DateTime);
+            if (!InWindow(date, decision.TimeZone, now) || local.Ticks % TimeSpan.TicksPerMinute != 0 || local.Minute % 15 != 0)
+                return Error(400, "Цаг нь 15 минутын алхамтай, дараагийн 30 хоногт байх ёстой.");
+            var config = await Configuration(clinic, source.DoctorProfileId, source.ServiceId);
+            if (config is null) return Error(404, "Эмч эсвэл үйлчилгээ олдсонгүй.");
+            var hours = await Hours(clinic, source.DoctorProfileId);
+            now = clock.GetUtcNow();
+            var slot = Candidate(date, local.Hour * 60 + local.Minute, decision.TimeZone, config, hours, now);
+            if (source.StartUtc <= now || slot is null || slot.StartUtc != start ||
+                await Overlap(clinic, patient.Value, source.DoctorProfileId, slot, config, source.Id))
+                return Conflict();
+            now = clock.GetUtcNow();
+            if (source.StartUtc <= now || slot.StartUtc <= now) return Conflict();
+
+            // Free the source inside the same transaction before inserting (both providers
+            // enforce confirmed overlaps at statement time). It becomes Cancelled only if
+            // replacement, ledger and new outbox entries all commit. The worker will then
+            // suppress stale confirmation/reminder entries by the source status.
+            source.Status = AppointmentStatus.Cancelled;
+            await db.SaveChangesAsync();
+            var replacement = new Appointment
+            {
+                ClinicId = clinic, PatientId = patient.Value, DoctorProfileId = source.DoctorProfileId, ServiceId = source.ServiceId,
+                StartUtc = slot.StartUtc, EndUtc = slot.EndUtc,
+                OccupiedStartUtc = slot.StartUtc.AddMinutes(-config.BufferBeforeMinutes),
+                OccupiedEndUtc = slot.EndUtc.AddMinutes(config.BufferAfterMinutes),
+                DurationMinutesSnapshot = config.DurationMinutes, BufferBeforeMinutesSnapshot = config.BufferBeforeMinutes,
+                BufferAfterMinutesSnapshot = config.BufferAfterMinutes, ClinicTimeZoneIdSnapshot = decision.TimeZone.Id,
+                Status = AppointmentStatus.Confirmed, RequestId = Guid.NewGuid(), CreatedAtUtc = now
+            };
+            db.Appointments.Add(replacement);
+            await db.SaveChangesAsync();
+            db.AppointmentReschedules.Add(new AppointmentReschedule
+            {
+                ClinicId = clinic, SourceId = source.Id, ReplacementId = replacement.Id, RequestId = request.RequestId
+            });
+            await NotificationQueue.EnqueueAsync(db, replacement, NotificationEvent.Confirmed, now);
+            await NotificationQueue.EnqueueAsync(db, replacement, NotificationEvent.Reminder, now);
+            await db.SaveChangesAsync();
+            await tx.CommitAsync();
+            return new(200, Response(replacement));
+        }
+        catch (Exception e) when (DatabaseCompatibility.IsConflict(e, sqliteUnique: true, sqlitePrimaryKey: true, sqliteTrigger: true))
+        {
+            // A competing transaction may have committed this exact operation. Never retry writes.
+            db.ChangeTracker.Clear();
+            try
+            {
+                var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
+                if (patient.HasValue && await Own(clinic, patient.Value).AnyAsync(a => a.Id == id))
+                {
+                    var replay = await RescheduleReplay(clinic, patient.Value, id, request.RequestId, start);
+                    if (replay is not null) return replay;
+                }
+            }
+            catch (Exception lookup) when (DatabaseCompatibility.IsConflict(lookup)) { }
+            // No serialized decision is possible yet. Distinguish uncertainty
+            // from a definitive 409 so a retry can retain the same key.
+            return Error(503, "Цаг шилжүүлэлтийн үр дүнг баталгаажуулж чадсангүй. Ижил хүсэлтээр дахин шалгана уу.");
+        }
+    }
+
+    // Used by the patient cancellation endpoint; scope is derived from validated claims.
     public async Task<AppointmentResult> Cancel(int clinic, int user, int id)
     {
         if (id <= 0) return Error(400, "Захиалгын дугаар буруу байна.");
@@ -245,11 +349,7 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
             await using var tx = await DatabaseCompatibility.BeginWriteAsync(db);
             var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
             if (patient is null) return Error(404, "Захиалга олдсонгүй.");
-            var appointment = db.Database.IsNpgsql()
-                ? (await db.Appointments.FromSqlInterpolated($"""
-                    SELECT * FROM "Appointments" WHERE "ClinicId" = {clinic} AND "PatientId" = {patient.Value} AND "Id" = {id} FOR UPDATE
-                    """).ToListAsync()).SingleOrDefault()
-                : await db.Appointments.SingleOrDefaultAsync(a => a.ClinicId == clinic && a.PatientId == patient.Value && a.Id == id);
+            var appointment = await LockOwned(clinic, patient.Value, id);
             if (appointment is null) return Error(404, "Захиалга олдсонгүй.");
             if (appointment.Status == AppointmentStatus.Cancelled) return new(200, Response(appointment));
             if (appointment.StartUtc <= clock.GetUtcNow()) return Conflict();

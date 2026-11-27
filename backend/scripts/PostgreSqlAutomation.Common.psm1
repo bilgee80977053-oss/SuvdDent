@@ -469,22 +469,26 @@ function Test-PgAppointmentIntegrityConstraintRow {
         return $false
     }
 
-    switch ($Name) {
+    # Accept the exact confirmed-only predicate in both pretty and fully
+    # parenthesized catalog output. Do not normalize arbitrary SQL expressions.
+    $confirmedPredicate = '(?:\("Status"\s*=\s*''Confirmed''(?:::text)?\)|\(\("Status"\)::text\s*=\s*''Confirmed''::text\)|\(\(\("Status"\)::text\s*=\s*''Confirmed''::text\)\))'
+
+    switch -CaseSensitive ($Name) {
         "AK_DoctorServices_ClinicId_DoctorProfileId_ServiceId" {
             return $Table -ceq "DoctorServices" -and
                 $Definition -cmatch '\AUNIQUE\s+\("ClinicId",\s*"DoctorProfileId",\s*"ServiceId"\)\z'
         }
         "FK_Appointments_DoctorServices_ClinicId_DoctorProfileId_Servic~" {
             return $Table -ceq "Appointments" -and
-                $Definition -cmatch '\AFOREIGN KEY\s+\("ClinicId",\s*"DoctorProfileId",\s*"ServiceId"\)\s+REFERENCES\s+(?:public\.)?"DoctorServices"\s+\("ClinicId",\s*"DoctorProfileId",\s*"ServiceId"\)\s+ON DELETE RESTRICT\z'
+                $Definition -cmatch '\AFOREIGN KEY\s+\("ClinicId",\s*"DoctorProfileId",\s*"ServiceId"\)\s+REFERENCES\s+(?:public\.)?"DoctorServices"\s*\("ClinicId",\s*"DoctorProfileId",\s*"ServiceId"\)\s+ON DELETE RESTRICT\z'
         }
         "EX_Appointments_ConfirmedDoctorOccupied_NoOverlap" {
             return $Table -ceq "Appointments" -and
-                $Definition -cmatch '\AEXCLUDE USING gist\s+\("ClinicId"\s+WITH =,\s*"DoctorProfileId"\s+WITH =,\s*tstzrange\("OccupiedStartUtc",\s*"OccupiedEndUtc",\s*''\[\)''(?:::text)?\)\s+WITH &&\)\s+WHERE \("Status"\s*=\s*''Confirmed''(?:::text)?\)\z'
+                $Definition -cmatch ('\AEXCLUDE USING gist\s+\("ClinicId"\s+WITH =,\s*"DoctorProfileId"\s+WITH =,\s*tstzrange\("OccupiedStartUtc",\s*"OccupiedEndUtc",\s*''\[\)''(?:::text)?\)\s+WITH &&\)\s+WHERE ' + $confirmedPredicate + '\z')
         }
         "EX_Appointments_ConfirmedPatientTreatment_NoOverlap" {
             return $Table -ceq "Appointments" -and
-                $Definition -cmatch '\AEXCLUDE USING gist\s+\("ClinicId"\s+WITH =,\s*"PatientId"\s+WITH =,\s*tstzrange\("StartUtc",\s*"EndUtc",\s*''\[\)''(?:::text)?\)\s+WITH &&\)\s+WHERE \("Status"\s*=\s*''Confirmed''(?:::text)?\)\z'
+                $Definition -cmatch ('\AEXCLUDE USING gist\s+\("ClinicId"\s+WITH =,\s*"PatientId"\s+WITH =,\s*tstzrange\("StartUtc",\s*"EndUtc",\s*''\[\)''(?:::text)?\)\s+WITH &&\)\s+WHERE ' + $confirmedPredicate + '\z')
         }
         default { return $false }
     }
