@@ -405,3 +405,23 @@ declared-body bound, clinic JWT role and tenant isolation, opted-in memory gate,
 out-of-environment and file rejection, qualification, signed result, empty
 replay, conflict and sanitized transaction failure. Real listener/chunked-body,
 live PostgreSQL, production rollout and an audited read flow were not verified.
+
+## Same-encounter performed procedure read acceptance
+
+Isolated `dot/performed-procedure-read` starts from exact PR #15 head
+`7d56233`. The read route uses the existing synthetic opt-in gate and clinic
+JWT Doctor authorization. It intersects the currently active assignment and
+original row author for one begun confirmed encounter. Results return only
+bounded clinical fields, deterministic signed-UTC/UUID order, no totals and
+no-store. Each page requires committed metadata-only access audit, including
+empty pages; audit failure does not return results. No new database schema,
+other clinical routes or broad audit/history roles were added. No live server,
+persistent target, rollout or remote publication was used.
+
+Release build passed with 0 warnings/errors; focused 49/49 and full offline
+backend 603/603 (0 failures/skips, opt-in PostgreSQL excluded), with PowerShell
+helper passed. Synthetic HTTP proved role/tenant/assignment and original
+author separation, fixed-UTC tie ordering, signed label after catalogue
+rename, read auditing of empty pages and failure closed on audit insert
+or commit. Live PostgreSQL, production clinical roles and patient history
+were not verified or enabled.

@@ -20,13 +20,36 @@ public sealed class PerformedProcedureAcceptanceController(
 {
     private const int MaxRequestBytes = 1024;
 
+    private bool Enabled =>
+        string.Equals(configuration["Features:PerformedProcedureAcceptance"], "true", StringComparison.OrdinalIgnoreCase) &&
+        PerformedProcedureService.IsTestingMemorySqlite(environment, db);
+
+    [HttpGet]
+    public async Task<IActionResult> List(int appointmentId, CancellationToken token,
+        [FromQuery] int page = 1, [FromQuery] int pageSize = 20)
+    {
+        if (!Enabled)
+            return NotFound();
+
+        var reader = HttpContext.RequestServices.GetRequiredService<PerformedProcedureService>();
+        var result = await reader.ListAsync(User, appointmentId, page, pageSize, token);
+        return result.Status switch
+        {
+            PerformedProcedureReadStatus.Read => Ok(result.Page),
+            PerformedProcedureReadStatus.Invalid => BadRequest(new { message = "Хуудасны дугаар 1–1000, хэмжээ 1–50 байна." }),
+            PerformedProcedureReadStatus.Unavailable => NotFound(),
+            _ => StatusCode(StatusCodes.Status503ServiceUnavailable,
+                new { message = "Ажилбарын хандалтын аудитыг баталгаажуулж чадсангүй." })
+        };
+    }
+
+
     [HttpPost]
     [RequestSizeLimit(MaxRequestBytes)]
     public async Task<IActionResult> Sign(int appointmentId, SignPerformedProcedureRequest request, CancellationToken token)
     {
         // This switch is necessary, but never sufficient outside Testing with the active in-memory SQLite store.
-        if (!string.Equals(configuration["Features:PerformedProcedureAcceptance"], "true", StringComparison.OrdinalIgnoreCase) ||
-            !PerformedProcedureService.IsTestingMemorySqlite(environment, db))
+        if (!Enabled)
             return NotFound();
         if (Request.ContentLength is > MaxRequestBytes)
             return StatusCode(StatusCodes.Status413PayloadTooLarge);

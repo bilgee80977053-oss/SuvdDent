@@ -215,3 +215,12 @@ has no body and no reader, procedure price or billing is exposed.
 [The clinical draft contract](backend/DentalApi/StructuredTreatmentTarget.md)
 documents shape and rollout limits. No migration or real persistent target
 was used.
+
+## Same-encounter performed procedure reader
+
+`dot/performed-procedure-read` adds bounded no-store pages of the
+current assigned doctor's own signed records on just one encounter,
+under the same opt-in Testing/in-memory gate as POST. It does not let
+a reassigned clinician read another author's rows or access patient-wide
+history. Each authorized page, including an empty one, requires a
+metadata-only audit to commit before response. No schema or rollout changed.
