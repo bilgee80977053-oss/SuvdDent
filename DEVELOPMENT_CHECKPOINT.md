@@ -283,3 +283,26 @@ or GitHub publication was performed in this worktree.
 | Full offline backend regression filter | 558 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
 | Synthetic API/storage | Unmodified original, keyed replay, cross-clinic denial, commit rollback, failed read audit denial, immutability and no-store all passed |
 | PowerShell helper | Passed offline |
+
+## One-encounter addenda discovery draft (2026-11-27)
+
+Isolated `dot/encounter-addenda-discovery`, stacked on `c7acf32`, adds
+metadata-only discovery pages for the same still-authorized original
+signer under the existing off-by-default in-memory SQLite gate. Pages return
+only addendum UUID and signed UTC, sorted by UTC and then UUID, at most 50
+entries plus a next-page indicator; they do not select any note text. Every
+released page, including a valid empty page, first commits its access audit.
+A missing original, inadmissible actor, or audit failure does not release data.
+
+No migrations were added. SQLite/PostgreSQL source history remains 20/10;
+the seven-migration live PostgreSQL guard remains closed. Original and signed
+notes stay immutable. No patient-wide history, Flutter UI, procedure/price
+catalog changes, real database use or remote publication was included.
+
+| Local draft check | Result |
+| --- | --- |
+| .NET Release | 0 warnings, 0 errors |
+| Focused treatment, audit, authorization and provider checks | 37 passed, 0 failed, 0 skipped |
+| Full offline backend regression filter | 560 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
+| Synthetic discovery | Paging bounds, UUID tie-break order, metadata-only projection, denied cross-tenant/unassigned access, no-store and fail-closed audit passed |
+| PowerShell helper | Passed offline |

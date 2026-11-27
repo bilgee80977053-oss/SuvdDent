@@ -12,6 +12,10 @@ public sealed record EncounterTreatmentNote(int AppointmentId, string Note, Date
 public sealed record EncounterTreatmentResult(EncounterTreatmentOutcome Outcome, EncounterTreatmentNote? Record = null);
 public sealed record EncounterTreatmentAddendum(Guid RequestId, string Note, DateTimeOffset SignedUtc);
 public sealed record EncounterAddendumResult(EncounterTreatmentOutcome Outcome, EncounterTreatmentAddendum? Record = null);
+public sealed record EncounterAddendumReference(Guid RequestId, DateTimeOffset SignedUtc);
+public sealed record EncounterAddendaPage(
+    int Page, int PageSize, bool HasMore, IReadOnlyList<EncounterAddendumReference> Items);
+public sealed record EncounterAddendaPageResult(EncounterTreatmentOutcome Outcome, EncounterAddendaPage? Record = null);
 
 public interface IEncounterTreatmentService
 {
@@ -21,6 +25,8 @@ public interface IEncounterTreatmentService
         ClaimsPrincipal actor, int appointmentId, Guid requestId, string? note, CancellationToken token);
     Task<EncounterAddendumResult> ReadAddendumAsync(
         ClaimsPrincipal actor, int appointmentId, Guid requestId, CancellationToken token);
+    Task<EncounterAddendaPageResult> ListAddendaAsync(
+        ClaimsPrincipal actor, int appointmentId, int page, int pageSize, CancellationToken token);
 }
 
 internal sealed class EncounterTreatmentService(
@@ -152,6 +158,40 @@ internal sealed class EncounterTreatmentService(
             await db.SaveChangesAsync(token);
             await transaction.CommitAsync(token);
             return new(EncounterTreatmentOutcome.Read, row);
+        }
+        catch (Exception error) when (error is DbUpdateException or SqliteException)
+        {
+            return new(EncounterTreatmentOutcome.StorageUnavailable);
+        }
+    }
+
+    public async Task<EncounterAddendaPageResult> ListAddendaAsync(
+        ClaimsPrincipal actor, int appointmentId, int page, int pageSize, CancellationToken token)
+    {
+        const int maxPage = 1000;
+        if (page is < 1 or > maxPage || pageSize is < 1 or > 50)
+            return new(EncounterTreatmentOutcome.Invalid);
+
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+            var scope = await scopeService.FindAsync(actor, appointmentId, token);
+            if (scope is null || !await OwnsOriginal(scope, token))
+                return new(EncounterTreatmentOutcome.Missing);
+
+            // Do not select the note text in a discovery query.
+            var references = await OwnedAddenda(scope).OrderBy(row => row.SignedUtc).ThenBy(row => row.RequestId)
+                .Skip((page - 1) * pageSize).Take(pageSize + 1)
+                .Select(row => new EncounterAddendumReference(row.RequestId, row.SignedUtc)).ToListAsync(token);
+            var overflow = references.Count > pageSize;
+            if (overflow)
+                references.RemoveAt(pageSize);
+            var hasMore = overflow && page < maxPage;
+
+            audit.Stage(scope, ClinicalAuditAction.HistoryRead, Guid.NewGuid());
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return new(EncounterTreatmentOutcome.Read, new(page, pageSize, hasMore, references));
         }
         catch (Exception error) when (error is DbUpdateException or SqliteException)
         {

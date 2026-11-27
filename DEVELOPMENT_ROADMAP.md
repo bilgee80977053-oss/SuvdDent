@@ -63,7 +63,8 @@ This is a development branch, not production release approval.
    It is gated off by default and refuses production, persistent SQLite and
    PostgreSQL. Review retention and the separate PostgreSQL migration/validation
    gate before any live trial.
-3. Review signed encounter addenda under the same gate. Define approved
+3. Review signed encounter addenda and bounded metadata-only discovery for
+   one encounter under the same gate. Define approved
    tooth notation, historical procedure/tariff snapshots, and scoped
    longitudinal medical history using synthetic data. Separate clinical
    and billing access.

@@ -65,6 +65,15 @@ Source migration inventory is now 20 SQLite / 10 PostgreSQL, still outside the
 seven-migration live workflow. No patient-wide history, billing or actual
 database use was introduced.
 
+## One-encounter addenda discovery draft
+
+The isolated `dot/encounter-addenda-discovery` draft adds metadata-only pages
+for a single encounter so its still-authorized original signer can locate
+addenda without already knowing a UUID. It uses the existing synthetic
+in-memory gate and commits an access audit before each page. No SQL model
+migration, patient-wide browsing, Flutter integration or payment work was
+included. See [the draft API contract](backend/DentalApi/EncounterTreatmentApi.md).
+
 ## Architecture
 
 - `backend/DentalApi/Program.cs` composes controllers, DI, auth, rate limiting,

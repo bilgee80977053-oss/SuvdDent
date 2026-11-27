@@ -70,8 +70,19 @@ replaced. No user-input correlation is copied to the audit trail.
 `GET /api/clinical/appointments/{appointmentId}/treatment/addenda/{requestId}`
 retrieves exactly one addendum by its encounter-scoped UUID, only after a
 successful read audit. It returns only `requestId`, `note` and `signedUtc`.
-Failed audit returns generic 503 without clinical text. There is no addendum
-list, general history, patient-wide search, or update/delete route.
+Failed audit returns generic 503 without clinical text.
+
+`GET /api/clinical/appointments/{appointmentId}/treatment/addenda?page=1&pageSize=20`
+discovers metadata for this single encounter under the same current original
+signer authorization and in-memory-only gate. Page numbers are 1–1,000 and
+page sizes are 1–50. The response contains `page`, `pageSize`, `hasMore` and
+`items`. Each item contains only `requestId` and `signedUtc`, never note text.
+Pages are ordered by signed UTC then by request UUID, ascending; this order
+is stable for a fixed dataset. The last supported page does not advertise
+another page. Each returned page, including an authorized
+empty page, requires a successful audit transaction. Audit failure returns
+generic 503 without the page. This route is no-store and is not a general
+history, patient-wide search, or update/delete route.
 
 ## Storage and remaining acceptance
 
