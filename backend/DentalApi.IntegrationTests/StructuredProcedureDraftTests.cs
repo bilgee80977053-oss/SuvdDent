@@ -19,6 +19,7 @@ using DentalApi.Data;
 using DentalApi.Models;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Xunit;
 
 namespace DentalApi.IntegrationTests;
@@ -317,8 +318,6 @@ public sealed class StructuredProcedureDraftTests
         using var conflict = await doctor.PostAsJsonAsync(url, SignRequest(key) with { ToothCode = "84" });
         Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
         Assert.DoesNotContain("Synthetic booked service", await conflict.Content.ReadAsStringAsync());
-        using var noRead = await doctor.GetAsync(url);
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, noRead.StatusCode);
 
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -408,6 +407,8 @@ public sealed class StructuredProcedureDraftTests
             using var doctor = await offline.AsAsync(13);
             using var denied = await doctor.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
             Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+            using var read = await doctor.GetAsync(PerformedRoute(301));
+            Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
             await AssertNoProcedureWrites(offline);
         }
 
@@ -424,6 +425,8 @@ public sealed class StructuredProcedureDraftTests
                     using var denied = await doctor.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
                     Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
                     Assert.True(denied.Headers.CacheControl?.NoStore);
+                    using var read = await doctor.GetAsync(PerformedRoute(301));
+                    Assert.Equal(HttpStatusCode.NotFound, read.StatusCode);
                 }
             }
             finally { memoryEnvironment.EnvironmentName = "Testing"; }
@@ -437,6 +440,8 @@ public sealed class StructuredProcedureDraftTests
         using var nonMemory = await clinician.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
         Assert.Equal(HttpStatusCode.NotFound, nonMemory.StatusCode);
         Assert.True(nonMemory.Headers.CacheControl?.NoStore);
+        using var nonMemoryRead = await clinician.GetAsync(PerformedRoute(301));
+        Assert.Equal(HttpStatusCode.NotFound, nonMemoryRead.StatusCode);
 
         using var postgresModelOnly = new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
         Assert.False(PerformedProcedureService.IsTestingMemorySqlite(host, postgresModelOnly));
@@ -465,6 +470,137 @@ public sealed class StructuredProcedureDraftTests
 
         using var retry = await clinician.PostAsJsonAsync(url, request);
         Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_pages_only_current_assigned_doctors_signed_items_and_audits_each_page()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        using var doctor = await app.AsAsync(13);
+        using var foreign = await app.AsAsync(23, clinicId: 202);
+        using var otherDoctor = await app.AsAsync(17);
+        using var patient = await app.AsAsync(11);
+        using var anonymous = app.Client();
+        var url = PerformedRoute(301);
+        var low = Guid.Parse("11111111-1111-1111-1111-111111111111");
+        var high = Guid.Parse("99999999-9999-9999-9999-999999999999");
+        foreach (var id in new[] { high, low })
+        {
+            using var signed = await doctor.PostAsJsonAsync(url, SignRequest(id));
+            Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        }
+
+        await Denied(anonymous, HttpStatusCode.Unauthorized);
+        await Denied(patient, HttpStatusCode.Forbidden);
+        await Denied(foreign, HttpStatusCode.NotFound);
+        await Denied(otherDoctor, HttpStatusCode.NotFound);
+        await Denied(doctor, HttpStatusCode.NotFound, PerformedRoute(302));
+        foreach (var badQuery in new[] { "?page=0", "?page=1001", "?pageSize=0", "?pageSize=51" })
+            await Denied(doctor, HttpStatusCode.BadRequest, url + badQuery);
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            Assert.Equal(0, await db.Set<ClinicalAuditEvent>().CountAsync(row => row.Action == ClinicalAuditAction.HistoryRead));
+            var service = (await db.Services.FindAsync(51))!;
+            service.Name = "Synthetic later catalogue label";
+            await db.SaveChangesAsync();
+        }
+
+        await CheckPage(doctor, 1, [low], hasMore: true);
+        await CheckPage(doctor, 2, [high], hasMore: false);
+        await CheckPage(doctor, 1000, [], hasMore: false);
+
+        using (var reassignment = app.Services.CreateScope())
+        {
+            var db = reassignment.ServiceProvider.GetRequiredService<AppDbContext>();
+            var profile = (await db.DoctorProfiles.FindAsync(31))!;
+            profile.UserId = 20;
+            await db.SaveChangesAsync();
+        }
+        await Denied(doctor, HttpStatusCode.NotFound);
+        using var newAssignee = await app.AsAsync(20);
+        await CheckPage(newAssignee, 1, [], hasMore: false);
+
+        using var check = app.Services.CreateScope();
+        var evidence = check.ServiceProvider.GetRequiredService<AppDbContext>();
+        var access = await evidence.Set<ClinicalAuditEvent>().Where(row => row.Action == ClinicalAuditAction.HistoryRead)
+            .OrderBy(row => row.Id).ToArrayAsync();
+        Assert.Equal(new[] { 13, 13, 13, 20 }, access.Select(row => row.ActorUserId));
+        Assert.All(access, row => Assert.Equal((101, 301), (row.ClinicId, row.AppointmentId)));
+        Assert.Equal(0, await evidence.Set<ClinicalAuditEvent>().CountAsync(row => row.ClinicId == 202));
+
+        async Task Denied(HttpClient client, HttpStatusCode status, string? path = null)
+        {
+            using var response = await client.GetAsync(path ?? url);
+            Assert.Equal(status, response.StatusCode);
+            Assert.DoesNotContain("Synthetic booked service", await response.Content.ReadAsStringAsync());
+        }
+
+        async Task CheckPage(HttpClient client, int page, Guid[] expected, bool hasMore)
+        {
+            using var response = await client.GetAsync(url + $"?page={page}&pageSize=1");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.CacheControl?.NoStore);
+            var body = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(4, body.EnumerateObject().Count());
+            Assert.Equal(page, body.GetProperty("page").GetInt32());
+            Assert.Equal(1, body.GetProperty("pageSize").GetInt32());
+            Assert.Equal(hasMore, body.GetProperty("hasMore").GetBoolean());
+            var items = body.GetProperty("items").EnumerateArray().ToArray();
+            Assert.Equal(expected, items.Select(item => item.GetProperty("requestId").GetGuid()));
+            Assert.All(items, item =>
+            {
+                Assert.Equal(6, item.EnumerateObject().Count());
+                Assert.Equal(51, item.GetProperty("serviceId").GetInt32());
+                Assert.Equal("Synthetic booked service", item.GetProperty("serviceLabel").GetString());
+                Assert.Equal("SingleTooth", item.GetProperty("scope").GetString());
+                Assert.Equal("85", item.GetProperty("toothCode").GetString());
+                Assert.Equal(FixedClock.Utc, item.GetProperty("signedUtc").GetDateTimeOffset());
+            });
+        }
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_read_releases_no_page_when_audit_insert_or_commit_fails()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        using var doctor = await app.AsAsync(13);
+        var key = Guid.NewGuid();
+        var url = PerformedRoute(301);
+        using var signed = await doctor.PostAsJsonAsync(url, SignRequest(key));
+        Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER "SyntheticProcedureReadAuditFailure" BEFORE INSERT ON "ClinicalAuditEvents" BEGIN
+                SELECT RAISE(ABORT, 'SyntheticProcedureReadAuditFailure');
+            END;
+            """);
+        await CheckFailure(url);
+        await CheckFailure(url + "?page=2&pageSize=1"); // An empty result may not bypass auditing.
+        await db.Database.ExecuteSqlRawAsync("""DROP TRIGGER "SyntheticProcedureReadAuditFailure";""");
+        app.CommitFailure.Enabled = true;
+        try { await CheckFailure(url); }
+        finally { app.CommitFailure.Enabled = false; }
+
+        Assert.Equal(0, await db.Set<ClinicalAuditEvent>().CountAsync(row => row.Action == ClinicalAuditAction.HistoryRead));
+        Assert.Equal(key, (await db.Set<PerformedProcedure>().SingleAsync()).RequestId);
+        using var retry = await doctor.GetAsync(url);
+        Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+        Assert.Equal(1, await db.Set<ClinicalAuditEvent>().CountAsync(row => row.Action == ClinicalAuditAction.HistoryRead));
+
+        async Task CheckFailure(string path)
+        {
+            using var response = await doctor.GetAsync(path);
+            Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+            Assert.True(response.Headers.CacheControl?.NoStore);
+            var body = await response.Content.ReadAsStringAsync();
+            Assert.DoesNotContain(key.ToString(), body);
+            Assert.DoesNotContain("Synthetic booked service", body);
+            Assert.DoesNotContain("SyntheticProcedureReadAuditFailure", body);
+            Assert.DoesNotContain("Synthetic performed procedure commit failure", body);
+        }
     }
 
     private static SignPerformedProcedureRequest SignRequest(Guid id) => new(id, 51, "SingleTooth", "85");
@@ -527,10 +663,18 @@ public sealed class StructuredProcedureDraftTests
             builder.ConfigureServices(services =>
             {
                 services.AddDbContext<AppDbContext>(options => options.AddInterceptors(CommitFailure, OpenGuard));
+                services.RemoveAll<TimeProvider>();
+                services.AddSingleton<TimeProvider>(new FixedClock());
                 if (fakePersistentMetadata)
                     services.AddControllers(options => options.Filters.Add(new SwapConnectionMetadata()));
             });
         }
+    }
+
+    private sealed class FixedClock : TimeProvider
+    {
+        internal static DateTimeOffset Utc { get; } = new(2026, 11, 27, 0, 0, 0, TimeSpan.Zero);
+        public override DateTimeOffset GetUtcNow() => Utc;
     }
 
     // Run only after real clinic JWT authentication: present file-shaped connection

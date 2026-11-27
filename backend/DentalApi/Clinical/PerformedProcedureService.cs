@@ -14,12 +14,68 @@ internal sealed record PerformedProcedureReceipt(
     int AppointmentId, Guid RequestId, int ServiceId, string ServiceLabel, StructuredTreatmentTarget Target, DateTimeOffset SignedUtc);
 internal sealed record PerformedProcedureResult(PerformedProcedureStatus Status, PerformedProcedureReceipt? Receipt = null);
 
+internal enum PerformedProcedureReadStatus { Invalid, Unavailable, Read, StorageUnavailable }
+internal sealed record PerformedProcedureListItem(
+    Guid RequestId, int ServiceId, string ServiceLabel, string Scope, string? ToothCode, DateTimeOffset SignedUtc);
+internal sealed record PerformedProcedurePage(
+    int Page, int PageSize, bool HasMore, IReadOnlyList<PerformedProcedureListItem> Items);
+internal sealed record PerformedProcedureReadResult(PerformedProcedureReadStatus Status, PerformedProcedurePage? Page = null);
+
 internal sealed class PerformedProcedureService(
-    AppDbContext db, IWebHostEnvironment environment, StructuredProcedureDraftService drafts, ClinicalAuditTrail audit, TimeProvider clock)
+    AppDbContext db, IWebHostEnvironment environment, StructuredProcedureDraftService drafts,
+    ClinicalEncounterAccess encounters, ClinicalAuditTrail audit, TimeProvider clock)
 {
     internal static bool IsTestingMemorySqlite(IWebHostEnvironment environment, AppDbContext db)
         => environment.IsEnvironment("Testing") && db.Database.IsSqlite() &&
            EncounterTreatmentController.IsMemorySqliteConnection(db.Database.GetConnectionString());
+
+    internal async Task<PerformedProcedureReadResult> ListAsync(ClaimsPrincipal actor, int appointmentId,
+        int page, int pageSize, CancellationToken cancellationToken = default)
+    {
+        const int maxPage = 1000;
+        cancellationToken.ThrowIfCancellationRequested();
+        if (!IsTestingMemorySqlite(environment, db))
+            return new(PerformedProcedureReadStatus.Unavailable);
+        if (appointmentId <= 0 || page is < 1 or > maxPage || pageSize is < 1 or > 50)
+            return new(PerformedProcedureReadStatus.Invalid);
+        if (db.Database.CurrentTransaction is not null || db.ChangeTracker.HasChanges())
+            return new(PerformedProcedureReadStatus.StorageUnavailable);
+
+        ClinicalAuditEvent? auditEvent = null;
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, cancellationToken);
+            var encounter = await encounters.FindAsync(actor, appointmentId, cancellationToken);
+            if (encounter is null)
+                return new(PerformedProcedureReadStatus.Unavailable);
+
+            // This is signing history: do not join a mutable service label to the signed rows.
+            var items = await db.Set<PerformedProcedure>().AsNoTracking()
+                .Where(row => row.ClinicId == encounter.ClinicId && row.AppointmentId == encounter.AppointmentId &&
+                              row.DoctorUserId == encounter.DoctorUserId)
+                .OrderBy(row => row.SignedUtc).ThenBy(row => row.RequestId)
+                .Skip((page - 1) * pageSize).Take(pageSize + 1)
+                .Select(row => new PerformedProcedureListItem(row.RequestId, row.ServiceId, row.ServiceLabel,
+                    row.TargetScope, row.ToothCode, row.SignedUtc))
+                .ToListAsync(cancellationToken);
+            var overflow = items.Count > pageSize;
+            if (overflow)
+                items.RemoveAt(pageSize);
+
+            auditEvent = audit.Stage(encounter, ClinicalAuditAction.HistoryRead, Guid.NewGuid());
+            await db.SaveChangesAsync(cancellationToken);
+            await transaction.CommitAsync(cancellationToken);
+            return new(PerformedProcedureReadStatus.Read, new(page, pageSize, overflow && page < maxPage, items));
+        }
+        catch (Exception error) when (error is DbUpdateException or SqliteException)
+        {
+            return new(PerformedProcedureReadStatus.StorageUnavailable);
+        }
+        finally
+        {
+            if (auditEvent is not null) db.Entry(auditEvent).State = EntityState.Detached;
+        }
+    }
 
     // This is an internal synthetic test seam, not an enabled workflow or an authorization token.
     internal async Task<PerformedProcedureResult> SignAsync(ClaimsPrincipal actor,

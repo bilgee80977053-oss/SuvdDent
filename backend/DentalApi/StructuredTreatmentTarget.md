@@ -80,7 +80,7 @@ requires separate effective approved tariffs and is not inferred here.
 
 ## Performed-procedure synthetic HTTP acceptance
 
-The next draft adds only
+The first HTTP draft adds
 `POST /api/clinical/appointments/{appointmentId}/performed-procedures`.
 It is off unless `Features:PerformedProcedureAcceptance=true` is explicitly
 set, the process is in Testing, and the active EF provider is SQLite using
@@ -102,4 +102,25 @@ payment or receipt. Exact retries return 204 with no result body; changed
 target for the same visit UUID returns 409. Unknown or unavailable visits or
 qualifications return 404, malformed input 400 (declared oversize 413), and
 storage/audit failure generic 503. Action responses use no-store.
-No history/read route, new schema, billing or deployment is included.
+No new schema, billing or deployment is included.
+
+### Same-encounter signed procedure page
+
+`GET /api/clinical/appointments/{appointmentId}/performed-procedures?page=1&pageSize=20`
+uses the same off-by-default flag, Testing environment, in-memory SQLite and
+clinic JWT Doctor gates. The doctor must currently be active and assigned to
+the begun confirmed same-clinic encounter; only rows that doctor originally
+signed are included. New assignees cannot inherit the previous author's rows.
+A successful authorized empty page is still audited before return.
+
+Pages return only `page`, `pageSize`, `hasMore`, and clinical `items`:
+request UUID, authoritative signed service ID/label, target scope, optional
+tooth code and signed UTC. The label comes from the immutable signed item,
+not the current catalog. There are no totals, unrelated identifiers,
+finances, note text or patient-wide queries. Ascending signed UTC and UUID
+give deterministic order for a fixed dataset. Page 1–1,000 / size 1–50 only.
+Each release must first commit a metadata-only `HistoryRead` event.
+Unassigned or foreign users receive no items or access audit. Failure to
+insert or commit audit returns generic 503 with no clinical data. Responses
+from the action are no-store. This does not approve new read roles or
+production data access.
