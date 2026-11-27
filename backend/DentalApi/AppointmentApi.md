@@ -76,6 +76,21 @@ a consistent view; SQLite briefly takes a write reservation despite making no
 writes. Blocking appointments are fetched in one bounded date-range query.
 POST repeats validation and overlap checks regardless of earlier availability.
 
+## Rescheduling slot discovery
+
+`GET /api/appointments/{id}/reschedule-slots?date=YYYY-MM-DD` returns the
+same slots DTO as ordinary booking, for the existing appointment's doctor
+and service. No clinic, patient, doctor or service override is accepted.
+Only the authenticated owner's future confirmed appointment qualifies.
+Invalid input returns 400, missing or inaccessible appointments return 404,
+and a started or cancelled appointment returns 409.
+
+The query ignores only the source appointment's overlap and omits its
+current start time. Other confirmed doctor and patient bookings still block
+slots. Results are advisory. This endpoint does not reserve a slot, change
+an appointment, or enqueue a notification. Atomic rescheduling and an enabled
+Flutter reschedule screen are not yet part of this API.
+
 ## Concurrency and request identity
 
 SQLite uses DatabaseCompatibility's non-deferred write transaction, obtaining its

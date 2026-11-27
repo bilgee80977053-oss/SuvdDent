@@ -31,6 +31,10 @@ public sealed class AppointmentsController(AppointmentService appointments) : Co
             ? CreatedAtAction(nameof(Get), new { id = appointment.Id }, appointment) : Respond(result);
     }
 
+    [HttpGet("{id:int}/reschedule-slots")]
+    public async Task<IActionResult> RescheduleSlots(int id, [FromQuery] string? date) =>
+        Respond(await appointments.RescheduleSlots(ClinicId, UserId, id, date));
+
     [HttpPost("{id:int}/cancel")]
     public async Task<IActionResult> Cancel(int id) =>
         Respond(await appointments.Cancel(ClinicId, UserId, id));
