@@ -212,7 +212,7 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
         }
     }
 
-    // Internal application operation only: no new HTTP contract in STEP 7.2A.
+    // Used by the patient cancellation endpoint; scope is derived from validated claims.
     public async Task<AppointmentResult> Cancel(int clinic, int user, int id)
     {
         if (id <= 0) return Error(400, "Захиалгын дугаар буруу байна.");

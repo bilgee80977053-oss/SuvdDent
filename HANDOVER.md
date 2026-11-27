@@ -41,7 +41,10 @@ DEMO/LIVE client. The exact test outcomes and unapplied migration history are in
 - Notification preferences/outbox and phone verification challenge workflows.
 - Patient booking discovery/create/list/detail with server-derived tenant
   identity, explicit time offsets, verified eligibility, snapshots, request-ID
-  idempotency, concurrency protection and provider conflict mapping.
+  idempotency, concurrency protection and provider conflict mapping. Patients
+  can cancel their own future appointments through the API and Flutter LIVE
+  history. Repeated cancellation preserves the response without another
+  notification event.
 - SQLite migration preflights and overlap triggers; PostgreSQL composite
   doctor-service FK and GiST exclusion constraints. The PostgreSQL verifier
   safely accepts the EF-generated FK identifier's single trailing `~`.
@@ -61,7 +64,8 @@ DEMO/LIVE client. The exact test outcomes and unapplied migration history are in
 - Payment settlement, gateway callbacks, refunds, invoices, eBarimt/legal
   receipts, approved tariff versioning/audit and payment reconciliation are not
   implemented. Do not call an estimate a payment or receipt.
-- Clinic discovery/onboarding, booking cancellation/rescheduling lifecycle and
+- Same-version LIVE cancellation verification, rescheduling, clinic
+  discovery/onboarding, treatment workflow acceptance criteria and
   production-grade delivery/audit/operations require follow-up.
 - Migration source history does not prove a deployed database is at that
   version. The exact provider histories are recorded in
