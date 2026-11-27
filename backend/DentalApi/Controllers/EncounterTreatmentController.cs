@@ -12,6 +12,9 @@ namespace DentalApi.Controllers;
 [JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
 public sealed record SignEncounterTreatmentRequest(string? Note);
 
+[JsonUnmappedMemberHandling(JsonUnmappedMemberHandling.Disallow)]
+public sealed record SignTreatmentAddendumRequest(Guid RequestId, string? Note);
+
 [ApiController]
 [Authorize(AuthenticationSchemes = JwtBearerDefaults.AuthenticationScheme, Roles = "Doctor")]
 [ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
@@ -72,6 +75,41 @@ public sealed class EncounterTreatmentController(
             return NotFound();
 
         var result = await treatments.ReadAsync(User, appointmentId, token);
+        return result.Outcome switch
+        {
+            EncounterTreatmentOutcome.Read => Ok(result.Record),
+            EncounterTreatmentOutcome.Missing => NotFound(),
+            _ => StorageUnavailable()
+        };
+    }
+
+    [HttpPost("addenda")]
+    [RequestSizeLimit(16 * 1024)]
+    public async Task<IActionResult> SignAddendum(
+        int appointmentId, SignTreatmentAddendumRequest request, CancellationToken token)
+    {
+        if (!Enabled)
+            return NotFound();
+
+        return await treatments.SignAddendumAsync(User, appointmentId, request.RequestId, request.Note, token) switch
+        {
+            EncounterTreatmentOutcome.Recorded =>
+                CreatedAtAction(nameof(ReadAddendum), new { appointmentId, requestId = request.RequestId }, null),
+            EncounterTreatmentOutcome.Replayed => NoContent(),
+            EncounterTreatmentOutcome.Invalid => BadRequest(new { message = "Нэмэлтийн хүсэлтийн дугаар болон 1–2000 тэмдэгттэй тэмдэглэл шаардлагатай." }),
+            EncounterTreatmentOutcome.Missing => NotFound(),
+            EncounterTreatmentOutcome.Duplicate => Conflict(new { message = "Энэ хүсэлтийн дугаараар өөр тэмдэглэл хадгалагдсан байна." }),
+            _ => StorageUnavailable()
+        };
+    }
+
+    [HttpGet("addenda/{requestId:guid}")]
+    public async Task<IActionResult> ReadAddendum(int appointmentId, Guid requestId, CancellationToken token)
+    {
+        if (!Enabled)
+            return NotFound();
+
+        var result = await treatments.ReadAddendumAsync(User, appointmentId, requestId, token);
         return result.Outcome switch
         {
             EncounterTreatmentOutcome.Read => Ok(result.Record),

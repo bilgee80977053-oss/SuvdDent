@@ -33,8 +33,9 @@ not a general clinical history endpoint.
 | Billing handoff | Expose only the procedure/tariff snapshot required for invoicing, not clinical notes or diagnosis. A treatment record or estimate is not a payment or receipt. |
 
 The initial draft calls the scope service inside the transaction and commits
-the encounter note and audit event together. Signed amendments, approved
-procedure/tooth or tariff snapshots, and history scope are later slices.
+the encounter note and audit event together. The later addenda draft preserves
+the original and adds separately audited signed addenda on the same encounter.
+Approved procedure/tooth or tariff snapshots and history scope are later slices.
 
 ## Clinical audit storage (development only)
 
@@ -63,7 +64,8 @@ access. Do not routinely downgrade: the rollback migration drops audit storage.
 This review-only overlay stacks clinical access and audit after atomic
 appointment rescheduling. Both combined provider snapshots were regenerated.
 The original audit overlay contains 18 SQLite migrations and 8 PostgreSQL
-migrations; the subsequent treatment draft adds one more migration per provider.
+migrations; the subsequent treatment and addenda drafts each add one migration
+per provider.
 The seven-migration PostgreSQL workflows and fixtures remain a separate
 approval boundary and fail closed for both clinical review branches. They do
 not authorize migrations or real-data use. No live database validation was

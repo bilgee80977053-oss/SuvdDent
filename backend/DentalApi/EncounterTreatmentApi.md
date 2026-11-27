@@ -47,16 +47,44 @@ clinician. A metadata-only read audit must commit before the server releases
 the response. Audit failure returns generic 503 without the note. Route
 responses containing protected data are marked `Cache-Control: no-store`.
 
+## Add an immutable signed note to the same encounter
+
+`POST /api/clinical/appointments/{appointmentId}/treatment/addenda`
+
+```json
+{ "requestId": "8855c576-1777-49ec-8a93-cfe1c1239f67", "note": "Synthetic addendum for review." }
+```
+
+An addendum requires an existing original signed note and current assignment
+to the same encounter. This draft allows only the original signer to add or
+read addenda. It uses the same authentication, no-store and synthetic in-memory
+opt-in gate as the original note. The text/body limits and normalization are
+also unchanged. Keep the same client-generated nonempty UUID for a retry;
+it is scoped to the clinic and encounter. Creation returns 201 with a Location
+and no note body. Exact normalized replay returns 204 with no second audit event
+or addendum; a different note with the same key returns 409. Each distinct
+successful write commits a metadata-only `TreatmentAmended` audit event in
+the same transaction. Neither the original record nor another addendum is
+replaced. No user-input correlation is copied to the audit trail.
+
+`GET /api/clinical/appointments/{appointmentId}/treatment/addenda/{requestId}`
+retrieves exactly one addendum by its encounter-scoped UUID, only after a
+successful read audit. It returns only `requestId`, `note` and `signedUtc`.
+Failed audit returns generic 503 without clinical text. There is no addendum
+list, general history, patient-wide search, or update/delete route.
+
 ## Storage and remaining acceptance
 
-The original record stays immutable. Provider migrations create only
-`TreatmentRecords`, a tenant-scoped signer index and provider-specific
-triggers. The database refuses an unassigned signing identity and ordinary
-mutations, including SQLite replacement and PostgreSQL truncation. The
-application application-role review, retention and tamper-resistant operational
-controls remain open. The earlier seven-migration live workflow remains closed
-to this nine-migration PostgreSQL source branch.
+The original and each addendum stay immutable. Their provider migrations
+add separate tables, tenant-scoped indexes and mutation/signer guards without
+rebuilding existing tables. The database refuses an unassigned signing identity
+and ordinary mutations, including SQLite replacement and PostgreSQL truncation.
+Application-role review, retention and tamper-resistant operational controls
+remain open. The earlier seven-migration live workflow remains closed
+to this ten-migration PostgreSQL source branch. The addenda table references
+the original by clinic and encounter while adding its own signer and
+immutability guards; historic migrations are unchanged.
 
-Amendments, consent/retention review, emergency access, chronological medical
+Consent/retention review, emergency access, chronological medical
 history, clinical procedure and tooth-notation validation, patient access,
 Flutter UI and all billing/receipts remain out of scope for this draft.

@@ -26,9 +26,10 @@ try {
         "20261126070352_EnforceAppointmentIntegrity",
         "20261127122656_AddPostgreSqlAppointmentReschedules",
         "20261127123142_AddPostgreSqlClinicalAuditTrail",
-        "20261127124418_AddPostgreSqlTreatmentRecords"
+        "20261127124418_AddPostgreSqlTreatmentRecords",
+        "20261127125155_AddPostgreSqlTreatmentAddenda"
     )
-    Assert-OfflineTest ($migrationIds.Count -eq 9) "source migration IDs are a flat nine-element array"
+    Assert-OfflineTest ($migrationIds.Count -eq 10) "source migration IDs are a flat ten-element array"
     Assert-OfflineTest (@($migrationIds | Where-Object { $_ -is [array] }).Count -eq 0) "migration IDs are not nested"
     Assert-OfflineTest (($expectedIds -join "|") -ceq ($migrationIds -join "|")) `
         "migration IDs have the exact expected chronological order"
@@ -147,7 +148,8 @@ try {
         $completeGuard.Contains("'20261127122656_AddPostgreSqlAppointmentReschedules'") -and
         $completeGuard.Contains("actual_count <> 7") -and
         -not $completeGuard.Contains("AddPostgreSqlClinicalAuditTrail") -and
-        -not $completeGuard.Contains("AddPostgreSqlTreatmentRecords")) `
+        -not $completeGuard.Contains("AddPostgreSqlTreatmentRecords") -and
+        -not $completeGuard.Contains("AddPostgreSqlTreatmentAddenda")) `
         "reviewed write guard stops at the reschedule ledger, excluding the audit migration"
     foreach ($workflow in @("Invoke-PostgreSqlIntegrationTests.ps1", "Invoke-PostgreSqlMigrationWorkflow.ps1")) {
         $path = Join-Path (Join-Path $root "backend\scripts") $workflow

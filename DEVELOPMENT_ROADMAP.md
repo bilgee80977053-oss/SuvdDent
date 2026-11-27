@@ -63,9 +63,10 @@ This is a development branch, not production release approval.
    It is gated off by default and refuses production, persistent SQLite and
    PostgreSQL. Review retention and the separate PostgreSQL migration/validation
    gate before any live trial.
-3. Verify treatment record creation and amendment, approved tooth notation,
-   historical procedure/tariff snapshots, and scoped medical history using
-   synthetic data. Separate clinical and billing access.
+3. Review signed encounter addenda under the same gate. Define approved
+   tooth notation, historical procedure/tariff snapshots, and scoped
+   longitudinal medical history using synthetic data. Separate clinical
+   and billing access.
 
 ### P3 — Financial, clinic administration and production readiness
 
