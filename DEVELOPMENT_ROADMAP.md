@@ -12,7 +12,9 @@ This is a development branch, not production release approval.
   phone-verification challenges.
 - Patient booking endpoints for service/doctor/slot discovery, create, list and
   detail. Booking validates eligibility and snapshots, uses idempotent request
-  IDs, and handles provider concurrency conflicts.
+  IDs, and handles provider concurrency conflicts. A patient can cancel their
+  own future appointment in the API and Flutter LIVE history; cancellation
+  preserves the record and releases the occupied slot.
 - Appointment integrity is enforced in SQLite by triggers and in PostgreSQL by
   composite foreign keys and partial GiST exclusion constraints. The PostgreSQL
   constraint verifier accepts the one trailing `~` used by the EF-generated
@@ -42,10 +44,14 @@ This is a development branch, not production release approval.
 
 1. Run Flutter `analyze` and `test`, then perform an authorized development-only
    end-to-end booking check after the backend environment is approved.
-2. Add a clinic discovery/onboarding workflow only after defining clinic
-   authorization and privacy requirements; do not probe arbitrary IDs.
-3. Define booking cancellation/rescheduling and notification delivery lifecycle,
-   with ownership checks, idempotency, auditability and regression tests.
+2. Define the first clinic onboarding flow and permissions. Evaluate an
+   operator-assisted listing separately from patient discovery and clinic
+   self-service; do not probe arbitrary IDs.
+3. Verify the existing patient cancellation flow with the same Flutter and
+   backend revision on an approved development target. Define rescheduling
+   separately: preserve the original booking on failure, require ownership,
+   recheck availability, and cover duplicate requests and concurrent slot claims.
+   Define audit and notification expectations before adding the workflow.
 4. Review the notification outbox worker, SMS/email provider configuration,
    retries and observability before relying on delivery in a live workflow.
 
@@ -56,10 +62,14 @@ This is a development branch, not production release approval.
 2. Design a payment ledger/invoice snapshot, payment gateway integration,
    verified callbacks, idempotency, refunds/reconciliation and receipt lifecycle.
    Never infer settlement from the client or label the estimate as a receipt.
-3. Complete authorization review, privacy retention/deletion policy, audit logs,
+3. Specify treatment workflow acceptance criteria before estimating functional
+   completion: which roles can add, view or amend a record, how it links to an
+   appointment, and what must be audited. Do not treat an appointment status as
+   a treatment record.
+4. Complete authorization review, privacy retention/deletion policy, audit logs,
    deployment/backup/restore/monitoring plans, accessibility and clinical-content
    review before production approval.
-4. Keep production deployment and real-data migration as a separately authorized
+5. Keep production deployment and real-data migration as a separately authorized
    release process.
 
 ## Explicitly out of scope until approved

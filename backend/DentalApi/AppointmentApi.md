@@ -1,8 +1,8 @@
-# Patient appointment booking API (University MVP, Step 3)
+# Patient appointment booking API
 
 All routes below require the existing clinic JWT and Patient role. Clinic and
 user identity come exclusively from validated claims. Platform tokens cannot
-substitute for clinic tokens. Existing endpoints and contracts are unchanged.
+substitute for clinic tokens.
 
 | Method | Route | Purpose |
 | --- | --- | --- |
@@ -10,6 +10,7 @@ substitute for clinic tokens. Existing endpoints and contracts are unchanged.
 | GET | `/api/appointments/doctors?serviceId=51` | Active, published doctors with active Doctor users and an active association to the selected service |
 | GET | `/api/appointments/slots?doctorProfileId=31&serviceId=51&date=2026-11-02` | Advisory available slots for one clinic-local date |
 | POST | `/api/appointments` | Atomically confirm an appointment |
+| POST | `/api/appointments/{id}/cancel` | Cancel an own future booking and free its slot |
 | GET | `/api/appointments/me?page=1&pageSize=20` | Own bookings, newest start then ID first |
 | GET | `/api/appointments/{id}` | One own booking; inaccessible IDs return 404 |
 
@@ -103,6 +104,19 @@ inaccessible resources 404 and unavailable times/conflicts 409. New domain messa
 use Mongolian. Existing framework validation and global exception handling remain
 in force; database details are not returned to clients.
 
+## Cancellation contract
+
+Send a POST with the appointment ID in the route and no body. The caller's
+validated clinic and user determine ownership. Nonpositive IDs return 400;
+inaccessible or missing appointments return 404. A confirmed appointment that
+has already started returns 409. Successful cancellation returns 200 with
+the existing appointment response and status `Cancelled`. The record remains in
+history and its interval no longer blocks slots. Repeating a successful
+cancellation returns that same status without queuing a duplicate event.
+An eligible notification outbox entry and the status change are committed together.
+Client reconciliation after an uncertain outcome can use the existing detail GET.
+This endpoint does not reschedule an appointment.
+
 ## Validation and limits
 
 AppointmentApiTests use synthetic in-memory SQLite, real JWT validation, independent
@@ -123,6 +137,8 @@ or production database. No database connection is configured by this document.
 
 The relationship and database-overlap migrations are documented in
 [appointment persistence](AppointmentPersistence.md). PostgreSQL startup
-migration guard remains enabled. Flutter integration, rescheduling, payments
-and treatment history are outside this step. Notifications remain transactional
-outbox work and are not sent before commit.
+migration guard remains enabled. Flutter LIVE uses the cancellation endpoint
+from appointment history; same-revision end-to-end verification with an approved
+PostgreSQL target is separate from the offline API and widget tests. Rescheduling,
+payments and treatment history are outside this API. Notifications remain
+transactional outbox work and are not sent before commit.
