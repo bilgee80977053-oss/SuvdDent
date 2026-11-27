@@ -814,6 +814,48 @@ namespace DentalApi.Migrations.PostgreSql
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.TreatmentAddendum", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("integer");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("integer");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("uuid");
+
+                    b.Property<int>("AuthorUserId")
+                        .HasColumnType("integer");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("character varying(2000)");
+
+                    b.Property<DateTimeOffset>("SignedUtc")
+                        .HasColumnType("timestamp with time zone");
+
+                    b.HasKey("ClinicId", "AppointmentId", "RequestId");
+
+                    b.HasIndex("ClinicId", "AuthorUserId");
+
+                    b.ToTable("TreatmentAddenda", null, t =>
+                        {
+                            t.HasTrigger("TR_TreatmentAddenda_NoMutation");
+
+                            t.HasTrigger("TR_TreatmentAddenda_NoTruncate");
+
+                            t.HasTrigger("TR_TreatmentAddenda_RequireOriginalSigner");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_NoteLength", "length(trim(\"Note\")) BETWEEN 1 AND 2000");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000'");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_SignedUtc", "isfinite(\"SignedUtc\")");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.TreatmentRecord", b =>
                 {
                     b.Property<int>("ClinicId")
@@ -1179,6 +1221,22 @@ namespace DentalApi.Migrations.PostgreSql
                     b.HasOne("DentalApi.Models.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.TreatmentAddendum", b =>
+                {
+                    b.HasOne("DentalApi.Models.TreatmentRecord", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AuthorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

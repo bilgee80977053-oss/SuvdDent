@@ -255,3 +255,31 @@ Remaining: immutable amendments, clinical procedure and tooth definitions,
 scoped longitudinal history, retention/role review, Flutter UI and all
 billing. Do not treat this synthetic draft as production acceptance. See
 [the draft API contract](backend/DentalApi/EncounterTreatmentApi.md).
+
+## Signed treatment addenda draft (2026-11-27)
+
+On isolated `dot/treatment-addenda`, based on `7c2c359`, the original
+assigned clinician can sign an addendum to an existing encounter note under
+the same off-by-default Development/Testing in-memory SQLite gate. The
+original and each addendum remain immutable. The client UUID is scoped to the
+encounter; exact replay creates no duplicate event or record, while changed
+payload with that UUID conflicts. A new addendum and its `TreatmentAmended`
+audit commit together. Only a single addendum may be read by key, only by its
+currently authorized signer and only after durable access audit. No list or
+patient-wide history is exposed.
+
+Source history is now 20 SQLite and 10 PostgreSQL migrations. Provider
+migrations `20261127125153_AddTreatmentAddenda` and
+`20261127125155_AddPostgreSqlTreatmentAddenda` add only the new table, index
+and signer/immutability guards; earlier migrations are unchanged. Existing
+seven-migration PostgreSQL live workflow gates remain closed. PostgreSQL model
+and SQL checks are offline only. No persistent database migration, real data,
+or GitHub publication was performed in this worktree.
+
+| Local draft check | Result |
+| --- | --- |
+| .NET Release | 0 warnings, 0 errors |
+| Focused treatment, audit, authorization and provider checks | 35 passed, 0 failed, 0 skipped |
+| Full offline backend regression filter | 558 passed, 0 failed, 0 skipped; live PostgreSQL categories excluded |
+| Synthetic API/storage | Unmodified original, keyed replay, cross-clinic denial, commit rollback, failed read audit denial, immutability and no-store all passed |
+| PowerShell helper | Passed offline |

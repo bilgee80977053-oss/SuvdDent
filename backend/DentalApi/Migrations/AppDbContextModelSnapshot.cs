@@ -794,6 +794,50 @@ namespace DentalApi.Migrations
                     b.ToTable("Services");
                 });
 
+            modelBuilder.Entity("DentalApi.Models.TreatmentAddendum", b =>
+                {
+                    b.Property<int>("ClinicId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("AppointmentId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("AuthorUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Note")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("SignedUtc")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("ClinicId", "AppointmentId", "RequestId");
+
+                    b.HasIndex("ClinicId", "AuthorUserId");
+
+                    b.ToTable("TreatmentAddenda", null, t =>
+                        {
+                            t.HasTrigger("TR_TreatmentAddenda_NoDelete");
+
+                            t.HasTrigger("TR_TreatmentAddenda_NoReplace");
+
+                            t.HasTrigger("TR_TreatmentAddenda_NoUpdate");
+
+                            t.HasTrigger("TR_TreatmentAddenda_RequireOriginalSigner");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_NoteLength", "length(trim(\"Note\")) BETWEEN 1 AND 2000 AND typeof(\"Note\") = 'text' AND instr(\"Note\", char(0)) = 0");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_RequestId", "\"RequestId\" <> '00000000-0000-0000-0000-000000000000' AND typeof(\"RequestId\") = 'text' AND length(CAST(\"RequestId\" AS BLOB)) = 36\n AND upper(\"RequestId\") = \"RequestId\" COLLATE BINARY\n AND substr(\"RequestId\", 9, 1) = '-' AND substr(\"RequestId\", 14, 1) = '-'\n AND substr(\"RequestId\", 19, 1) = '-' AND substr(\"RequestId\", 24, 1) = '-'\n AND length(replace(\"RequestId\", '-', '')) = 32\n AND replace(\"RequestId\", '-', '') NOT GLOB '*[^0-9A-F]*'");
+
+                            t.HasCheckConstraint("CK_TreatmentAddenda_SignedUtc", "typeof(\"SignedUtc\") = 'integer' AND \"SignedUtc\" BETWEEN 1 AND 3155378975999999998");
+                        });
+                });
+
             modelBuilder.Entity("DentalApi.Models.TreatmentRecord", b =>
                 {
                     b.Property<int>("ClinicId")
@@ -1157,6 +1201,22 @@ namespace DentalApi.Migrations
                     b.HasOne("DentalApi.Models.Clinic", null)
                         .WithMany()
                         .HasForeignKey("ClinicId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("DentalApi.Models.TreatmentAddendum", b =>
+                {
+                    b.HasOne("DentalApi.Models.TreatmentRecord", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AppointmentId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("DentalApi.Models.User", null)
+                        .WithMany()
+                        .HasForeignKey("ClinicId", "AuthorUserId")
+                        .HasPrincipalKey("ClinicId", "Id")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
                 });

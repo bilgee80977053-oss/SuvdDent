@@ -7,14 +7,20 @@ using Microsoft.EntityFrameworkCore;
 
 namespace DentalApi.Services;
 
-public enum EncounterTreatmentOutcome { Recorded, Read, Missing, Invalid, Duplicate, StorageUnavailable }
+public enum EncounterTreatmentOutcome { Recorded, Read, Missing, Invalid, Duplicate, Replayed, StorageUnavailable }
 public sealed record EncounterTreatmentNote(int AppointmentId, string Note, DateTimeOffset SignedUtc);
 public sealed record EncounterTreatmentResult(EncounterTreatmentOutcome Outcome, EncounterTreatmentNote? Record = null);
+public sealed record EncounterTreatmentAddendum(Guid RequestId, string Note, DateTimeOffset SignedUtc);
+public sealed record EncounterAddendumResult(EncounterTreatmentOutcome Outcome, EncounterTreatmentAddendum? Record = null);
 
 public interface IEncounterTreatmentService
 {
     Task<EncounterTreatmentOutcome> SignAsync(ClaimsPrincipal actor, int appointmentId, string? note, CancellationToken token);
     Task<EncounterTreatmentResult> ReadAsync(ClaimsPrincipal actor, int appointmentId, CancellationToken token);
+    Task<EncounterTreatmentOutcome> SignAddendumAsync(
+        ClaimsPrincipal actor, int appointmentId, Guid requestId, string? note, CancellationToken token);
+    Task<EncounterAddendumResult> ReadAddendumAsync(
+        ClaimsPrincipal actor, int appointmentId, Guid requestId, CancellationToken token);
 }
 
 internal sealed class EncounterTreatmentService(
@@ -87,6 +93,79 @@ internal sealed class EncounterTreatmentService(
             return new(EncounterTreatmentOutcome.StorageUnavailable);
         }
     }
+
+    public async Task<EncounterTreatmentOutcome> SignAddendumAsync(
+        ClaimsPrincipal actor, int appointmentId, Guid requestId, string? note, CancellationToken token)
+    {
+        var clean = Clean(note);
+        if (requestId == Guid.Empty || clean is null)
+            return EncounterTreatmentOutcome.Invalid;
+
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+            var scope = await scopeService.FindAsync(actor, appointmentId, token);
+            if (scope is null || !await OwnsOriginal(scope, token))
+                return EncounterTreatmentOutcome.Missing;
+
+            var existing = await OwnedAddenda(scope).Where(row => row.RequestId == requestId)
+                .Select(row => row.Note).SingleOrDefaultAsync(token);
+            if (existing is not null)
+                return string.Equals(existing, clean, StringComparison.Ordinal)
+                    ? EncounterTreatmentOutcome.Replayed : EncounterTreatmentOutcome.Duplicate;
+
+            db.Add(new TreatmentAddendum
+            {
+                ClinicId = scope.ClinicId, AppointmentId = scope.AppointmentId,
+                AuthorUserId = scope.DoctorUserId, RequestId = requestId,
+                Note = clean, SignedUtc = clock.GetUtcNow()
+            });
+            audit.Stage(scope, ClinicalAuditAction.TreatmentAmended, Guid.NewGuid());
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return EncounterTreatmentOutcome.Recorded;
+        }
+        catch (Exception error) when (error is DbUpdateException or SqliteException)
+        {
+            return EncounterTreatmentOutcome.StorageUnavailable;
+        }
+    }
+
+    public async Task<EncounterAddendumResult> ReadAddendumAsync(
+        ClaimsPrincipal actor, int appointmentId, Guid requestId, CancellationToken token)
+    {
+        if (requestId == Guid.Empty)
+            return new(EncounterTreatmentOutcome.Missing);
+        try
+        {
+            await using var transaction = await db.Database.BeginTransactionAsync(IsolationLevel.Serializable, token);
+            var scope = await scopeService.FindAsync(actor, appointmentId, token);
+            if (scope is null || !await OwnsOriginal(scope, token))
+                return new(EncounterTreatmentOutcome.Missing);
+            var row = await OwnedAddenda(scope).Where(item => item.RequestId == requestId)
+                .Select(item => new EncounterTreatmentAddendum(item.RequestId, item.Note, item.SignedUtc))
+                .SingleOrDefaultAsync(token);
+            if (row is null)
+                return new(EncounterTreatmentOutcome.Missing);
+
+            audit.Stage(scope, ClinicalAuditAction.HistoryRead, Guid.NewGuid());
+            await db.SaveChangesAsync(token);
+            await transaction.CommitAsync(token);
+            return new(EncounterTreatmentOutcome.Read, row);
+        }
+        catch (Exception error) when (error is DbUpdateException or SqliteException)
+        {
+            return new(EncounterTreatmentOutcome.StorageUnavailable);
+        }
+    }
+
+    private Task<bool> OwnsOriginal(ClinicalEncounterScope scope, CancellationToken token)
+        => db.Set<TreatmentRecord>().AsNoTracking().AnyAsync(row => row.ClinicId == scope.ClinicId &&
+            row.AppointmentId == scope.AppointmentId && row.AuthorUserId == scope.DoctorUserId, token);
+
+    private IQueryable<TreatmentAddendum> OwnedAddenda(ClinicalEncounterScope scope)
+        => db.Set<TreatmentAddendum>().AsNoTracking().Where(row => row.ClinicId == scope.ClinicId &&
+            row.AppointmentId == scope.AppointmentId && row.AuthorUserId == scope.DoctorUserId);
 
     private static string? Clean(string? note)
     {

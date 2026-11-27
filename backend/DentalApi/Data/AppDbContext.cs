@@ -39,6 +39,7 @@ public class AppDbContext : DbContext
         AppointmentModelConfiguration.Configure(b, Database.IsSqlite());
         ClinicalAuditModelConfiguration.Configure(b, Database.IsSqlite());
         TreatmentRecordModelConfiguration.Configure(b, Database.IsSqlite());
+        TreatmentAddendumModelConfiguration.Configure(b, Database.IsSqlite());
         NotificationModelConfiguration.Configure(b);
         PhoneVerificationModelConfiguration.Configure(b);
 

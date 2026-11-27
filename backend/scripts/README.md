@@ -38,8 +38,9 @@ continuing to reject quotes, whitespace, and SQL syntax.
 
 The reviewed live history contains seven ordered PostgreSQL IDs, ending in
 `20261127122656_AddPostgreSqlAppointmentReschedules`. The clinical audit review
-overlay declares eight source migrations and the treatment draft nine; live
-integration and rehearsal stop before credential entry on both branches. The development fixtures also reject it
+overlay declares eight source migrations, the treatment draft nine, and the
+addenda draft ten; live integration and rehearsal stop before credential entry
+on those branches. The development fixtures also reject it
 before writes. No clinical migration approval is defined. The existing test-result
 gate for the seven-migration candidate requires exactly 13 passed results with
 no failures or skips; failure details are sanitized before entering the report.

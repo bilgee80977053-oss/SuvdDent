@@ -54,6 +54,17 @@ The combined source currently has 19 SQLite and 9 PostgreSQL migrations; both
 clinical migrations remain outside the seven-migration live controls. See
 [the draft API contract](backend/DentalApi/EncounterTreatmentApi.md).
 
+## Signed addenda draft
+
+The next isolated `dot/treatment-addenda` draft preserves the initial note
+and lets its original, still-assigned clinician append a separate signed note
+with a stable client UUID. A write and its `TreatmentAmended` audit commit
+together; exact replay does not create another record. Retrieval is one keyed
+addendum after a successful read audit. The in-memory-only gate is unchanged.
+Source migration inventory is now 20 SQLite / 10 PostgreSQL, still outside the
+seven-migration live workflow. No patient-wide history, billing or actual
+database use was introduced.
+
 ## Architecture
 
 - `backend/DentalApi/Program.cs` composes controllers, DI, auth, rate limiting,
