@@ -381,3 +381,27 @@ booked/assigned/catalog boundaries, immutable label, replay, commit and
 audit-insert rollback, no unrelated tracked writes, same-scope retry and
 SQLite immutability. Both migration snapshots and generated additive SQL
 were checked offline.
+
+## Performed-procedure synthetic HTTP acceptance draft
+
+Isolated `dot/performed-http-acceptance` starts from exact PR #14 head
+`d6f6d21`. It adds an explicit off-by-default clinic JWT Doctor POST,
+only in Testing with in-memory SQLite and its dedicated flag. It reaches
+the already-tested booked-service/qualification/audit transaction. One
+route-bound clinical result is returned after commit; no patient or
+clinician ID, money, price or payment receipt is returned. Exact retry is
+empty, changed payload with the same UUID is refused, and no reader was added.
+
+No migrations, provider histories, or original note/addendum routes
+changed. PostgreSQL was excluded and never contacted. The nonmemory HTTP
+check presents file-connection metadata after synthetic in-memory
+authentication and verifies no persistent connection attempt. Model-only
+PostgreSQL refusal is not a live-server result.
+
+Exact Release build passed with 0 warnings/errors. Focused acceptance passed
+47/47 and the full offline backend suite 601/601 (0 failures/skips), with
+PowerShell helper passed. Synthetic HTTP cases verified strict shape, 1 KiB
+declared-body bound, clinic JWT role and tenant isolation, opted-in memory gate,
+out-of-environment and file rejection, qualification, signed result, empty
+replay, conflict and sanitized transaction failure. Real listener/chunked-body,
+live PostgreSQL, production rollout and an audited read flow were not verified.

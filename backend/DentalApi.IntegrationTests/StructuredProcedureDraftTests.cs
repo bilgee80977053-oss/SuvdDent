@@ -1,7 +1,14 @@
 using System.Data;
 using System.Data.Common;
+using System.Net;
+using System.Net.Http.Json;
+using System.Text;
+using System.Text.Json;
+using DentalApi.Controllers;
 using System.Security.Claims;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Mvc.Filters;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -283,6 +290,194 @@ public sealed class StructuredProcedureDraftTests
         Assert.Equal(ConnectionState.Closed, db.Database.GetDbConnection().State);
     }
 
+    [Fact]
+    public async Task Performed_HTTP_sign_uses_the_validated_catalogue_and_replay_does_not_return_a_record()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        using var doctor = await app.AsAsync(13);
+        var key = Guid.NewGuid();
+        var url = PerformedRoute(301);
+        using var created = await doctor.PostAsJsonAsync(url, SignRequest(key));
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.True(created.Headers.CacheControl?.NoStore);
+        var body = await created.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(7, body.EnumerateObject().Count());
+        Assert.Equal(301, body.GetProperty("appointmentId").GetInt32());
+        Assert.Equal(key, body.GetProperty("requestId").GetGuid());
+        Assert.Equal(51, body.GetProperty("serviceId").GetInt32());
+        Assert.Equal("Synthetic booked service", body.GetProperty("serviceLabel").GetString());
+        Assert.Equal("SingleTooth", body.GetProperty("scope").GetString());
+        Assert.Equal("85", body.GetProperty("toothCode").GetString());
+        Assert.Equal(TimeSpan.Zero, body.GetProperty("signedUtc").GetDateTimeOffset().Offset);
+
+        using var repeated = await doctor.PostAsJsonAsync(url, SignRequest(key));
+        Assert.Equal(HttpStatusCode.NoContent, repeated.StatusCode);
+        Assert.True(repeated.Headers.CacheControl?.NoStore);
+        Assert.Empty(await repeated.Content.ReadAsStringAsync());
+        using var conflict = await doctor.PostAsJsonAsync(url, SignRequest(key) with { ToothCode = "84" });
+        Assert.Equal(HttpStatusCode.Conflict, conflict.StatusCode);
+        Assert.DoesNotContain("Synthetic booked service", await conflict.Content.ReadAsStringAsync());
+        using var noRead = await doctor.GetAsync(url);
+        Assert.Equal(HttpStatusCode.MethodNotAllowed, noRead.StatusCode);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Equal(key, (await db.Set<PerformedProcedure>().SingleAsync()).RequestId);
+        Assert.Equal(ClinicalAuditAction.TreatmentRecorded, (await db.Set<ClinicalAuditEvent>().SingleAsync()).Action);
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_refuses_untrusted_payload_and_invalid_targets()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        using var doctor = await app.AsAsync(13);
+        var url = PerformedRoute(301);
+        var key = Guid.NewGuid();
+        foreach (var invalid in new[]
+        {
+            SignRequest(Guid.Empty),
+            SignRequest(key) with { ServiceId = 0 },
+            SignRequest(key) with { ToothCode = "86" },
+            SignRequest(key) with { Scope = "Visit" },
+            SignRequest(key) with { Scope = "singleTooth" },
+            SignRequest(key) with { Scope = null }
+        })
+        {
+            using var rejected = await doctor.PostAsJsonAsync(url, invalid);
+            Assert.Equal(HttpStatusCode.BadRequest, rejected.StatusCode);
+        }
+        using var untrusted = await doctor.PostAsJsonAsync(url, new
+        {
+            requestId = key, serviceId = 51, scope = "SingleTooth", toothCode = "85",
+            clinicId = 202, patientId = 42, doctorUserId = 17, appointmentId = 302,
+            serviceLabel = "Synthetic supplied label", amount = 1, price = 1
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, untrusted.StatusCode);
+        using var wrongShape = await doctor.PostAsJsonAsync(url, new { requestId = key, serviceId = "51", scope = "Visit" });
+        Assert.Equal(HttpStatusCode.BadRequest, wrongShape.StatusCode);
+        using var oversized = new StringContent(JsonSerializer.Serialize(SignRequest(key)) + new string(' ', 1024),
+            Encoding.UTF8, "application/json");
+        using var tooLarge = await doctor.PostAsync(url, oversized);
+        Assert.Equal(HttpStatusCode.RequestEntityTooLarge, tooLarge.StatusCode);
+        await AssertNoProcedureWrites(app);
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_requires_clinic_doctor_assignee_and_active_booked_qualification()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        var key = Guid.NewGuid();
+        using var anonymous = app.Client();
+        using var patient = await app.AsAsync(11);
+        using var director = await app.AsAsync(15);
+        using var foreign = await app.AsAsync(23, clinicId: 202);
+        using var unassigned = await app.AsAsync(17);
+        using var assigned = await app.AsAsync(13);
+        await Expect(anonymous, HttpStatusCode.Unauthorized);
+        await Expect(patient, HttpStatusCode.Forbidden);
+        await Expect(director, HttpStatusCode.Forbidden);
+        await Expect(foreign, HttpStatusCode.NotFound);
+        await Expect(unassigned, HttpStatusCode.NotFound);
+        await Expect(assigned, HttpStatusCode.NotFound, request: SignRequest(key) with { ServiceId = 52 });
+        await Expect(assigned, HttpStatusCode.NotFound, encounter: 302);
+        await Expect(assigned, HttpStatusCode.NotFound, encounter: 303);
+
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var qualification = await db.DoctorServices.SingleAsync(row => row.ServiceId == 51);
+            qualification.IsActive = false;
+            await db.SaveChangesAsync();
+        }
+        await Expect(assigned, HttpStatusCode.NotFound);
+        await AssertNoProcedureWrites(app);
+
+        async Task Expect(HttpClient caller, HttpStatusCode status, int encounter = 301,
+            SignPerformedProcedureRequest? request = null)
+        {
+            using var response = await caller.PostAsJsonAsync(PerformedRoute(encounter), request ?? SignRequest(key));
+            Assert.Equal(status, response.StatusCode);
+        }
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_is_off_without_flag_or_outside_testing_or_on_nonmemory_connection_metadata()
+    {
+        using (var offline = await CreateFixture())
+        {
+            using var doctor = await offline.AsAsync(13);
+            using var denied = await doctor.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
+            Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+            await AssertNoProcedureWrites(offline);
+        }
+
+        using (var memoryHost = await CreateFixture(httpEnabled: true))
+        {
+            using var doctor = await memoryHost.AsAsync(13);
+            using var memoryScope = memoryHost.Services.CreateScope();
+            var memoryEnvironment = memoryScope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+            try
+            {
+                foreach (var environment in new[] { "Development", "Production" })
+                {
+                    memoryEnvironment.EnvironmentName = environment;
+                    using var denied = await doctor.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
+                    Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+                    Assert.True(denied.Headers.CacheControl?.NoStore);
+                }
+            }
+            finally { memoryEnvironment.EnvironmentName = "Testing"; }
+            await AssertNoProcedureWrites(memoryHost);
+        }
+
+        using var app = await CreateFixture(httpEnabled: true, fakePersistentMetadata: true);
+        using var clinician = await app.AsAsync(13);
+        using var scope = app.Services.CreateScope();
+        var host = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+        using var nonMemory = await clinician.PostAsJsonAsync(PerformedRoute(301), SignRequest(Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.NotFound, nonMemory.StatusCode);
+        Assert.True(nonMemory.Headers.CacheControl?.NoStore);
+
+        using var postgresModelOnly = new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
+        Assert.False(PerformedProcedureService.IsTestingMemorySqlite(host, postgresModelOnly));
+        Assert.Equal(ConnectionState.Closed, postgresModelOnly.Database.GetDbConnection().State);
+        Assert.Equal(0, app.OpenGuard.PersistentAttempts);
+        await AssertNoProcedureWrites(app);
+    }
+
+    [Fact]
+    public async Task Performed_HTTP_gives_generic_failure_and_no_signed_result_until_transaction_commits()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        using var clinician = await app.AsAsync(13);
+        var url = PerformedRoute(301);
+        var request = SignRequest(Guid.NewGuid());
+        app.CommitFailure.Enabled = true;
+        using var failed = await clinician.PostAsJsonAsync(url, request);
+        app.CommitFailure.Enabled = false;
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, failed.StatusCode);
+        Assert.True(failed.Headers.CacheControl?.NoStore);
+        var body = await failed.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("Synthetic performed procedure commit failure", body);
+        Assert.DoesNotContain("Synthetic booked service", body);
+        Assert.DoesNotContain(request.RequestId.ToString(), body);
+        await AssertNoProcedureWrites(app);
+
+        using var retry = await clinician.PostAsJsonAsync(url, request);
+        Assert.Equal(HttpStatusCode.Created, retry.StatusCode);
+    }
+
+    private static SignPerformedProcedureRequest SignRequest(Guid id) => new(id, 51, "SingleTooth", "85");
+    private static string PerformedRoute(int appointmentId) => $"/api/clinical/appointments/{appointmentId}/performed-procedures";
+
+    private static async Task AssertNoProcedureWrites(ProcedureFactory app)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        Assert.Empty(await db.Set<PerformedProcedure>().ToArrayAsync());
+        Assert.Empty(await db.Set<ClinicalAuditEvent>().ToArrayAsync());
+    }
+
     private static StructuredProcedureDraftInput Input(int serviceId = 52)
         => new(301, serviceId, StructuredTreatmentScope.SingleTooth, "85");
 
@@ -291,9 +486,9 @@ public sealed class StructuredProcedureDraftTests
             [new("userId", actor.ToString()), new("clinicId", clinic.ToString()), new(ClaimTypes.Role, role.ToString())],
             "SyntheticClinic"));
 
-    private static async Task<ProcedureFactory> CreateFixture()
+    private static async Task<ProcedureFactory> CreateFixture(bool httpEnabled = false, bool fakePersistentMetadata = false)
     {
-        var app = new ProcedureFactory();
+        var app = new ProcedureFactory(httpEnabled, fakePersistentMetadata);
         await app.SeedAsync(); // The source factory gates migrations on synthetic, named in-memory SQLite.
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -318,15 +513,70 @@ public sealed class StructuredProcedureDraftTests
         return app;
     }
 
-    private sealed class ProcedureFactory : DoctorApiFactory
+    private sealed class ProcedureFactory(bool httpEnabled, bool fakePersistentMetadata) : DoctorApiFactory
     {
         internal readonly FailingCommit CommitFailure = new();
+        internal readonly RefusePersistentOpen OpenGuard = new();
 
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
-            builder.ConfigureServices(services => services.AddDbContext<AppDbContext>(
-                options => options.AddInterceptors(CommitFailure)));
+            if (httpEnabled)
+                builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?> { ["Features:PerformedProcedureAcceptance"] = "true" }));
+            builder.ConfigureServices(services =>
+            {
+                services.AddDbContext<AppDbContext>(options => options.AddInterceptors(CommitFailure, OpenGuard));
+                if (fakePersistentMetadata)
+                    services.AddControllers(options => options.Filters.Add(new SwapConnectionMetadata()));
+            });
+        }
+    }
+
+    // Run only after real clinic JWT authentication: present file-shaped connection
+    // metadata to the MVC action without ever opening or creating a file database.
+    private sealed class SwapConnectionMetadata : IAsyncActionFilter
+    {
+        public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
+        {
+            if (context.Controller is not PerformedProcedureAcceptanceController)
+            {
+                await next();
+                return;
+            }
+            var db = context.HttpContext.RequestServices.GetRequiredService<AppDbContext>();
+            var memory = db.Database.GetConnectionString();
+            db.Database.SetConnectionString("Data Source=synthetic-never-open-acceptance.db;Mode=ReadOnly;Pooling=False");
+            try { await next(); }
+            finally { db.Database.SetConnectionString(memory); }
+        }
+    }
+
+    private sealed class RefusePersistentOpen : DbConnectionInterceptor
+    {
+        internal int PersistentAttempts;
+
+        private void Verify(DbConnection connection)
+        {
+            if (connection is not SqliteConnection ||
+                EncounterTreatmentController.IsMemorySqliteConnection(connection.ConnectionString))
+                return;
+            Interlocked.Increment(ref PersistentAttempts);
+            throw new InvalidOperationException("Test fixture may never open a persistent SQLite database.");
+        }
+
+        public override InterceptionResult ConnectionOpening(DbConnection connection, ConnectionEventData eventData,
+            InterceptionResult result)
+        {
+            Verify(connection);
+            return result;
+        }
+
+        public override ValueTask<InterceptionResult> ConnectionOpeningAsync(DbConnection connection,
+            ConnectionEventData eventData, InterceptionResult result, CancellationToken cancellationToken = default)
+        {
+            Verify(connection);
+            return ValueTask.FromResult(result);
         }
     }
 
