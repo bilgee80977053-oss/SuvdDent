@@ -77,3 +77,29 @@ safeguards remain closed and no persistent migration was run. Before any
 clinician-facing route, review approved procedure permission, independent
 audit/export and real target validation under separate approval. Billing
 requires separate effective approved tariffs and is not inferred here.
+
+## Performed-procedure synthetic HTTP acceptance
+
+The next draft adds only
+`POST /api/clinical/appointments/{appointmentId}/performed-procedures`.
+It is off unless `Features:PerformedProcedureAcceptance=true` is explicitly
+set, the process is in Testing, and the active EF provider is SQLite using
+an in-memory connection. Development, Production, PostgreSQL and file
+SQLite are not enabled even with the flag. This is not a rollout mechanism.
+
+The real clinic Bearer/Doctor path validates identity before the transaction.
+The route ID supplies the visit. The JSON body is capped at 1 KiB and takes
+only `requestId` (nonempty UUID), `serviceId` (positive JSON integer),
+`scope` (`Visit` or `SingleTooth`) and `toothCode` (null for Visit or one
+canonical routine FDI code for SingleTooth). Caller-provided clinic,
+patient, clinician, label, financial or route identity fields are refused.
+The service still rechecks booked service, current qualification and
+assignment within its atomic audit/write transaction.
+
+Successful 201 returns appointment ID, request UUID, authoritative service
+ID/label, scope, optional tooth code and signed UTC only; it is not a
+payment or receipt. Exact retries return 204 with no result body; changed
+target for the same visit UUID returns 409. Unknown or unavailable visits or
+qualifications return 404, malformed input 400 (declared oversize 413), and
+storage/audit failure generic 503. Action responses use no-store.
+No history/read route, new schema, billing or deployment is included.

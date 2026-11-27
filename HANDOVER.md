@@ -204,3 +204,14 @@ atomically in Testing in-memory SQLite only, with no route. Earlier notes
 and addenda do not change. The draft source counts are 21 SQLite and 11
 PostgreSQL; live PostgreSQL remains fenced at seven reviewed migrations.
 See [the acceptance boundary](backend/DentalApi/StructuredTreatmentTarget.md).
+
+## Performed-procedure synthetic HTTP acceptance
+
+`dot/performed-http-acceptance` adds a single explicit opt-in POST for
+Testing with in-memory SQLite only. Clinic JWT Doctor auth and the existing
+assignment, booked service, qualification and audit-write transaction
+remain in force. The signed response contains clinical fields only; replay
+has no body and no reader, procedure price or billing is exposed.
+[The clinical draft contract](backend/DentalApi/StructuredTreatmentTarget.md)
+documents shape and rollout limits. No migration or real persistent target
+was used.

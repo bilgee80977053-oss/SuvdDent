@@ -17,13 +17,16 @@ internal sealed record PerformedProcedureResult(PerformedProcedureStatus Status,
 internal sealed class PerformedProcedureService(
     AppDbContext db, IWebHostEnvironment environment, StructuredProcedureDraftService drafts, ClinicalAuditTrail audit, TimeProvider clock)
 {
+    internal static bool IsTestingMemorySqlite(IWebHostEnvironment environment, AppDbContext db)
+        => environment.IsEnvironment("Testing") && db.Database.IsSqlite() &&
+           EncounterTreatmentController.IsMemorySqliteConnection(db.Database.GetConnectionString());
+
     // This is an internal synthetic test seam, not an enabled workflow or an authorization token.
     internal async Task<PerformedProcedureResult> SignAsync(ClaimsPrincipal actor,
         StructuredProcedureDraftInput input, Guid requestId, CancellationToken cancellationToken = default)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        if (!environment.IsEnvironment("Testing") || !db.Database.IsSqlite() ||
-            !EncounterTreatmentController.IsMemorySqliteConnection(db.Database.GetConnectionString()))
+        if (!IsTestingMemorySqlite(environment, db))
             return new(PerformedProcedureStatus.Unavailable);
         if (requestId == Guid.Empty)
             return new(PerformedProcedureStatus.Invalid);
