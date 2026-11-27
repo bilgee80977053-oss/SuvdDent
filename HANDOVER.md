@@ -14,6 +14,15 @@ providers, an xUnit integration suite, guarded PostgreSQL tooling, and a Flutter
 DEMO/LIVE client. The exact test outcomes and unapplied migration history are in
 `DEVELOPMENT_CHECKPOINT.md`; ordered next work is in `DEVELOPMENT_ROADMAP.md`.
 
+## Clinical history handoff
+
+The isolated clinical access milestone adds an internal appointment scope,
+not a clinical history endpoint. Preserve the patient-profile privacy
+boundary. Add durable audit metadata and verify atomic audit+record writes
+before exposing clinical records. Review tenant-safe record storage, role
+separation, retention and the history scope using the
+[clinical acceptance criteria](backend/DentalApi/ClinicalHistoryAcceptance.md).
+
 ## Architecture
 
 - `backend/DentalApi/Program.cs` composes controllers, DI, auth, rate limiting,

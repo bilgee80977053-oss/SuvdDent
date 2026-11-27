@@ -6,6 +6,19 @@
 **Upstream before handover:** `origin/feature/suvd-dent-backend-completion`
 **Implementation commit:** `cd0c066` (`feat(appointments): enforce database booking integrity`)
 
+## Clinical encounter access milestone (2026-11-27)
+
+On isolated branch `dot/clinical-policy`, added an internal scope check for
+the active doctor assigned to a started, confirmed same-clinic encounter,
+with an active patient and doctor profile. Patient profile responses request
+no caching, and tests guard against exposing or updating clinical fields
+through demographic endpoints. No clinical-history endpoint, storage, audit
+log, or migration was introduced. No PostgreSQL target was contacted.
+The .NET Release build passed with 0 warnings/errors; the offline backend
+filter passed 521 tests (0 failed, 0 skipped). Both PostgreSQL integration
+and concurrency categories were excluded.
+See [clinical acceptance criteria](backend/DentalApi/ClinicalHistoryAcceptance.md).
+
 ## Verified implementation and tests
 
 The backend includes appointment booking and provider-specific integrity

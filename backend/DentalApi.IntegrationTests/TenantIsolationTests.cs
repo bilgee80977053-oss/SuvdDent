@@ -5,6 +5,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Microsoft.IdentityModel.Tokens;
+using DentalApi.Data;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace DentalApi.IntegrationTests;
@@ -22,11 +24,13 @@ public sealed class TenantIsolationTests
         client.DefaultRequestHeaders.Add("X-Clinic-Id", "202");
         using var response = await client.GetAsync("/api/Patients/me?clinicId=202&userId=12&id=22");
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
         var profile = await response.Content.ReadFromJsonAsync<JsonElement>();
         Assert.Equal(21, profile.GetProperty("id").GetInt32());
         Assert.Equal("Patient A", profile.GetProperty("fullName").GetString());
         Assert.Equal("Synthetic A", profile.GetProperty("address").GetString());
         Assert.False(profile.TryGetProperty("medicalNotes", out _));
+        Assert.False(profile.TryGetProperty("allergies", out _));
         Assert.Equal(before, await app.SnapshotBAsync());
     }
 
@@ -42,11 +46,22 @@ public sealed class TenantIsolationTests
         using var response = await client.PutAsJsonAsync("/api/Patients/me?clinicId=202&userId=12&id=22", new
         {
             id = 22, clinicId = 202, userId = 12, role = "Director",
+            medicalNotes = "synthetic forbidden update", allergies = "synthetic forbidden update",
             fullName = "Updated A", phone = "33333333", dateOfBirth = (DateTime?)null, address = "Updated A address"
         });
         // Extra identity fields are ignored; /me updates only authenticated A.
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.True(response.Headers.CacheControl?.NoStore);
         var updated = await response.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.False(updated.TryGetProperty("medicalNotes", out _));
+        Assert.False(updated.TryGetProperty("allergies", out _));
+        using (var scope = app.Services.CreateScope())
+        {
+            var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+            var patient = (await db.Patients.FindAsync(21))!;
+            Assert.Null(patient.MedicalNotes);
+            Assert.Null(patient.Allergies);
+        }
         Assert.Equal(21, updated.GetProperty("id").GetInt32());
         Assert.Equal("Updated A", updated.GetProperty("fullName").GetString());
         Assert.Equal(before, await app.SnapshotBAsync());
