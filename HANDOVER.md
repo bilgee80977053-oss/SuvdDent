@@ -177,3 +177,11 @@ record contents out of logs and persistent storage. Backend development
 gates and the authorized PostgreSQL rehearsal boundary are unchanged.
 See `DEVELOPMENT_CHECKPOINT.md` for the 151 passing Flutter tests and the
 remaining end-to-end acceptance work.
+
+## Routine structured treatment target
+
+The separate routine-tooth groundwork adds only internal domain validation:
+visit scope has no tooth, and single-tooth scope requires a canonical
+routine FDI identifier. It does not enable a procedure workflow or change
+audited notes, prices, database schema or live controls. See
+[validation scope and sources](backend/DentalApi/StructuredTreatmentTarget.md).
