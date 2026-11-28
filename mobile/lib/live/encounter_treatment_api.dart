@@ -456,6 +456,12 @@ class EncounterTreatmentApi {
     }
   }
 
+  void _discardResponse(http.StreamedResponse response) {
+    // Transport cleanup never masks an authoritative HTTP status.
+    final subscription = response.stream.listen((_) {}, onError: (Object _) {});
+    unawaited(subscription.cancel().catchError((Object _) {}));
+  }
+
   Future<T> _call<T>(
     String path,
     T Function(Json) parse, {
@@ -497,7 +503,7 @@ class EncounterTreatmentApi {
         final streamed = await _client.send(request);
         final isReplay = streamed.statusCode == 204 && onReplay != null;
         if (streamed.statusCode != successStatus && !isReplay) {
-          await streamed.stream.listen((_) {}).cancel();
+          _discardResponse(streamed);
           return (streamed.statusCode, null as List<int>?);
         }
         if (!isReplay &&
@@ -507,12 +513,12 @@ class EncounterTreatmentApi {
               uri,
               expectedLocationPath,
             )) {
-          await streamed.stream.listen((_) {}).cancel();
+          _discardResponse(streamed);
           throw const FormatException();
         }
         final limit = isReplay || onEmptySuccess != null ? 0 : maxResponseBytes;
         if (limit != null && (streamed.contentLength ?? 0) > limit) {
-          await streamed.stream.listen((_) {}).cancel();
+          _discardResponse(streamed);
           throw const FormatException();
         }
         final bytes = <int>[];
