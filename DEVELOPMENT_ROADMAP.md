@@ -92,3 +92,19 @@ This is a development branch, not production release approval.
 - No live database migration, schema reset, destructive data operation or
   modification of real patient records.
 - No real payment, receipt, SMS, or email validation using patient data.
+
+## Billing acceptance gates for the next non-production review
+
+- An estimate is display-only. Any payable invoice must be separately issued
+  from approved, effective pricing for the verified clinic and appointment.
+  Keep the applied revision, approval reference and exact monetary units.
+- A transaction verification, candidate or reservation is not payment. Only
+  a trusted committed settlement may be considered, and its clinic,
+  appointment, invoice and amount must all match. Check duplicate and
+  concurrent transaction claims, ledger rollback and unknown commit outcomes.
+- A receipt prerequisite check is not issuance. Before adding issuance,
+  confirm the legal issuer, required content, numbering, void/reversal and
+  tax rules, and review durable uniqueness, authorization and audit. No
+  rule, provider or amount is presumed here.
+- Keep operator-approved PostgreSQL, real merchant integrations, real
+  patient data and release deployment outside synthetic acceptance.

@@ -265,3 +265,12 @@ values. Before issuance provide a verified server authority and effective
 tariff history, clinic scope, tax/rounding policy, document numbering and a
 durable transaction. This type merely compares explicit scope and
 references. No invoice balance, settlement, receipt or production access.
+
+## Receipt prerequisite / release boundary
+
+Verify the immutable invoice identity and the committed ledger evidence
+independently at an authorized server boundary. Carrier values are not
+authentication. A successful prerequisite does not authorize a real
+receipt; durable idempotent issuance, lifecycle rules, authority and legal
+document requirements remain open. No runtime or provider connection is
+introduced by these tests and the pure check.
