@@ -2,11 +2,15 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/testing.dart';
+import 'package:nexora_dental_mobile/live/dental_api.dart';
+import 'package:nexora_dental_mobile/live/models.dart';
 import 'package:nexora_dental_mobile/live/live_patient_flow.dart';
 import 'package:nexora_dental_mobile/live/patient_invoice_review.dart';
 
 import 'live_api_test.dart' as fixtures;
 
+const loopback = ApiSettings(baseUrl: 'https://127.0.0.1:48899', clinicId: 7);
 const reviewChoice = 'Туршилтын задаргаа харах';
 const nonpayable = 'Төлөх боломжгүй ноорог';
 const invalidReview = 'Энэ захиалгын задаргааг харуулах боломжгүй.';
@@ -74,6 +78,7 @@ Future<void> tap(WidgetTester tester, Finder finder) async {
 Future<void> openHistory(
   WidgetTester tester, {
   InvoiceReviewReader? reader,
+  Future<Map<String, dynamic>?> Function(int)? respond,
   Size viewport = const Size(1000, 1700),
   double textScale = 1,
 }) async {
@@ -81,21 +86,38 @@ Future<void> openHistory(
   tester.view.physicalSize = viewport;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
-  final api = fixtures.makeApi((request) {
-    if (request.url.path == '/api/appointments/me') {
-      return fixtures.response({
-        'page': 1,
-        'pageSize': 20,
-        'items': [
-          {...fixtures.appointmentJson, 'id': 41},
-          {...fixtures.appointmentJson, 'id': 42},
-        ],
-      });
-    }
-    expect(request.url.path, isNot(contains('invoice')));
-    expect(request.url.path, isNot(contains('payment')));
-    return fixtures.standard(request);
-  });
+  final api = DentalApi(
+    loopback,
+    client: MockClient((request) async {
+      if (request.url.path.startsWith('/api/appointments/') &&
+          request.url.path.endsWith('/invoice-draft-review')) {
+        expect(respond, isNotNull);
+        expect(request.method, 'GET');
+        expect(request.followRedirects, isFalse);
+        expect(request.headers['Cache-Control'], 'no-store');
+        expect(request.headers['Authorization'], 'Bearer synthetic-test-token');
+        expect(request.body, isEmpty);
+        final id = int.parse(request.url.pathSegments[2]);
+        final payload = await respond!(id);
+        return payload == null
+            ? fixtures.response({'message': 'Синтетик мэдээлэл'}, 404)
+            : fixtures.response(payload);
+      }
+      if (request.url.path == '/api/appointments/me') {
+        return fixtures.response({
+          'page': 1,
+          'pageSize': 20,
+          'items': [
+            {...fixtures.appointmentJson, 'id': 41},
+            {...fixtures.appointmentJson, 'id': 42},
+          ],
+        });
+      }
+      expect(request.url.path, isNot(contains('invoice')));
+      expect(request.url.path, isNot(contains('payment')));
+      return fixtures.standard(request);
+    }),
+  );
   await tester.pumpWidget(
     MaterialApp(
       builder: (context, child) => MediaQuery(
@@ -104,9 +126,11 @@ Future<void> openHistory(
         child: child!,
       ),
       home: LivePatientFlow(
-        settings: fixtures.settings,
+        settings: loopback,
         api: api,
-        invoiceReviewReader: reader,
+        invoiceReviewReader: respond == null
+            ? reader
+            : api.readInvoiceDraftReview,
       ),
     ),
   );
@@ -409,4 +433,92 @@ void main() {
       }
     },
   );
+  testWidgets(
+    'transport-backed booking preview ignores delayed prior booking and 404',
+    (tester) async {
+      final delayed = Completer<Map<String, dynamic>?>();
+      await openHistory(
+        tester,
+        respond: (id) async {
+          if (id == 41) return delayed.future;
+          return null;
+        },
+      );
+      await tap(tester, choices.first);
+      await tap(tester, choices.last);
+      expect(find.text(invalidReview), findsOneWidget);
+      delayed.complete({'appointmentId': 41, 'breakdown': review()});
+      await tester.pumpAndSettle();
+      expect(find.textContaining('3.21 XTS'), findsNothing);
+      expect(find.text('Синтетик мэдээлэл'), findsNothing);
+    },
+  );
+
+  testWidgets('transport-backed booking preview shows exact ordered amounts', (
+    tester,
+  ) async {
+    await openHistory(
+      tester,
+      respond: (id) async => {'appointmentId': id, 'breakdown': review()},
+    );
+    await tap(tester, choices.first);
+    expect(find.text(nonpayable), findsOneWidget);
+    final amounts = tester
+        .widgetList<Text>(find.textContaining('Мөрийн нийлбэр:'))
+        .map((text) => text.data);
+    expect(amounts, [
+      'Мөрийн нийлбэр: 1.93 XTS',
+      'Мөрийн нийлбэр: 0.53 XTS',
+      'Мөрийн нийлбэр: 0.75 XTS',
+    ]);
+    expect(find.text('Нооргийн нийлбэр: 3.21 XTS'), findsOneWidget);
+  });
+
+  testWidgets('transport-backed logout discards a late success response', (
+    tester,
+  ) async {
+    final delayed = Completer<Map<String, dynamic>?>();
+    await openHistory(tester, respond: (_) => delayed.future);
+    await tap(tester, choices.first);
+    await tap(tester, find.byTooltip('Гарах / Эмнэлэг дахин сонгох'));
+    delayed.complete({'appointmentId': 41, 'breakdown': review()});
+    await tester.pumpAndSettle();
+    expect(find.text(nonpayable), findsNothing);
+    expect(find.textContaining('3.21 XTS'), findsNothing);
+  });
+
+  test('invoice reader refuses nonloopback, bad selection and mismatched responses', () async {
+    final api = fixtures.makeApi(fixtures.standard);
+    addTearDown(api.close);
+    await expectLater(
+      api.readInvoiceDraftReview(41),
+      throwsA(isA<ApiFailure>()),
+    );
+    final local = DentalApi(
+      loopback,
+      client: MockClient((request) async {
+        if (request.url.path.endsWith('/invoice-draft-review')) {
+          return fixtures.response({
+            'appointmentId': 42,
+            'breakdown': review(),
+          });
+        }
+        return fixtures.standard(request);
+      }),
+    );
+    addTearDown(local.close);
+    await expectLater(
+      local.readInvoiceDraftReview(41),
+      throwsA(isA<ApiFailure>().having((error) => error.status, 'status', 401)),
+    );
+    await local.login('synthetic@example.invalid', 'synthetic-password');
+    await expectLater(
+      local.readInvoiceDraftReview(0),
+      throwsA(isA<ApiFailure>().having((error) => error.status, 'status', 400)),
+    );
+    await expectLater(
+      local.readInvoiceDraftReview(41),
+      throwsA(isA<ApiFailure>()),
+    );
+  });
 }

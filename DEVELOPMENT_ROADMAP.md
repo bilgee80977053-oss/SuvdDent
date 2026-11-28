@@ -160,3 +160,8 @@ The supplemental draft keeps both distinct loopback checks and the nonpayable
 review release-disabled, and pins reviewed migration source metadata only.
 Keep the operational PostgreSQL rehearsal runner at its reviewed seven-ID
 chain until a separate clinical rehearsal is reviewed and authorized.
+
+- The draft review fixture exercises the exact approved snapshot projection
+  with normal booking ownership on a synthetic host. It is not a release
+  endpoint or approval to introduce real tariffs, invoice issuance,
+  provider calls, payments or receipts.

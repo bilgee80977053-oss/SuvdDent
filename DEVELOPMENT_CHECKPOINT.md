@@ -760,3 +760,24 @@ history refresh. #46 is unchanged; this follow-up adds that test repair,
 the narrow/200%-text nonpayable invoice review accessibility regression, and
 an offline source inventory for 21 SQLite/11 PostgreSQL migrations.
 These are not additional independent test totals for this combined tree.
+
+## Invoice draft review HTTP test fixture
+
+The test assembly can explicitly register a read-only invoice draft review
+endpoint against a disposable Testing + in-memory SQLite host. Application
+code does not compile or register the fixture controller. It uses the
+existing authenticated, active patient booking ownership rules before
+projecting the synthetic server-approved snapshot. The owner receives a
+non-payable exact breakdown with no-store; unknown booking, another owner,
+different clinic and absent/mismatched/incomplete approval share the same
+generic unavailable response. No storage, invoice issuance, payment or
+provider behavior was added.
+Release build passed with no warnings or errors; six independent HTTP
+fixture cases passed.
+
+The combined Flutter client + fixture ran three native Flutter/Kestrel
+loopback TLS cases: two unchanged clinician cases and one dedicated invoice
+case. The invoice case checks owned review totals and no-store plus denial
+for both another patient in the same clinic and a patient in another clinic.
+Flutter analyze and all 232 normal Flutter tests passed locally. These are
+synthetic checks, not evidence of an issued invoice or production backend.

@@ -466,3 +466,17 @@ narrow/high-text-scale accessibility and offline clinical migration source
 checks. No runner scope, operational database access, receipt/payment
 authority or production behavior is changed. Recheck this draft's own exact
 CI outcomes instead of adding earlier standalone test counts.
+
+## Invoice draft review fixture
+
+`AddInvoiceDraftReviewFixture` lives only in the integration test assembly.
+Do not move the controller into the application or expose it through a
+feature flag. The opt-in Flutter loopback harness uses a fixture certificate
+and local synthetic users only. A real invoice reader still needs an
+approved durable store, issuance lifecycle, authorization and audit review.
+
+The optional Flutter reader is restricted to native loopback HTTPS and does
+not replace the default estimate. The dedicated integration case runs via
+`Category=ClinicalFlutterLoopback` with `SUVDDENT_FLUTTER_TOOL` set to the
+pinned Flutter binary; it shares the category with the two clinician cases.
+No payment or store exists to test through this route.
