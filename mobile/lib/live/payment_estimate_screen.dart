@@ -30,6 +30,7 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   String _delivery = 'email';
   bool _sendingEmail = false;
   String? _emailResult;
+  int _selectionVersion = 0;
 
   static const _methods = <(String, String, IconData, String)>[
     ('qpay', 'QPay / QR', Icons.qr_code_2_rounded,
@@ -52,28 +53,50 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
     _load();
   }
 
+  @override
+  void didUpdateWidget(covariant PaymentEstimateScreen oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.api == widget.api &&
+        oldWidget.appointment.id == widget.appointment.id &&
+        oldWidget.appointment.serviceId == widget.appointment.serviceId) {
+      return;
+    }
+    _selectionVersion++;
+    _method = 'qpay';
+    _delivery = 'email';
+    _sendingEmail = false;
+    _emailResult = null;
+    _load();
+  }
+
   void _load() {
-    _estimate = widget.api.paymentEstimate(widget.appointment.id);
+    _estimate = widget.api.paymentEstimate(
+      widget.appointment.id,
+      expectedServiceId: widget.appointment.serviceId,
+    );
   }
 
   Future<void> _sendEstimateEmail() async {
     if (_sendingEmail) return;
+    final selection = _selectionVersion;
     setState(() {
       _sendingEmail = true;
       _emailResult = null;
     });
     try {
       final result = await widget.api.emailPaymentEstimate(widget.appointment.id);
-      if (!mounted) return;
+      if (!mounted || selection != _selectionVersion) return;
       setState(() => _emailResult = result);
     } on ApiFailure catch (e) {
-      if (!mounted) return;
+      if (!mounted || selection != _selectionVersion) return;
       setState(() => _emailResult = e.message);
     } catch (_) {
-      if (!mounted) return;
+      if (!mounted || selection != _selectionVersion) return;
       setState(() => _emailResult = 'Имэйл илгээлтийг баталгаажуулж чадсангүй.');
     } finally {
-      if (mounted) setState(() => _sendingEmail = false);
+      if (mounted && selection == _selectionVersion) {
+        setState(() => _sendingEmail = false);
+      }
     }
   }
 

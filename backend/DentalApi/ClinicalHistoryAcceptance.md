@@ -70,3 +70,27 @@ The seven-migration PostgreSQL workflows and fixtures remain a separate
 approval boundary and fail closed for both clinical review branches. They do
 not authorize migrations or real-data use. No live database validation was
 performed.
+
+## Synthetic encounter selection prerequisite
+
+`GET /api/clinical/appointments/assigned?from=YYYY-MM-DD&until=YYYY-MM-DD&page=1&pageSize=10`
+is disabled by default. It requires real clinic JWT Doctor authentication,
+`Features:AssignedEncounterAcceptance=true`, `Features:PerformedProcedureAcceptance=true`,
+the `Testing` environment, and an active in-memory SQLite store. This is not an
+authorization or feature rollout for persistent environments.
+
+The date interval is inclusive at `from` and exclusive at `until` in UTC, spans
+1–31 days, and requires pages 1–100 with 1–20 rows each. The response is ordered
+by descending start and appointment ID, and contains only page, page size, and
+the appointment ID, UTC start/end, booked service ID and validated current
+service label for each row. It omits counts, look-ahead, patient identifiers,
+patient text, prices and clinical or financial payload. A full page can be
+followed by another request within the bounds; it does not imply more results.
+
+The active authenticated doctor sees only their same-clinic started confirmed
+encounters for active patients with both an active booked catalog service and
+an active doctor–service assignment. A later action must independently recheck
+entitlement. Each released row is committed as metadata-only `HistoryRead` in
+the same transaction, with one server-generated correlation per nonempty page.
+There is no encounter release or row audit for an empty page. Audit or invalid
+server-label failures return a generic 503 without a partial response.

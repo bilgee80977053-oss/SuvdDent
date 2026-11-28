@@ -119,3 +119,39 @@ This is a development branch, not production release approval.
   until a real stored review, verified owner authorization, access auditing,
   and approved nonclinical labels are available. The booking price estimate
   remains independent; do not use it as an invoice review fallback.
+
+## 2026-11-28 review and acceptance order
+
+Review #6, #7 (including #5) and then #8–#16 in order. Keep validation-only
+#17 unmerged and review the CI trigger change in #18 independently. Gate final
+booking and clinical acceptance on paired Flutter/DentalApi loopback tests
+using synthetic data. Distinguish encounter-only records from longitudinal
+history and verify authorization and committed audit before release. Once
+the clinical milestones meet acceptance, add provider-neutral invoice
+snapshots, verified settlement, receipts and clinic administration. Keep
+PostgreSQL live, production deployment and main merges outside this approval.
+
+## Synthetic acceptance evidence, 2026-11-28
+
+- Atomic patient appointment rescheduling: the real Flutter widget and API
+  passed on #23, including stale-slot rollback and same-key replay.
+- Clinician procedure confirmation and reviewed history: actual HTTPS
+  passed on #24; the native clinician confirmation panel passed separately
+  on #29. Immutable note/addendum creation and audited reads passed on #28.
+- Continue by exercising the complete opt-in clinician entry from verified
+  sign-in to server-assigned selection, procedure and note confirmation on
+  one exact synthetic stack, then review workflow handoff and privacy scope.
+- Billing #22/#27 covers arithmetic/evidence only. Approved tariff versions,
+  invoice issuance, atomic payment ledger, legal receipts, and broader
+  clinic administration remain open. Validate runtime PostgreSQL and real
+  device/release readiness only with separate authorization.
+
+## Integrated release-review gate
+
+Review the combined #45 + #43 + #23 + #25 + #38 candidate as one synthetic
+gate after the stacked foundations. Preserve both the patient reschedule and
+clinician HTTPS acceptance runs, plus offline backend, Flutter, and PowerShell
+verification on that exact tree. Green results do not imply persistent
+PostgreSQL acceptance, device release readiness or permission to deploy.
+The clinical entry and invoice review remain isolated; invoice issuance, real
+settlement, legal receipt handling and other release prerequisites are separate.

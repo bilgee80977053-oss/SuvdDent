@@ -1,5 +1,7 @@
 using System.Collections.Concurrent;
 using System.Data.Common;
+using System.Diagnostics;
+using System.Globalization;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
@@ -8,9 +10,12 @@ using DentalApi.Data;
 using DentalApi.Models;
 using DentalApi.Services;
 using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Data.Sqlite;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using Npgsql;
@@ -37,7 +42,7 @@ public sealed class AppointmentApiTests
             return ValueTask.FromResult(result);
         }
     }
-    private sealed class Factory : DoctorApiFactory
+    private sealed class Factory(bool loopback = false) : DoctorApiFactory
     {
         internal readonly FailCommit Failure = new();
         internal readonly Clock Time = new();
@@ -46,6 +51,13 @@ public sealed class AppointmentApiTests
         protected override void ConfigureWebHost(IWebHostBuilder builder)
         {
             base.ConfigureWebHost(builder);
+            if (loopback)
+                builder.ConfigureAppConfiguration((_, configuration) =>
+                    configuration.AddInMemoryCollection(new Dictionary<string, string?>
+                    {
+                        ["AllowedHosts"] = "127.0.0.1",
+                        ["Notifications:WorkerEnabled"] = "false"
+                    }));
             builder.ConfigureServices(services =>
             {
                 services.RemoveAll<TimeProvider>(); services.AddSingleton<TimeProvider>(Time);
@@ -61,9 +73,11 @@ public sealed class AppointmentApiTests
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         await action(db);
     }
-    private static async Task<Factory> App()
+    private static async Task<Factory> App(bool loopback = false)
     {
-        var app = new Factory();
+        var app = new Factory(loopback);
+        if (loopback)
+            app.UseKestrel(0);  // WebApplicationFactory binds 127.0.0.1 on an ephemeral port.
         await app.SeedAsync();
         await Mutate(app, async db =>
         {
@@ -114,6 +128,133 @@ public sealed class AppointmentApiTests
     {
         using var scope = app.Services.CreateScope();
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
+    }
+
+    [AttributeUsage(AttributeTargets.Method)]
+    private sealed class FlutterLoopbackFactAttribute : FactAttribute
+    {
+        public FlutterLoopbackFactAttribute()
+        {
+            if (Environment.GetEnvironmentVariable("SUVDDENT_E2E_FLUTTER") is null)
+                Skip = "Set SUVDDENT_E2E_FLUTTER to an absolute Flutter executable path to opt in.";
+        }
+    }
+
+    [FlutterLoopbackFact]
+    [Trait("Category", "FlutterLoopback")]
+    public async Task Flutter_reschedule_widget_over_real_loopback_preserves_original_on_conflict_and_replays()
+    {
+        Assert.Null(Environment.GetEnvironmentVariable("NEXORA_PG_TEST_CONNECTION"));
+        Assert.Null(Environment.GetEnvironmentVariable("PGPASSWORD"));
+        var flutter = Environment.GetEnvironmentVariable("SUVDDENT_E2E_FLUTTER")!;
+        Assert.True(Path.IsPathFullyQualified(flutter) && File.Exists(flutter),
+            "SUVDDENT_E2E_FLUTTER must identify your installed Flutter executable.");
+        var repo = new DirectoryInfo(AppContext.BaseDirectory);
+        while (repo != null && !File.Exists(Path.Combine(repo.FullName, "mobile", "pubspec.yaml")))
+            repo = repo.Parent;
+        Assert.NotNull(repo);
+
+        await using var app = await App(loopback: true);
+        app.Time.Now = DateTimeOffset.UtcNow;
+        var localNow = TimeZoneInfo.ConvertTimeBySystemTimeZoneId(app.Time.Now, "Asia/Ulaanbaatar");
+        var date = DateOnly.FromDateTime(localNow.DateTime).AddDays(1);
+        await Mutate(app, async db =>
+        {
+            db.DoctorWorkingHours.RemoveRange(await db.DoctorWorkingHours
+                .Where(hours => hours.ClinicId == 101 && hours.DoctorProfileId == 31).ToArrayAsync());
+            await db.SaveChangesAsync();
+            db.DoctorWorkingHours.Add(new DoctorWorkingHours
+            {
+                ClinicId = 101, DoctorProfileId = 31, DayOfWeek = (int)date.DayOfWeek,
+                StartMinute = 540, EndMinute = 780
+            });
+            await db.SaveChangesAsync();
+        });
+        var bound = app.Services.GetRequiredService<IServer>().Features
+            .Get<IServerAddressesFeature>()!.Addresses.Single();
+        var listener = new Uri(bound);
+        Assert.Equal("127.0.0.1", listener.Host);
+        Assert.Equal("http", listener.Scheme);
+        Assert.False(listener.IsDefaultPort);
+
+        var command = new ProcessStartInfo(flutter)
+        {
+            WorkingDirectory = Path.Combine(repo.FullName, "mobile"),
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        };
+        foreach (var argument in new[] { "test", "--no-pub", "--reporter", "expanded",
+            $"--dart-define=SUVDDENT_E2E_PORT={listener.Port}",
+            $"--dart-define=SUVDDENT_E2E_DATE={date.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)}",
+            "test_support/atomic_reschedule_loopback_test.dart" })
+            command.ArgumentList.Add(argument);
+        command.Environment["FLUTTER_SUPPRESS_ANALYTICS"] = "true";
+        command.Environment["CI"] = "true";
+        using var child = Process.Start(command) ?? throw new InvalidOperationException("Flutter did not start.");
+        try
+        {
+            var stdout = child.StandardOutput.ReadToEndAsync();
+            var stderr = child.StandardError.ReadToEndAsync();
+            using var within = new CancellationTokenSource(TimeSpan.FromMinutes(3));
+            await child.WaitForExitAsync(within.Token);
+            var output = await stdout;
+            var errors = await stderr;
+            Assert.True(child.ExitCode == 0, $"Flutter loopback test failed.\n{output}\n{errors}");
+            // Do not mistake a skipped or empty child run for validation.
+            Assert.Contains("All tests passed!", output);
+            Assert.Contains("loopback widget confirmed the appointment lifecycle", output);
+            await Mutate(app, async db =>
+            {
+                var appointments = await db.Appointments.AsNoTracking().ToArrayAsync();
+                Assert.Equal(3, appointments.Length);
+                var ledger = Assert.Single(await db.AppointmentReschedules.AsNoTracking().ToArrayAsync());
+                Assert.Equal(101, ledger.ClinicId);
+                Assert.NotEqual(Guid.Empty, ledger.RequestId);
+                Assert.Equal(AppointmentStatus.Cancelled, Assert.Single(appointments, a => a.Id == ledger.SourceId).Status);
+                Assert.Equal(AppointmentStatus.Confirmed, Assert.Single(appointments, a => a.Id == ledger.ReplacementId).Status);
+            });
+            var outbox = await Outbox(app);
+            Assert.DoesNotContain(outbox, row => row.Event == NotificationEvent.Cancelled);
+            Assert.Equal(outbox.Length, outbox.Select(row => (row.ClinicId, row.AppointmentId, row.Event, row.Channel)).Distinct().Count());
+        }
+        finally
+        {
+            if (!child.HasExited)
+            {
+                child.Kill(entireProcessTree: true);
+                await child.WaitForExitAsync();
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Patient_estimate_is_private_uncached_and_never_a_payable_invoice()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var otherPatient = await app.AsAsync(27);
+        using var foreignPatient = await app.AsAsync(12, clinicId: 202);
+        var appointment = await Book(owner);
+        var path = $"/api/appointments/{appointment.Id}/payment-estimate";
+
+        using var estimate = await owner.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, estimate.StatusCode);
+        Assert.True(estimate.Headers.CacheControl?.NoStore);
+        var payload = await estimate.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(appointment.Id, payload.GetProperty("appointmentId").GetInt32());
+        Assert.Equal(100, payload.GetProperty("minPriceMnt").GetInt64());
+        Assert.False(payload.GetProperty("isFinalAmount").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("totalDueMnt").ValueKind);
+        Assert.Equal("NotTracked", payload.GetProperty("paymentState").GetString());
+        Assert.Equal("NotIssued", payload.GetProperty("receiptState").GetString());
+
+        foreach (var unrelated in new[] { otherPatient, foreignPatient })
+        {
+            using var denied = await unrelated.GetAsync(path);
+            Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+            Assert.True(denied.Headers.CacheControl?.NoStore);
+        }
     }
 
     [Fact]

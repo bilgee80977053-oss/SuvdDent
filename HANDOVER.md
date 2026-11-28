@@ -297,3 +297,161 @@ labels. The reader must bind the outcome to the selected booking; switching
 booking, clinic, reader, history page or session removes the stale review.
 Before enabling a real app entry, specify stored draft ownership, approved
 pricing, audited access, cache policy and the separate invoice lifecycle.
+
+## Resumed work: performed procedures in Flutter
+
+Start review with #6, then #7 (which includes #5), and follow the declared
+stack through #16. Validation-only #17 is not a merge candidate; its hosted
+run 46120829550 verified the same source tree as #16. #18 enables offline
+checks for stacked PRs without adding any deployment, write permission or
+PostgreSQL access. The reconstructed Flutter adapter is independently
+reviewable above #18. A synthetic HTTPS sign/read/replay check is a separate
+milestone; do not present mocks as full client-to-server acceptance.
+
+## Local clinician HTTP acceptance command
+
+After locked Flutter package restore, set `SUVDDENT_FLUTTER_TOOL` to the local
+Flutter executable and run the backend integration test project with
+`--filter 'Category=ClinicalFlutterLoopback'`. Leave both PostgreSQL opt-in
+variables absent. The harness only binds loopback and uses an ephemeral
+certificate and in-memory fixtures. GitHub Actions run 46121334606 verified
+the clinician HTTPS bridge on head `3f991cd`. It is not a substitute for device,
+clinical UI, live PostgreSQL or production acceptance.
+
+## Test-only anchor-bound patient period history
+
+`dot/patient-period-history` limits one synthetic date-range page to the same
+clinic/patient from a currently assigned anchor and the same doctor's own
+signed visits. It discloses only visit ID and start UTC; any page is released
+only after all anchor/returned-visit audit entries commit. Both explicit flags
+and the Testing/in-memory gate are required. No broader production policy,
+schema or real data is implied. See
+[patient history acceptance](backend/DentalApi/PatientPeriodHistoryAcceptance.md).
+
+## Flutter history follow-up
+
+This integration combines the #20 clinician transport and #21 patient
+history boundary. Its one-encounter anchor cannot be used to bypass the
+same-clinic, same-patient, active-assignment and original-signer checks.
+Do not persist returned history or enable this synthetic flow in default UI.
+
+## Clinical note confirmation on the synthetic branch
+
+Resolve an uncertain original note with the audited original GET. Keep the
+same addendum UUID for an explicitly retried addendum; use its audited keyed
+GET to reconcile uncertain results. The Flutter adapter verifies a suitable
+Location for creation without following redirects. A separate cross-origin
+browser deployment review must address Location exposure; no CORS expansion
+or production route is implied by this work.
+
+## Clinical selection prerequisite
+
+The assigned list is Testing + in-memory SQLite only and explicitly off by
+default. The authenticated static date bounds and page size are described
+in the clinical history acceptance guide. The future Flutter selector should
+use only server-returned encounter and booked service data and clear the
+page on session changes; never ask a doctor to guess a patient or clinic ID.
+
+## Assigned encounter mobile integration
+
+The isolated acceptance stack combines #28 and #30 only on a review branch.
+Its HTTPS harness uses the server-approved encounter and booked service
+before signing. The default app route is unchanged.
+
+## Clinician review entry
+
+`ClinicianReviewEntry` is a standalone widget, disabled unless explicitly
+enabled and always disabled in release. It requires a configured HTTPS
+clinic, caller-owned transport factory and a bounded UTC period. It never
+links from the default patient app. Preserve the panel's exact UUID until
+an uncertain submission is reconciled, and dispose session data on logout.
+
+## Note panel handoff
+
+The panel owns no authentication credentials and stores no clinical data
+outside the current widget. Existing original/addenda reads must remain
+audited. Integrate it only into the opt-in clinician review flow initially;
+do not enable it in default or release UI.
+
+## Combined clinician review handoff
+
+The explicitly enabled non-release clinician review shows notes/addenda
+and performed procedures for one server-selected appointment. Keep both
+tab widgets mounted for that selection so changing tabs cannot discard
+an uncertain write. Keep back/selection navigation blocked while either
+panel still owns an outstanding outcome. Logout intentionally clears the
+entire ephemeral session without retrying or persisting either intent.
+Do not link the entry from the default app or relax any server gate.
+Before considering broader rollout, run combined hosted synthetic HTTPS
+checks and review persistent-provider integrity separately.
+
+## Combined review-shell validation
+
+Run the ClinicalFlutterLoopback opt-in through the standard stacked CI.
+The two panels are isolated from default/release routing, share the
+selected encounter and authenticated transport, and preserve uncertain
+writes while switching tabs. The native harness verifies only synthetic
+SQLite and loopback TLS. Device/release and real PostgreSQL readiness
+remain separate.
+
+The synthetic native review acceptance now drives the visible procedure
+and note tabs through the real backend. Keep its transport confined to the
+ephemeral loopback host and retain the independent adapter acceptance.
+The fixture checks the write and audit counts and verifies that tab changes
+do not fetch additional data or leave clinical text visible after logout.
+It does not unlock the default app, release UI, or persistent-provider use.
+
+
+## Director full-replacement assignment regression
+
+Keep existing inactive catalog assignments unchanged when a form updates
+a different service; the backend rejects introducing or editing those
+inactive rows. No schema or production work is involved. Review availability
+and cross-clinic behavior with the hosted regression before release.
+
+## Offline real-loopback rescheduling acceptance
+
+The opt-in `FlutterLoopback` test drives the actual Flutter patient
+rescheduling screen and ASP.NET endpoints together over local Kestrel, with
+only synthetic fixtures and in-memory SQLite. See
+[the offline invocation](backend/DentalApi.IntegrationTests/README.md#offline-flutter-to-api-appointment-acceptance-optional).
+No default app, database target or CI execution policy was changed. This does
+not replace the blocked live PostgreSQL acceptance, staging/device checks,
+or end-to-end booking/cancellation UI coverage beyond the reschedule path.
+
+## Director tariff request contract
+
+Always include `minPrice` explicitly in create and update requests. Zero
+requires explicit selection; an omitted minimum returns validation failure.
+Maximum-price behavior and authorization are unchanged. This does not
+establish tariff approval, audit/version policy or invoice issuance.
+
+## Estimate privacy
+
+Keep appointment-linked estimates uncached and scoped to the verified active
+patient. Estimate UI must not infer a payable invoice, paid status or receipt.
+The regression uses only an isolated fixture and does not invoke email.
+
+## Keep pricing separate from billing
+
+The mobile estimate DTO accepts only the authenticated quoted catalog
+contract (including an unknown price). Do not reuse it for invoice balance,
+payment, or receipt. Use a separate pinned invoice snapshot, verified
+settlement and explicitly authorized receipt workflow when those exist.
+
+## Five-tip candidate handoff
+
+Review `dot/release-review-integrated` relative to #45. It composes #43
+(clinician HTTPS and Director assignments), #23 (patient reschedule loopback),
+#25 (tariff presence), and #38 (estimate privacy), with exact source commits
+listed in DEVELOPMENT_CHECKPOINT.md. The candidate is a draft for review and
+does not modify or retarget the original PRs. Do not separately reapply their
+included ancestors if the combined candidate is chosen later.
+
+CI has separate opt-in processes for `ClinicalFlutterLoopback` and
+`FlutterLoopback`. Retain both gates: the former uses ephemeral localhost HTTPS
+and in-memory SQLite; the latter uses its own isolated, synthetic test host.
+Each process receives only its own test flag and the hosting fixtures own
+their teardown. Do not supply PostgreSQL credentials or use external providers.
+Persistent PostgreSQL, production, and merging to main require separate
+release authorization and validation.

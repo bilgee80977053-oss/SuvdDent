@@ -75,19 +75,33 @@ public class SchedulingService(AppDbContext db)
             if (profile is null) return new(404);
             if (profile.Version != request.Version) return new(409);
             var ids = items.Select(x => x.ServiceId).ToArray();
-            if (await db.Services.CountAsync(s => s.ClinicId == clinic && ids.Contains(s.Id) && s.IsActive) != ids.Length)
-                return new(404);
+            var catalog = await db.Services.Where(s => s.ClinicId == clinic && ids.Contains(s.Id))
+                .ToDictionaryAsync(s => s.Id, s => s.IsActive);
+            var existing = await db.DoctorServices.Where(x => x.ClinicId == clinic && x.DoctorProfileId == doctor)
+                .ToDictionaryAsync(x => x.ServiceId);
+            foreach (var item in items)
+            {
+                if (!catalog.TryGetValue(item.ServiceId, out var active))
+                    return new(404);
+                // A round trip of the full assignment list may carry forward
+                // an unchanged link whose catalog entry was later deactivated.
+                if (!active && (!existing.TryGetValue(item.ServiceId, out var saved) ||
+                    saved.DurationMinutes != item.DurationMinutes ||
+                    saved.BufferBeforeMinutes != item.BufferBeforeMinutes ||
+                    saved.BufferAfterMinutes != item.BufferAfterMinutes || saved.IsActive != item.IsActive))
+                    return new(404);
+            }
             var next = Guid.NewGuid();
             if (await Doctors(clinic).Where(d => d.Id == doctor && d.Version == request.Version)
                 .ExecuteUpdateAsync(s => s.SetProperty(d => d.Version, next).SetProperty(d => d.UpdatedAt, DateTime.UtcNow)) != 1)
                 return new(409);
-            var existing = await db.DoctorServices.Where(x => x.ClinicId == clinic && x.DoctorProfileId == doctor).ToListAsync();
             // Preserve identities for future appointment references; omissions deactivate.
-            foreach (var row in existing) row.IsActive = false;
+            foreach (var row in existing.Values)
+                if (!ids.Contains(row.ServiceId))
+                    row.IsActive = false;
             foreach (var item in items)
             {
-                var row = existing.SingleOrDefault(x => x.ServiceId == item.ServiceId);
-                if (row is null)
+                if (!existing.TryGetValue(item.ServiceId, out var row))
                 {
                     row = new DoctorService { ClinicId = clinic, DoctorProfileId = doctor, ServiceId = item.ServiceId };
                     db.DoctorServices.Add(row);

@@ -72,3 +72,24 @@ jobs:
           flutter pub get --enforce-lockfile
           flutter analyze --no-pub
           flutter test --no-pub
+      - uses: actions/setup-dotnet@0f4a354dd5547a28c70b7853dbd95d5b67886e73 # v6.1.0
+        with:
+          dotnet-version: '10.0.402'
+      - name: Run synthetic clinician Flutter-to-API HTTPS acceptance
+        shell: bash
+        run: |
+          if [[ -v NEXORA_PG_TEST_CONNECTION || -v PGPASSWORD || -v SUVDDENT_FLUTTER_TOOL || -v SUVDDENT_E2E_FLUTTER ]]; then
+            echo 'PostgreSQL credentials and Flutter loopback opt-in variables must be absent before each isolated test.' >&2
+            exit 1
+          fi
+          SUVDDENT_FLUTTER_TOOL="$(command -v flutter)" dotnet test backend/DentalApi.IntegrationTests/DentalApi.IntegrationTests.csproj \
+            --configuration Release --filter 'Category=ClinicalFlutterLoopback'
+      - name: Run synthetic appointment Flutter-to-API loopback acceptance
+        shell: bash
+        run: |
+          if [[ -v NEXORA_PG_TEST_CONNECTION || -v PGPASSWORD || -v SUVDDENT_FLUTTER_TOOL || -v SUVDDENT_E2E_FLUTTER ]]; then
+            echo 'PostgreSQL credentials and Flutter loopback opt-in variables must be absent before each isolated test.' >&2
+            exit 1
+          fi
+          SUVDDENT_E2E_FLUTTER="$(command -v flutter)" dotnet test backend/DentalApi.IntegrationTests/DentalApi.IntegrationTests.csproj \
+            --configuration Release --filter 'Category=FlutterLoopback'
