@@ -284,3 +284,11 @@ page on session changes; never ask a doctor to guess a patient or clinic ID.
 The isolated acceptance stack combines #28 and #30 only on a review branch.
 Its HTTPS harness uses the server-approved encounter and booked service
 before signing. The default app route is unchanged.
+
+## Clinician review entry
+
+`ClinicianReviewEntry` is a standalone widget, disabled unless explicitly
+enabled and always disabled in release. It requires a configured HTTPS
+clinic, caller-owned transport factory and a bounded UTC period. It never
+links from the default patient app. Preserve the panel's exact UUID until
+an uncertain submission is reconciled, and dispose session data on logout.

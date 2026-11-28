@@ -516,3 +516,13 @@ cache results. Independent analysis, focused 53/53 and full 188/188 passed.
 The real synthetic HTTPS exercise now selects the server-supplied encounter
 and service, checks the other clinic gets no rows, then signs and verifies
 the audits. Treat hosted integration results separately from mocks.
+
+## Review-only clinician path: sign in, select and confirm
+
+The opt-in Flutter entry verifies a clinic Doctor, loads the audited
+assignment list and passes the server-supplied appointment and booked
+service to the confirmation panel. It clears state on logout or clinic
+change and cannot change encounter during an unresolved write. No default
+route, release activation, persisted clinical state or external access.
+The isolated widget harness passed 196 Flutter tests and eight existing
+panel tests independently. The combined hosted check runs at its own SHA.

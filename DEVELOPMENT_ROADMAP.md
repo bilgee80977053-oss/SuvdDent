@@ -103,3 +103,18 @@ history and verify authorization and committed audit before release. Once
 the clinical milestones meet acceptance, add provider-neutral invoice
 snapshots, verified settlement, receipts and clinic administration. Keep
 PostgreSQL live, production deployment and main merges outside this approval.
+
+## Synthetic acceptance evidence, 2026-11-28
+
+- Atomic patient appointment rescheduling: the real Flutter widget and API
+  passed on #23, including stale-slot rollback and same-key replay.
+- Clinician procedure confirmation and reviewed history: actual HTTPS
+  passed on #24; the native clinician confirmation panel passed separately
+  on #29. Immutable note/addendum creation and audited reads passed on #28.
+- Continue by exercising the complete opt-in clinician entry from verified
+  sign-in to server-assigned selection, procedure and note confirmation on
+  one exact synthetic stack, then review workflow handoff and privacy scope.
+- Billing #22/#27 covers arithmetic/evidence only. Approved tariff versions,
+  invoice issuance, atomic payment ledger, legal receipts, and broader
+  clinic administration remain open. Validate runtime PostgreSQL and real
+  device/release readiness only with separate authorization.
