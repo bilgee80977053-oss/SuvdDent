@@ -2,7 +2,7 @@ name: Offline validation
 
 'on':
   pull_request:
-    branches: [feature/suvd-dent-backend-completion]
+    branches: [feature/suvd-dent-backend-completion, 'dot/**']
   push:
     branches: [feature/suvd-dent-backend-completion]
 
