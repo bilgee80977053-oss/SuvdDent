@@ -114,3 +114,8 @@ This is a development branch, not production release approval.
   authorization tied to a stored draft and its owner, audit and no-store
   behavior. Separately approve the effective tariff, invoice lifecycle and
   display labels before producing an issued or payable document.
+- The Flutter My Bookings acceptance composition can select one booking and
+  show a synthetic nonpayable review. Keep that composition release-disabled
+  until a real stored review, verified owner authorization, access auditing,
+  and approved nonclinical labels are available. The booking price estimate
+  remains independent; do not use it as an invoice review fallback.
