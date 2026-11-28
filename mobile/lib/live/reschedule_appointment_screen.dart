@@ -54,7 +54,18 @@ class RescheduleAppointmentScreen extends StatelessWidget {
                               : 'Цаг шилжсэн боловч тухайн шинэ захиалга одоо идэвхгүй байна.',
                         ),
                       ),
-                      AppointmentDetailsCard(appointment: replacement),
+                      AppointmentDetailsCard(
+                        appointment: replacement,
+                        doctorName:
+                            replacement.doctorProfileId ==
+                                draft.source.doctorProfileId
+                            ? draft.source.doctorName
+                            : null,
+                        serviceName:
+                            replacement.serviceId == draft.source.serviceId
+                            ? draft.source.serviceName
+                            : null,
+                      ),
                     ] else ...[
                       const Text('Анхны захиалгын мэдээлэл'),
                       AppointmentDetailsCard(appointment: draft.source),

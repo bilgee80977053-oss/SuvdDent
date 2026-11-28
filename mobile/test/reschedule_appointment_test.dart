@@ -338,6 +338,35 @@ void main() {
     },
   );
 
+  test(
+    'optional booking labels are trimmed and discard untrusted formatting',
+    () {
+      final named = Appointment.fromJson({
+        ...original,
+        'doctorName': '  Өлзий эмч  ',
+        'serviceName': 'Шүдний үзлэг',
+      });
+      expect(named.doctorName, 'Өлзий эмч');
+      expect(named.serviceName, 'Шүдний үзлэг');
+      expect(Appointment.fromJson(original).doctorName, isNull);
+      for (final malformed in <Object>[
+        '',
+        42,
+        'Name\nSecond line',
+        'Name\u202E',
+        List.filled(201, 'X').join(),
+      ]) {
+        final a = Appointment.fromJson({
+          ...original,
+          'doctorName': malformed,
+          'serviceName': malformed,
+        });
+        expect(a.doctorName, isNull);
+        expect(a.serviceName, isNull);
+      }
+    },
+  );
+
   testWidgets('LIVE history can select and confirm a real API slot', (
     tester,
   ) async {
@@ -369,14 +398,31 @@ void main() {
           'occupiedEndUtc': end.toIso8601String(),
         });
       }
-      if (r.url.path == '/api/appointments/me' && moved) return movedPage();
+      if (r.url.path == '/api/appointments/me') {
+        if (moved) return movedPage();
+        return fixture.response({
+          'page': 1,
+          'pageSize': 20,
+          'items': [
+            {
+              ...original,
+              'doctorName': 'Өлзий эмч',
+              'serviceName': 'Шүдний үзлэг',
+            },
+          ],
+        });
+      }
       return fixture.standard(r);
     });
+    expect(find.text('Өлзий эмч'), findsOneWidget);
+    expect(find.text('Шүдний үзлэг'), findsOneWidget);
     await tap(
       tester,
       find.widgetWithText(OutlinedButton, 'Захиалгын цаг шилжүүлэх'),
     );
     expect(find.text('Анхны захиалгын мэдээлэл'), findsOneWidget);
+    expect(find.text('Өлзий эмч'), findsOneWidget);
+    expect(find.text('Шүдний үзлэг'), findsOneWidget);
     expect(posts, 0);
     final slots = find.widgetWithText(OutlinedButton, '09:30');
     await tester.scrollUntilVisible(slots, 180);
@@ -389,6 +435,8 @@ void main() {
     await tap(tester, confirm);
     expect(posts, 1);
     expect(find.text('Шинэ цаг баталгаажлаа.'), findsOneWidget);
+    expect(find.text('Өлзий эмч'), findsOneWidget);
+    expect(find.text('Шүдний үзлэг'), findsOneWidget);
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

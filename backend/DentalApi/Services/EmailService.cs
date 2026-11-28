@@ -7,7 +7,7 @@ namespace DentalApi.Services;
 
 public class EmailService(IConfiguration config)
 {
-    public async Task SendAsync(
+    public virtual async Task SendAsync(
         string toEmail,
         string subject,
         string body,

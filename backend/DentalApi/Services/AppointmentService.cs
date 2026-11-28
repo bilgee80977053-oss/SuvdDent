@@ -372,13 +372,27 @@ public sealed class AppointmentService(AppDbContext db, ClinicSchedulingPolicy p
         var patient = await Patients(clinic, user).Select(p => (int?)p.Id).SingleOrDefaultAsync();
         if (patient is null) return Error(404, "Өвчтөний бүртгэл олдсонгүй.");
         var query = Own(clinic, patient.Value);
-        if (id.HasValue)
+        var selected = id.HasValue
+            ? query.Where(a => a.Id == id.Value)
+            : query.OrderByDescending(a => a.StartUtc).ThenByDescending(a => a.Id)
+                .Skip((page - 1) * pageSize).Take(pageSize);
+        var rows = await selected.Select(a => new
         {
-            var row = await query.SingleOrDefaultAsync(a => a.Id == id);
-            return row is null ? Error(404, "Захиалга олдсонгүй.") : new(200, Response(row));
-        }
-        var rows = await query.OrderByDescending(a => a.StartUtc).ThenByDescending(a => a.Id)
-            .Skip((page - 1) * pageSize).Take(pageSize).ToArrayAsync();
-        return new(200, new AppointmentPage(page, pageSize, rows.Select(Response).ToArray()));
+            Appointment = a,
+            // Only project the display labels of the stored booking for the verified
+            // clinic and owner. Never accept caller-selected label IDs or disclose
+            // clinician contact details. Archived catalog entries still label history.
+            DoctorName = db.DoctorProfiles.Where(d => d.Id == a.DoctorProfileId &&
+                    d.ClinicId == a.ClinicId && d.User.ClinicId == a.ClinicId)
+                .Select(d => d.User.FullName).FirstOrDefault(),
+            ServiceName = db.Services.Where(s => s.Id == a.ServiceId && s.ClinicId == a.ClinicId)
+                .Select(s => s.Name).FirstOrDefault()
+        }).ToArrayAsync();
+        var results = rows.Select(row => new AppointmentHistoryResponse(Response(row.Appointment),
+            string.IsNullOrWhiteSpace(row.DoctorName) ? null : row.DoctorName.Trim(),
+            string.IsNullOrWhiteSpace(row.ServiceName) ? null : row.ServiceName.Trim())).ToArray();
+        if (id.HasValue)
+            return results.Length == 0 ? Error(404, "Захиалга олдсонгүй.") : new(200, results.Single());
+        return new(200, new AppointmentHistoryPage(page, pageSize, results));
     }
 }

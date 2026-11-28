@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:timezone/timezone.dart' as tz;
 
+import '../app/app_theme.dart';
 import '../core/widgets/flow_components.dart';
 import 'dental_api.dart';
 import 'live_flow_controller.dart';
@@ -276,6 +277,8 @@ class AppointmentDetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = appointment;
+    final doctorLabel = a.doctorName ?? doctorName;
+    final serviceLabel = a.serviceName ?? serviceName;
     String date, start, end, zone;
     try {
       final local = LiveLabels.local(a.startUtc, a.clinicTimeZoneId);
@@ -302,22 +305,34 @@ class AppointmentDetailsCard extends StatelessWidget {
       padding: const EdgeInsets.only(bottom: 16),
       child: InformationCard(
         children: [
-          Text(
-            'Захиалгын дугаар: №${a.id}',
-            style: Theme.of(context).textTheme.titleLarge,
+          Semantics(
+            header: true,
+            child: Text(
+              'Захиалгын дугаар: №${a.id}',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
           ),
-          DetailRow('Захиалгын төлөв', LiveLabels.status(a.status)),
+          DecoratedBox(
+            decoration: BoxDecoration(
+              color: a.status == 'Confirmed' ? AppColors.mint : AppColors.paper,
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 2),
+              child: DetailRow('Захиалгын төлөв', LiveLabels.status(a.status)),
+            ),
+          ),
           const Divider(),
           DetailRow(
             'Эмч',
-            doctorName?.trim().isNotEmpty == true
-                ? doctorName!
+            doctorLabel?.trim().isNotEmpty == true
+                ? doctorLabel!
                 : 'Эмчийн нэр ирээгүй. Эмнэлгээс лавлана уу.',
           ),
           DetailRow(
             'Үйлчилгээ',
-            serviceName?.trim().isNotEmpty == true
-                ? serviceName!
+            serviceLabel?.trim().isNotEmpty == true
+                ? serviceLabel!
                 : 'Үйлчилгээний нэр ирээгүй. Эмнэлгээс лавлана уу.',
           ),
           DetailRow('Огноо', date),

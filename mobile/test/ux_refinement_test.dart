@@ -131,12 +131,12 @@ void main() {
         expect(find.text('Тест үйлчилгээ'), findsOneWidget);
         await tester.binding.handlePopRoute();
         await tester.pumpAndSettle();
-        expect(title(tester), 'Танд санал болгох эмч\nнар');
+        expect(title(tester), 'Эмч сонгох');
         expect(find.text('Сонгосон үйлчилгээ: Тест үйлчилгээ'), findsOneWidget);
         await tester.tap(find.byTooltip('Миний захиалгууд'));
         await tester.pumpAndSettle();
         await press(tester, 'Захиалгын алхам руу буцах');
-        expect(title(tester), 'Танд санал болгох эмч\nнар');
+        expect(title(tester), 'Эмч сонгох');
         expect(tester.takeException(), isNull);
       },
     );

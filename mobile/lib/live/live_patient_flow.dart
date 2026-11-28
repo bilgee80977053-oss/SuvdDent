@@ -46,7 +46,10 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   final authKey = GlobalKey<FormState>(),
       profileKey = GlobalKey<FormState>(),
       verifyKey = GlobalKey<FormState>();
-  bool registering = false, recoveringEmail = false, showHistory = false, showDashboard = false;
+  bool registering = false,
+      recoveringEmail = false,
+      showHistory = false,
+      showDashboard = false;
   static const titles = [
     'Эмнэлэг сонгох',
     'Нэвтрэх / Бүртгүүлэх',
@@ -175,132 +178,149 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     }
   }
 
-  Widget auth() => Form(
-    key: authKey,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: false, label: Text('Нэвтрэх')),
-            ButtonSegment(value: true, label: Text('Бүртгүүлэх')),
-          ],
-          selected: {registering},
-          onSelectionChanged: flow.busy
-              ? null
-              : (v) => setState(() {
-                  registering = v.first;
-                  recoveringEmail = false;
-                  password.clear();
-                }),
-        ),
-        const SizedBox(height: 20),
-        if (registering) ...[
-          field(name, 'Овог нэр'),
-          field(
-            email,
-            'Имэйл',
-            keyboard: TextInputType.emailAddress,
-            validate: (v) =>
-                RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v.trim())
-                ? null
-                : 'Имэйл хаягаа шалгана уу.',
-          ),
-          field(
-            phone,
-            'Утас (заавал биш)',
-            optional: true,
-            keyboard: TextInputType.phone,
-            validate: (v) => v.isEmpty || RegExp(r'^\d{8,}$').hasMatch(v)
-                ? null
-                : 'Утасны дугаараа шалгана уу.',
-          ),
-        ] else
-          field(identifier, 'Имэйл эсвэл утас'),
-        field(
-          password,
-          'Нууц үг',
-          secret: true,
-          validate: (v) => registering && v.length < 8
-              ? 'Нууц үг 8-аас доошгүй тэмдэгт байна.'
-              : null,
-        ),
-        if (registering)
-          const Text(
-            'Бодит имэйлээр ирсэн 6 оронтой код шаардлагатай. Имэйл үйлчилгээ ажиллахгүй бол бүртгэл баталгаажихгүй.',
-          ),
-        button(registering ? 'Бүртгэл үүсгэх' : 'Нэвтрэх', () async {
-          if (!authKey.currentState!.validate()) return;
-          final secret = password.text;
-          if (registering) {
-            await flow.register(
-              name.text.trim(),
-              email.text.trim(),
-              secret,
-              phone.text.isEmpty ? null : phone.text.trim(),
-            );
-          } else {
-            await flow.login(identifier.text.trim(), secret);
-          }
-          password.clear();
-        }),
-        if (flow.registration != null)
-          button('Ирсэн кодыг оруулах', () {
-            flow.step = 2;
-            flow.changed();
-          }),
-        if (!registering)
-          button(
-            recoveringEmail
-                ? 'Имэйл баталгаажуулалтыг хаах'
-                : 'Баталгаажуулах имэйл ирээгүй юу?',
-            () => setState(() {
-              recoveringEmail = !recoveringEmail;
-              if (recoveringEmail && identifier.text.contains('@')) {
-                email.text = identifier.text.trim();
+  Widget auth() => Card(
+    child: Padding(
+      padding: const EdgeInsets.all(16),
+      child: Form(
+        key: authKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SegmentedButton<bool>(
+              direction: MediaQuery.textScalerOf(context).scale(14) >= 22
+                  ? Axis.vertical
+                  : Axis.horizontal,
+              segments: const [
+                ButtonSegment(value: false, label: Text('Нэвтрэх')),
+                ButtonSegment(value: true, label: Text('Бүртгүүлэх')),
+              ],
+              selected: {registering},
+              onSelectionChanged: flow.busy
+                  ? null
+                  : (v) => setState(() {
+                      registering = v.first;
+                      recoveringEmail = false;
+                      password.clear();
+                    }),
+            ),
+            const SizedBox(height: 20),
+            if (registering) ...[
+              field(name, 'Овог нэр'),
+              field(
+                email,
+                'Имэйл',
+                keyboard: TextInputType.emailAddress,
+                validate: (v) =>
+                    RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v.trim())
+                    ? null
+                    : 'Имэйл хаягаа шалгана уу.',
+              ),
+              field(
+                phone,
+                'Утас (заавал биш)',
+                optional: true,
+                keyboard: TextInputType.phone,
+                validate: (v) => v.isEmpty || RegExp(r'^\d{8,}$').hasMatch(v)
+                    ? null
+                    : 'Утасны дугаараа шалгана уу.',
+              ),
+            ] else
+              field(
+                identifier,
+                'Имэйл эсвэл утас',
+                keyboard: TextInputType.emailAddress,
+              ),
+            field(
+              password,
+              'Нууц үг',
+              secret: true,
+              validate: (v) => registering && v.length < 8
+                  ? 'Нууц үг 8-аас доошгүй тэмдэгт байна.'
+                  : null,
+            ),
+            if (registering)
+              Text(
+                widget.settings.isAcademic
+                    ? 'Сургалтын код серверийн цонхонд гарна. Имэйл илгээхгүй.'
+                    : 'Бодит имэйлээр ирсэн 6 оронтой код шаардлагатай. Имэйл үйлчилгээ ажиллахгүй бол бүртгэл баталгаажихгүй.',
+              ),
+            button(registering ? 'Бүртгэл үүсгэх' : 'Нэвтрэх', () async {
+              if (!authKey.currentState!.validate()) return;
+              final secret = password.text;
+              if (registering) {
+                await flow.register(
+                  name.text.trim(),
+                  email.text.trim(),
+                  secret,
+                  phone.text.isEmpty ? null : phone.text.trim(),
+                );
+              } else {
+                await flow.login(identifier.text.trim(), secret);
               }
+              password.clear();
             }),
-            secondary: true,
-          ),
-        if (!registering && recoveringEmail) ...[
-          const Text(
-            'Өмнө бүртгүүлсэн имэйлээ оруулаад баталгаажуулах '
-            'кодыг дахин хүснэ үү. Имэйл үйлчилгээ ажиллахгүй бол '
-            'код ирэхгүй, бүртгэл идэвхжихгүй.',
-          ),
-          const SizedBox(height: 12),
-          field(
-            email,
-            'Бүртгүүлсэн имэйл',
-            keyboard: TextInputType.emailAddress,
-          ),
-          button('Баталгаажуулах код дахин илгээх', () async {
-            final address = email.text.trim();
-            if (!address.contains('@')) {
-              return;
-            }
-            await flow.resendRegistrationCode(address);
-          }, secondary: true),
-          field(
-            code,
-            'Имэйлээр ирсэн 6 оронтой код',
-            keyboard: TextInputType.number,
-          ),
-          button('Имэйлээр бүртгэлээ баталгаажуулах', () async {
-            final address = email.text.trim();
-            final pin = code.text.trim();
-            if (!address.contains('@') ||
-                pin.length != 6 || int.tryParse(pin) == null) {
-              return;
-            }
-            await flow.verifyRegistrationEmail(address, pin);
-            if (mounted && flow.error == null) {
-              code.clear();
-              setState(() => recoveringEmail = false);
-            }
-          }),
-        ],
-      ],
+            if (flow.registration != null)
+              button('Ирсэн кодыг оруулах', () {
+                flow.step = 2;
+                flow.changed();
+              }),
+            if (!registering)
+              button(
+                recoveringEmail
+                    ? 'Имэйл баталгаажуулалтыг хаах'
+                    : 'Баталгаажуулах имэйл ирээгүй юу?',
+                () => setState(() {
+                  recoveringEmail = !recoveringEmail;
+                  if (recoveringEmail && identifier.text.contains('@')) {
+                    email.text = identifier.text.trim();
+                  }
+                }),
+                secondary: true,
+              ),
+            if (!registering && recoveringEmail) ...[
+              const Text(
+                'Өмнө бүртгүүлсэн имэйлээ оруулаад баталгаажуулах '
+                'кодыг дахин хүснэ үү. Имэйл үйлчилгээ ажиллахгүй бол '
+                'код ирэхгүй, бүртгэл идэвхжихгүй.',
+              ),
+              const SizedBox(height: 12),
+              field(
+                email,
+                'Бүртгүүлсэн имэйл',
+                keyboard: TextInputType.emailAddress,
+              ),
+              button('Баталгаажуулах код дахин илгээх', () async {
+                final address = email.text.trim();
+                if (!address.contains('@')) {
+                  return;
+                }
+                await flow.resendRegistrationCode(address);
+              }, secondary: true),
+              field(
+                code,
+                widget.settings.isAcademic
+                    ? 'Серверийн цонхонд гарсан 6 оронтой код'
+                    : 'Имэйлээр ирсэн 6 оронтой код',
+                keyboard: TextInputType.number,
+              ),
+              button('Имэйлээр бүртгэлээ баталгаажуулах', () async {
+                final address = email.text.trim();
+                final pin = code.text.trim();
+                if (!address.contains('@') ||
+                    pin.length != 6 ||
+                    int.tryParse(pin) == null) {
+                  return;
+                }
+                await flow.verifyRegistrationEmail(address, pin);
+                if (mounted && flow.error == null) {
+                  code.clear();
+                  setState(() => recoveringEmail = false);
+                }
+              }),
+            ],
+          ],
+        ),
+      ),
     ),
   );
   Widget verification() {
@@ -326,7 +346,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const Text('Имэйлд ирсэн кодоо оруулна уу. Код 120 секунд хүчинтэй.'),
+          Text(
+            widget.settings.isAcademic
+                ? 'Серверийн цонхонд гарсан сургалтын кодыг оруулна уу.'
+                : 'Имэйлд ирсэн кодоо оруулна уу. Код 120 секунд хүчинтэй.',
+          ),
           field(
             code,
             '6 оронтой код',
@@ -372,16 +396,22 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       if (flow.patient != null) ...[
-        Text(
-          flow.patient!.fullName,
-          style: Theme.of(context).textTheme.titleLarge,
+        ClinicalInfoPanel(
+          title: flow.patient!.fullName,
+          children: [
+            ClinicalDetail('Утас', flow.patient!.phone),
+            if (flow.patient!.dateOfBirth case final birth?)
+              ClinicalDetail('Төрсөн огноо', birth),
+            if (flow.patient!.address case final address?)
+              ClinicalDetail('Хаяг', address),
+          ],
         ),
-        Text(flow.patient!.phone),
-        if (flow.patient!.dateOfBirth != null)
-          Text('Төрсөн огноо: ${flow.patient!.dateOfBirth}'),
-        if (flow.patient!.address != null) Text(flow.patient!.address!),
-        button('Профайлын мэдээлэл засах', openProfileSettings,
-            secondary: true),
+        const SizedBox(height: 10),
+        button(
+          'Профайлын мэдээлэл засах',
+          openProfileSettings,
+          secondary: true,
+        ),
         button('Үйлчилгээ авах', flow.loadServices),
       ] else if (flow.profileMissing)
         Form(
@@ -406,7 +436,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     ],
   );
   void openEducationalInfo(String category) {
-    ClinicalServiceDetails.show(context, category: category);
+    ClinicalServiceDetails.show(
+      context,
+      category: category,
+      isAcademic: widget.settings.isAcademic,
+    );
   }
 
   void openServiceInfo(BookingService s) {
@@ -415,6 +449,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       context,
       category: s.name,
       service: s,
+      isAcademic: widget.settings.isAcademic,
       onBook: () {
         if (!mounted || flow.busy || flow.uncertainBooking) return;
         flow.selectService(s);
@@ -430,6 +465,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         builder: (context) => PaymentEstimateScreen(
           api: flow.api,
           appointment: appointment,
+          allowEstimateEmail: !flow.api.settings.isAcademic,
         ),
       ),
     );
@@ -439,11 +475,14 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       const Text(
-        'Энд зөвхөн сонгосон эмнэлгийн LIVE каталогоос ирсэн '
-        'үйлчилгээнүүд харагдана. Карт дээр дарж үнэ болон '
-        'эмчилгээний талаар дэлгэрэнгүй уншаарай.',
+        'Үйлчилгээ сонгон тайлбар, үнийн мэдээллийг харна уу.',
         style: TextStyle(color: AppColors.muted, fontSize: 13),
       ),
+      if (widget.settings.isAcademic)
+        const Text(
+          'Үзүүлэнгийн жишиг үнэ',
+          style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700),
+        ),
       const SizedBox(height: 18),
       if (flow.services.isEmpty && !flow.busy && flow.error == null) ...[
         const ClinicalInfoPanel(
@@ -482,8 +521,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           icon: Icons.medical_services_outlined,
         ),
       if (flow.service != null)
-        button('Сонгосон үйлчилгээгээр үргэлжлүүлэх',
-            flow.loadDoctors),
+        button('Сонгосон үйлчилгээгээр үргэлжлүүлэх', flow.loadDoctors),
       button('Үйлчилгээг шинэчлэх', flow.loadServices, secondary: true),
     ],
   );
@@ -493,6 +531,13 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     children: [
       if (!flow.busy && flow.doctors.isEmpty)
         empty('Энэ үйлчилгээнд эмч олдсонгүй.'),
+      if (flow.doctors.isNotEmpty) ...[
+        const Text(
+          'Сонгосон үйлчилгээг үзүүлэх эмчээс нэгийг сонгоно уу.',
+          style: TextStyle(color: AppColors.muted),
+        ),
+        const SizedBox(height: 14),
+      ],
       LayoutBuilder(
         builder: (context, c) => Wrap(
           spacing: 12,
@@ -511,10 +556,63 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           ],
         ),
       ),
-      button('Огноо, цаг сонгох', flow.openSlots, enabled: flow.doctor != null),
+      button(
+        'Огноо, цаг сонгох',
+        openBookingSlots,
+        enabled: flow.doctor != null,
+      ),
       button('Эмч нарыг шинэчлэх', flow.loadDoctors, secondary: true),
     ],
   );
+  Future<void> openBookingSlots() async {
+    if (flow.busy ||
+        flow.uncertainBooking ||
+        flow.doctor == null ||
+        flow.service == null) {
+      return;
+    }
+    flow.openSlots();
+    if (flow.availability == null) await flow.loadSlots();
+  }
+
+  Future<void> selectBookingDate(DateTime picked) async {
+    if (flow.busy ||
+        flow.uncertainBooking ||
+        flow.step != 6 ||
+        flow.session == null ||
+        flow.doctor == null ||
+        flow.service == null) {
+      return;
+    }
+    final next = calendarDate(picked);
+    if (next == flow.date) return;
+    flow.changeDate(next);
+    await flow.loadSlots();
+  }
+
+  Future<void> openBookingDatePicker() async {
+    final api = flow.api;
+    final session = flow.session;
+    final doctor = flow.doctor?.id;
+    final service = flow.service?.id;
+    final initialDate = flow.date;
+    final result = await showMongolianDatePicker(
+      context,
+      initialDate,
+      timeZoneId: flow.availability?.timeZoneId,
+    );
+    if (!mounted ||
+        result == null ||
+        flow.api != api ||
+        flow.session != session ||
+        flow.doctor?.id != doctor ||
+        flow.service?.id != service ||
+        flow.date != initialDate) {
+      return;
+    }
+    await selectBookingDate(result);
+  }
+
   Widget slots() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
@@ -524,24 +622,22 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
       const SizedBox(height: 8),
       const Text(
-        'Хуанлиас өдөр сонгоод боломжит цагийг шалгана уу. '
+        'Өдөр сонгоход боломжит цаг автоматаар шинэчлэгдэнэ. '
         'Эцсийн боломжийг сервер баталгаажуулна.',
       ),
       const SizedBox(height: 16),
       ClinicalCalendarPicker(
         selectedDate: DateTime.parse(flow.date),
         enabled: !flow.busy && !flow.uncertainBooking,
-        onSelected: (value) => flow.changeDate(calendarDate(value)),
+        onSelected: selectBookingDate,
       ),
       const SizedBox(height: 12),
-      button('Өөр огноо сонгох', () async {
-        final result = await showMongolianDatePicker(
-          context,
-          flow.date,
-          timeZoneId: flow.availability?.timeZoneId,
-        );
-        if (result != null && mounted) flow.changeDate(calendarDate(result));
-      }, enabled: !flow.uncertainBooking),
+      button(
+        'Өөр огноо сонгох',
+        openBookingDatePicker,
+        enabled: !flow.uncertainBooking && flow.availability != null,
+        secondary: true,
+      ),
       button(
         'Боломжит цагийг шинэчлэх',
         flow.loadSlots,
@@ -602,10 +698,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         details(flow.appointment!),
-        button(
-          'Төлбөрийн дэлгэрэнгүй',
-          () => openPayment(flow.appointment!),
-        ),
+        button('Төлбөрийн дэлгэрэнгүй', () => openPayment(flow.appointment!)),
         button('Шинэ захиалга', flow.newBooking),
       ] else if (flow.conflict) ...[
         const Text(
@@ -690,46 +783,49 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     flow.loadAppointments(page);
   }
 
-  Widget historyAppointment(Appointment value) => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      details(value),
-      if (reviewReader case final reader?) ...[
-        button(
-          'Туршилтын задаргаа харах',
-          () => setState(() => reviewBookingId = value.id),
-          secondary: true,
-        ),
-        if (reviewBookingId == value.id)
-          PatientInvoiceReviewPanel(
-            key: ValueKey(value.id),
-            bookingId: value.id,
-            reader: reader,
+  Widget historyAppointment(Appointment value) => Padding(
+    padding: const EdgeInsets.only(bottom: 18),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        details(value),
+        if (reviewReader case final reader?) ...[
+          button(
+            'Туршилтын задаргаа харах',
+            () => setState(() => reviewBookingId = value.id),
+            secondary: true,
           ),
-      ] else
-        button(
-          'Төлбөр / үнийн мэдээлэл',
-          () => openPayment(value),
-          secondary: true,
-        ),
-      if (flow.uncertainCancellations.contains(value.id)) ...[
-        const Text('Цуцлалтын үр дүнг шалгана уу.'),
-        button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
+          if (reviewBookingId == value.id)
+            PatientInvoiceReviewPanel(
+              key: ValueKey(value.id),
+              bookingId: value.id,
+              reader: reader,
+            ),
+        ] else
+          button(
+            'Төлбөр / үнийн мэдээлэл',
+            () => openPayment(value),
+            secondary: true,
+          ),
+        if (flow.uncertainCancellations.contains(value.id)) ...[
+          const Text('Цуцлалтын үр дүнг шалгана уу.'),
+          button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
+        ],
+        if (flow.canReschedule(value))
+          button(
+            'Захиалгын цаг шилжүүлэх',
+            () => openReschedule(value),
+            secondary: true,
+          ),
+        if (flow.canCancel(value))
+          button(
+            flow.uncertainCancellations.contains(value.id)
+                ? 'Цуцлахыг дахин оролдох'
+                : 'Захиалга цуцлах',
+            () => confirmCancellation(value),
+          ),
       ],
-      if (flow.canReschedule(value))
-        button(
-          'Захиалгын цаг шилжүүлэх',
-          () => openReschedule(value),
-          secondary: true,
-        ),
-      if (flow.canCancel(value))
-        button(
-          flow.uncertainCancellations.contains(value.id)
-              ? 'Цуцлахыг дахин оролдох'
-              : 'Захиалга цуцлах',
-          () => confirmCancellation(value),
-        ),
-    ],
+    ),
   );
   Widget history() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -791,6 +887,13 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         title: 'Сайн байна уу!',
         description: 'Таны инээмсэглэл бидний урам зориг.',
       ),
+      if (widget.settings.isAcademic) ...[
+        const SizedBox(height: 10),
+        const Text(
+          'Сургалтын хувилбар',
+          style: TextStyle(color: AppColors.blue, fontWeight: FontWeight.w700),
+        ),
+      ],
       const SizedBox(height: 25),
       ClinicalHero(onBook: goToBooking, enabled: !flow.busy),
       const SizedBox(height: 26),
@@ -830,8 +933,10 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
               child: ListView(
                 padding: const EdgeInsets.all(22),
                 children: [
-                  Text('Шүдний эмчилгээний мэдээлэл',
-                    style: Theme.of(sheetContext).textTheme.titleLarge),
+                  Text(
+                    'Шүдний эмчилгээний мэдээлэл',
+                    style: Theme.of(sheetContext).textTheme.titleLarge,
+                  ),
                   const SizedBox(height: 8),
                   const Text(
                     'Доорх нь ерөнхий танилцуулга. Үйлчилгээг захиалах '
@@ -859,8 +964,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         label: const Text('Бүх төрлийн эмчилгээний тайлбар'),
       ),
       const SizedBox(height: 26),
-      Text('Таны дараагийн цаг',
-          style: Theme.of(context).textTheme.titleLarge),
+      Text('Таны дараагийн цаг', style: Theme.of(context).textTheme.titleLarge),
       const SizedBox(height: 16),
       ClinicalInfoPanel(
         title: flow.appointment?.status == 'Confirmed'
@@ -871,25 +975,32 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             flow.session == null
                 ? 'Цаг захиалахын тулд эхлээд нэвтэрнэ үү.'
                 : flow.appointment?.status != 'Confirmed'
-                    ? 'Миний цаг хэсгээс захиалгаа шалгана уу.'
-                    : local(flow.appointment!.startUtc,
-                        flow.appointment!.clinicTimeZoneId),
+                ? 'Миний цаг хэсгээс захиалгаа шалгана уу.'
+                : local(
+                    flow.appointment!.startUtc,
+                    flow.appointment!.clinicTimeZoneId,
+                  ),
             style: const TextStyle(color: AppColors.muted),
           ),
         ],
       ),
       const SizedBox(height: 24),
-      const Text(
-        'Үйлчилгээ, эмч, цагийн мэдээллийг эмнэлгийн LIVE системээс авна.',
-        style: TextStyle(fontSize: 12, color: AppColors.muted),
+      Text(
+        widget.settings.isAcademic
+            ? 'Үйлчилгээ, эмч, цагийн мэдээлэл нь сургалтын жишээ.'
+            : 'Үйлчилгээ, эмч, цагийн мэдээллийг эмнэлгийн LIVE системээс авна.',
+        style: const TextStyle(fontSize: 12, color: AppColors.muted),
       ),
     ],
   );
 
   Widget bookingReview() {
-    if (flow.slot == null || flow.service == null ||
-        flow.doctor == null || flow.availability == null ||
-        flow.appointment != null || flow.conflict) {
+    if (flow.slot == null ||
+        flow.service == null ||
+        flow.doctor == null ||
+        flow.availability == null ||
+        flow.appointment != null ||
+        flow.conflict) {
       return confirmation();
     }
     return Column(
@@ -907,7 +1018,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
             ClinicalDetail(
               'Цаг',
               LiveLabels.time(
-                flow.slot!.startUtc, flow.availability!.timeZoneId,
+                flow.slot!.startUtc,
+                flow.availability!.timeZoneId,
               ),
             ),
             const Divider(),
@@ -1017,10 +1129,10 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     }
     if (showDashboard || flow.step == 0) return home();
     const bookingTitles = {
-      4: 'Танд ямар үйлчилгээ\nхэрэгтэй вэ?',
-      5: 'Танд санал болгох эмч\nнар',
-      6: 'Та өөрт тохирох өдрөө\nсонгоорой',
-      7: 'Таны захиалгын\nмэдээлэл',
+      4: 'Танд ямар үйлчилгээ хэрэгтэй вэ?',
+      5: 'Эмч сонгох',
+      6: 'Өдөр, цаг сонгох',
+      7: 'Таны захиалгын мэдээлэл',
     };
     const bookingEyebrows = {
       4: 'АЛХАМ 01 / 04    •    Үйлчилгээ',
@@ -1036,8 +1148,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ClinicalPageIntro(
-          eyebrow: bookingEyebrows[flow.step] ??
-              'NEXORA DENTAL  •  НЭВТРЭЛТ',
+          eyebrow:
+              bookingEyebrows[flow.step] ??
+              (flow.step == 3 ? 'Миний бүртгэл' : 'Suvd Dent · Бүртгэл'),
           title: bookingTitles[flow.step] ?? title,
           titleKey: const ValueKey('screen-title'),
           description: isBooking ? null : stepHint,
@@ -1105,11 +1218,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         onBack: showHistory
             ? () => setState(() => showHistory = false)
             : flow.step > 0 &&
-                    !flow.busy &&
-                    !flow.uncertainBooking &&
-                    flow.appointment == null
-                ? flow.back
-                : null,
+                  !flow.busy &&
+                  !flow.uncertainBooking &&
+                  flow.appointment == null
+            ? flow.back
+            : null,
         actions: [
           if (flow.session != null)
             IconButton(
@@ -1150,7 +1263,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         ),
       ),
       bottomNavigationBar: ClinicalNavigation(
-        activeIndex: showHistory ? 2 : showDashboard || flow.step == 0 ? 0 : 1,
+        activeIndex: showHistory
+            ? 2
+            : showDashboard || flow.step == 0
+            ? 0
+            : 1,
         onHome: flow.busy || flow.uncertainBooking || flow.appointment != null
             ? null
             : () {
@@ -1177,7 +1294,6 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
     ),
   );
-
 }
 
 class LiveConfigurationError extends StatelessWidget {

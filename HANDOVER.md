@@ -480,3 +480,7 @@ not replace the default estimate. The dedicated integration case runs via
 `Category=ClinicalFlutterLoopback` with `SUVDDENT_FLUTTER_TOOL` set to the
 pinned Flutter binary; it shares the category with the two clinician cases.
 No payment or store exists to test through this route.
+
+The isolated academic runner and web entry are documented in
+`ACADEMIC_DEMO.md`. The ephemeral data, loopback limits, explicit web
+entry, and synthetic outbound sink must remain separate from production.
