@@ -71,6 +71,8 @@ builder.Services.AddScoped<PatientPeriodHistoryService>();
 builder.Services.AddScoped<ClinicalAuditTrail>();
 builder.Services.AddScoped<IEncounterTreatmentService, EncounterTreatmentService>();
 builder.Services.AddScoped<NotificationPreferenceService>();
+builder.Services.AddDataProtection();
+builder.Services.AddScoped<RegistrationOtpService>();
 builder.Services.AddScoped<PhoneVerificationService>();
 builder.Services.AddScoped<IPhoneVerificationSmsSender, PhoneVerificationSmsSender>();
 builder.Services.AddSingleton<PhoneVerificationRequestLimiter>();

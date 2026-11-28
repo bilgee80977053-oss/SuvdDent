@@ -68,12 +68,24 @@ class AuthIdentity {
       clinicId = j['clinicId'] as String?;
 }
 
+enum RegistrationMethod { sms, email }
+
 class VerificationReceipt {
   final int userId;
   final String message;
+  final String? registrationToken;
+  final int? retryAfterSeconds;
+  final RegistrationMethod? method;
   VerificationReceipt.fromJson(Json j)
     : userId = number(j, 'userId'),
-      message = text(j, 'message');
+      message = text(j, 'message'),
+      registrationToken = j['registrationToken'] as String?,
+      retryAfterSeconds = j['retryAfterSeconds'] as int?,
+      method = switch (j['verificationMethod']) {
+        'sms' => RegistrationMethod.sms,
+        'email' => RegistrationMethod.email,
+        _ => null,
+      };
 }
 
 class PatientProfile {

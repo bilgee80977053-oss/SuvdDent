@@ -7,6 +7,13 @@ namespace DentalApi.Services;
 
 public class EmailService(IConfiguration config)
 {
+    public virtual bool IsAvailable =>
+        !string.IsNullOrWhiteSpace(config["Email:Host"]) &&
+        int.TryParse(config["Email:Port"], out var port) && port is > 0 and <= 65535 &&
+        !string.IsNullOrWhiteSpace(config["Email:From"]) &&
+        !string.IsNullOrWhiteSpace(config["Email:Username"]) &&
+        !string.IsNullOrWhiteSpace(config["Email:Password"]);
+
     public virtual async Task SendAsync(
         string toEmail,
         string subject,

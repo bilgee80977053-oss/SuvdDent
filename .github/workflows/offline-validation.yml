@@ -93,3 +93,17 @@ jobs:
           fi
           SUVDDENT_E2E_FLUTTER="$(command -v flutter)" dotnet test backend/DentalApi.IntegrationTests/DentalApi.IntegrationTests.csproj \
             --configuration Release --filter 'Category=FlutterLoopback'
+
+      - name: Build academic Web release
+        working-directory: mobile
+        shell: bash
+        run: flutter build web --release --no-web-resources-cdn --no-wasm-dry-run -O2 -t lib/academic_main.dart
+      - name: Run classroom API smoke with synthetic email and SMS
+        shell: bash
+        run: |
+          if [[ -v NEXORA_PG_TEST_CONNECTION || -v PGPASSWORD ]]; then
+            echo 'PostgreSQL opt-in variables must be absent for the classroom fixture.' >&2
+            exit 1
+          fi
+          dotnet publish backend/DentalApi.SchoolFixture --configuration Release --output "$RUNNER_TEMP/academic-otp-api"
+          python3 backend/scripts/AcademicRuntimeSmoke.py "$RUNNER_TEMP/academic-otp-api/DentalApi.SchoolFixture.dll"

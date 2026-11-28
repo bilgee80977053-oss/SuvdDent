@@ -122,16 +122,29 @@ with subprocess.Popen(["dotnet", str(dll), "serve-memory"], cwd=dll.parent, stdo
                               bearer=clinician)
         assert assigned["items"]
 
-        email = "new-school-patient@example.invalid"
-        _, registration = request("POST", "/api/Auth/register", body={
-            "clinicId": 1, "fullName": "Synthetic new student", "email": email, "password": password
-        })
-        code = wait_for(r"Classroom verification code: ([0-9]{6})")
-        request("POST", "/api/Auth/verify", body={"userId": registration["userId"], "code": code})
-        login(email, password, "Patient")
+        # Both channels cross the real HTTP boundary, but terminate at classroom sinks.
+        for method, phone, email in (
+            ("email", "00000011", "new-school-email@example.invalid"),
+            ("sms", "00000012", "new-school-sms@example.invalid"),
+        ):
+            _, registration = request("POST", "/api/Auth/register", body={
+                "clinicId": 1, "fullName": "Synthetic new student", "email": email,
+                "phone": phone, "password": password, "verificationMethod": method
+            }, wait_for_auth_window=True)
+            assert registration["retryAfterSeconds"] == 60
+            assert registration["registrationToken"]
+            capture = (r"Classroom SMS verification code: ([0-9]{6})" if method == "sms"
+                       else r"Classroom verification code: ([0-9]{6})")
+            code = wait_for(capture)
+            request("POST", "/api/Auth/verify", body={
+                "userId": registration["userId"], "code": code,
+                "registrationToken": registration["registrationToken"]
+            }, wait_for_auth_window=True)
+            login(phone if method == "sms" else email, password, "Patient")
 
         print("Academic loopback: CORS, profile, catalog, doctors, booking, reschedule, cancellation, "
-              "history, registration/verification, Director and Doctor authorization passed.")
+              "history, synthetic email and SMS registration, Director and Doctor authorization passed. "
+              "No external SMS or email sent.")
     finally:
         if server.poll() is None:
             server.send_signal(signal.CTRL_BREAK_EVENT if sys.platform == "win32" else signal.SIGINT)
