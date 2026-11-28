@@ -444,3 +444,14 @@ unknown evidence never qualifies. A matching result is only a candidate,
 not settlement or authorization to issue a receipt. The Release build and
 25 focused amount/settlement tests passed. No external gateway, ledger write,
 payment state, receipt issue, schema or production change.
+
+## Synthetic settlement claim concurrency boundary
+
+Matched evidence alone is not enough to reserve a transaction. The internal
+guard requires a trusted atomic insert-if-absent operation keyed by provider,
+seller and transaction, independent of invoice ID. The synthetic concurrency
+test deliberately lets two invoice contenders see the same stale negative
+lookup and verifies only one claim is reserved. Same-invoice replay cannot
+reserve a second time. Release build and all 31 focused tests passed.
+Production storage, verified provider calls, ledger effects, invoice status,
+receipts and deployment remain untouched.
