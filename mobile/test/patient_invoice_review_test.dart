@@ -74,9 +74,11 @@ Future<void> tap(WidgetTester tester, Finder finder) async {
 Future<void> openHistory(
   WidgetTester tester, {
   InvoiceReviewReader? reader,
+  Size viewport = const Size(1000, 1700),
+  double textScale = 1,
 }) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1000, 1700);
+  tester.view.physicalSize = viewport;
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
   final api = fixtures.makeApi((request) {
@@ -96,6 +98,11 @@ Future<void> openHistory(
   });
   await tester.pumpWidget(
     MaterialApp(
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context)
+            .copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
       home: LivePatientFlow(
         settings: fixtures.settings,
         api: api,
@@ -323,4 +330,83 @@ void main() {
     expect(find.text(invalidReview), findsOneWidget);
     expect(find.textContaining('synthetic internal data'), findsNothing);
   });
+  testWidgets(
+    'nonpayable status and exact total are reachable at 320px and 200% text',
+    (tester) async {
+      final semantics = tester.ensureSemantics();
+      try {
+        final pending = Completer<InvoiceReviewRead?>();
+        final reads = <int>[];
+        await openHistory(
+          tester,
+          viewport: const Size(320, 640),
+          textScale: 2,
+          reader: (id) {
+            reads.add(id);
+            return pending.future;
+          },
+        );
+        final choice = choices.first;
+        Future<void> scrollTo(Finder finder) async {
+          await tester.ensureVisible(finder);
+          await tester.pumpAndSettle();
+          expect(finder.hitTestable(), findsOneWidget);
+        }
+
+        await scrollTo(choice);
+        final size = tester.getSize(choice);
+        expect(size.width, greaterThanOrEqualTo(48));
+        expect(size.height, greaterThanOrEqualTo(48));
+        expect(
+          tester.getSemantics(choice),
+          isSemantics(
+            label: reviewChoice,
+            isButton: true,
+            isFocusable: true,
+            hasTapAction: true,
+          ),
+        );
+        await tap(tester, choice);
+        expect(reads, [41]);
+        final loading = find.text('Нооргийг ачаалж байна…');
+        await scrollTo(loading);
+        expect(
+          tester.getSemantics(loading),
+          isSemantics(label: 'Нооргийг ачаалж байна…', isLiveRegion: true),
+        );
+        pending.complete(oneAmount(41, '9223372036854775807'));
+        await tester.pumpAndSettle();
+        final heading = find.text(nonpayable);
+        await scrollTo(heading);
+        expect(
+          tester.getSemantics(heading),
+          isSemantics(label: nonpayable, isHeader: true),
+        );
+        const amount = 'Нооргийн нийлбэр: 92233720368547758.07 XTS';
+        final total = find.text(amount);
+        await scrollTo(total);
+        expect(tester.widget<Text>(total).maxLines, isNull);
+        final bounds = tester.getRect(total);
+        final viewport = tester.getRect(find.byType(ListView));
+        expect(bounds.left, greaterThanOrEqualTo(viewport.left));
+        expect(bounds.right, lessThanOrEqualTo(viewport.right));
+        expect(bounds.top, greaterThanOrEqualTo(viewport.top));
+        expect(bounds.bottom, lessThanOrEqualTo(viewport.bottom));
+        expect(
+          tester.getSemantics(total),
+          isSemantics(label: amount, hasTapAction: false),
+        );
+        expect(
+          find.descendant(
+            of: find.byType(PatientInvoiceReviewPanel),
+            matching: find.bySubtype<ButtonStyleButton>(),
+          ),
+          findsNothing,
+        );
+        expect(tester.takeException(), isNull);
+      } finally {
+        semantics.dispose();
+      }
+    },
+  );
 }

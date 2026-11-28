@@ -455,3 +455,14 @@ Each process receives only its own test flag and the hosting fixtures own
 their teardown. Do not supply PostgreSQL credentials or use external providers.
 Persistent PostgreSQL, production, and merging to main require separate
 release authorization and validation.
+
+## Supplemental isolated review
+
+Base this supplemental review on exact #46, not on the older siblings.
+Hosted #46 passed both loopback gates; do not hide the distinct intermittent
+local teardown observation. The harness waits for the UI history refresh
+before disposal. The other two review items are the nonpayable panel's
+narrow/high-text-scale accessibility and offline clinical migration source
+checks. No runner scope, operational database access, receipt/payment
+authority or production behavior is changed. Recheck this draft's own exact
+CI outcomes instead of adding earlier standalone test counts.
