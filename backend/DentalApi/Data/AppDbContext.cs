@@ -11,6 +11,7 @@ public class AppDbContext : DbContext
     protected AppDbContext(DbContextOptions options) : base(options) { }
     public DbSet<Clinic> Clinics => Set<Clinic>();
     public DbSet<Appointment> Appointments => Set<Appointment>();
+    public DbSet<AppointmentReschedule> AppointmentReschedules => Set<AppointmentReschedule>();
 
     public DbSet<User> Users => Set<User>();
 
@@ -36,6 +37,10 @@ public class AppDbContext : DbContext
     {
         base.OnModelCreating(b);
         AppointmentModelConfiguration.Configure(b, Database.IsSqlite());
+        ClinicalAuditModelConfiguration.Configure(b, Database.IsSqlite());
+        TreatmentRecordModelConfiguration.Configure(b, Database.IsSqlite());
+        TreatmentAddendumModelConfiguration.Configure(b, Database.IsSqlite());
+        PerformedProcedureModelConfiguration.Configure(b, Database.IsSqlite());
         NotificationModelConfiguration.Configure(b);
         PhoneVerificationModelConfiguration.Configure(b);
 

@@ -116,6 +116,223 @@ public sealed class AppointmentApiTests
         return await scope.ServiceProvider.GetRequiredService<AppDbContext>().Appointments.CountAsync();
     }
 
+    [Fact]
+    public async Task Reschedule_slots_exclude_only_the_owned_original_and_make_no_changes()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var other = await app.AsAsync(27);
+        var original = await Book(owner);
+        await Book(other, Request("2026-11-02T10:15:00+08:00"));
+        await Book(owner, Request("2026-11-02T11:15:00+08:00", doctor: 36));
+        var outboxBefore = (await Outbox(app)).Length;
+
+        var unchanged = await owner.GetFromJsonAsync<AppointmentSlotsResponse>(
+            Url + "/slots?doctorProfileId=31&serviceId=51&date=2026-11-02");
+        var options = await owner.GetFromJsonAsync<AppointmentSlotsResponse>(
+            $"{Url}/{original.Id}/reschedule-slots?date=2026-11-02&doctorProfileId=36&serviceId=61");
+        Assert.Equal("2026-11-02", options!.Date);
+        Assert.Equal("Asia/Ulaanbaatar", options.TimeZoneId);
+        Assert.DoesNotContain(unchanged!.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(15));
+        Assert.Contains(options.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(15));
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc); // no-op
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc.AddMinutes(30)); // other booking
+        Assert.DoesNotContain(options.Slots, s => s.StartUtc == original.StartUtc.AddHours(2)); // patient's other doctor
+        Assert.Equal(original, await owner.GetFromJsonAsync<AppointmentResponse>($"{Url}/{original.Id}"));
+        Assert.Equal(3, await Count(app));
+        Assert.Equal(outboxBefore, (await Outbox(app)).Length);
+    }
+
+    [Fact]
+    public async Task Reschedule_slots_enforce_ownership_and_require_future_confirmed_appointment()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var sameClinic = await app.AsAsync(27);
+        using var otherClinic = await app.AsAsync(12, 202);
+        using var anonymous = app.Client();
+        var original = await Book(owner);
+        var route = $"{Url}/{original.Id}/reschedule-slots?date=2026-11-02";
+        await AssertStatus(await anonymous.GetAsync(route), HttpStatusCode.Unauthorized);
+        foreach (var client in new[] { sameClinic, otherClinic })
+            await AssertStatus(await client.GetAsync(route + "&clinicId=101&userId=11"), HttpStatusCode.NotFound);
+        await AssertStatus(await owner.GetAsync($"{Url}/2147483647/reschedule-slots?date=2026-11-02"), HttpStatusCode.NotFound);
+        await AssertStatus(await owner.GetAsync($"{Url}/0/reschedule-slots?date=2026-11-02"), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.GetAsync($"{Url}/{original.Id}/reschedule-slots?date=02-11-2026"), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.GetAsync($"{Url}/{original.Id}/reschedule-slots?date=2026-12-15"), HttpStatusCode.BadRequest);
+        var start = app.Time.Now;
+        app.Time.Now = original.StartUtc;
+        await AssertStatus(await owner.GetAsync(route), HttpStatusCode.Conflict);
+        app.Time.Now = start;
+        await AssertStatus(await owner.PostAsync($"{Url}/{original.Id}/cancel", null), HttpStatusCode.OK);
+        await AssertStatus(await owner.GetAsync(route), HttpStatusCode.Conflict);
+    }
+
+    private static string MoveUrl(int id) => $"{Url}/{id}/reschedule";
+    private static RescheduleAppointmentRequest MoveRequest(DateTimeOffset start) => new(start.ToString("O"), Guid.NewGuid());
+
+    [Fact]
+    public async Task Reschedule_HTTP_is_scoped_to_authenticated_owner_and_validates_eligibility()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var anonymous = app.Client();
+        using var doctor = await app.AsAsync(13);
+        using var sameClinic = await app.AsAsync(27);
+        using var otherClinic = await app.AsAsync(12, 202);
+        var original = await Book(owner);
+        var route = MoveUrl(original.Id);
+        var request = MoveRequest(original.StartUtc.AddMinutes(15));
+        await AssertStatus(await anonymous.PostAsJsonAsync(route, request), HttpStatusCode.Unauthorized);
+        await AssertStatus(await doctor.PostAsJsonAsync(route, request), HttpStatusCode.Forbidden);
+        foreach (var foreign in new[] { sameClinic, otherClinic })
+            await AssertStatus(await foreign.PostAsJsonAsync(route + "?clinicId=101&userId=11", new
+            {
+                request.StartUtc, request.RequestId, clinicId = 101, userId = 11, patientId = 41
+            }), HttpStatusCode.NotFound);
+        await AssertStatus(await owner.PostAsJsonAsync(route, request with { RequestId = Guid.Empty }), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.PostAsJsonAsync(route, request with { StartUtc = "2026-11-02T09:30:00" }), HttpStatusCode.BadRequest);
+        await AssertStatus(await owner.PostAsJsonAsync(route, MoveRequest(original.StartUtc)), HttpStatusCode.Conflict);
+        await AssertStatus(await owner.PostAsJsonAsync(route, MoveRequest(original.StartUtc.AddDays(35))), HttpStatusCode.BadRequest);
+        app.Time.Now = original.StartUtc;
+        await AssertStatus(await owner.PostAsJsonAsync(route, request), HttpStatusCode.Conflict);
+        Assert.Equal(original, await owner.GetFromJsonAsync<AppointmentResponse>($"{Url}/{original.Id}"));
+        Assert.Equal(1, await Count(app));
+        Assert.Equal(3, (await Outbox(app)).Length);
+    }
+
+    [Fact]
+    public async Task Reschedule_accepts_overlap_with_source_and_replays_without_duplicate_or_obsolete_notifications()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        var original = await Book(owner);
+        var request = MoveRequest(original.StartUtc.AddMinutes(15));
+        var route = MoveUrl(original.Id);
+        using var success = await owner.PostAsJsonAsync(route + "?clinicId=202", new
+        {
+            request.StartUtc, request.RequestId, doctorProfileId = 36, serviceId = 61, clinicId = 202
+        });
+        Assert.Equal(HttpStatusCode.OK, success.StatusCode);
+        var next = (await success.Content.ReadFromJsonAsync<AppointmentResponse>())!;
+        Assert.NotEqual(original.Id, next.Id);
+        Assert.Equal(original.DoctorProfileId, next.DoctorProfileId);
+        Assert.Equal(original.ServiceId, next.ServiceId);
+        Assert.Equal(original.StartUtc.AddMinutes(15), next.StartUtc);
+        Assert.Equal("Confirmed", next.Status);
+        Assert.Equal(original with { Status = "Cancelled" }, await owner.GetFromJsonAsync<AppointmentResponse>($"{Url}/{original.Id}"));
+        using var replay = await owner.PostAsJsonAsync(route, request);
+        Assert.Equal(HttpStatusCode.OK, replay.StatusCode);
+        Assert.Equal(next, await replay.Content.ReadFromJsonAsync<AppointmentResponse>());
+        await AssertStatus(await owner.PostAsJsonAsync(route, MoveRequest(next.StartUtc)), HttpStatusCode.Conflict);
+        await AssertStatus(await owner.PostAsJsonAsync(route, request with { StartUtc = next.StartUtc.AddMinutes(15).ToString("O") }), HttpStatusCode.Conflict);
+
+        app.Time.Now = original.StartUtc.AddHours(-24);
+        await Drain(app);
+        var rows = await Outbox(app);
+        Assert.Equal(6, rows.Length);
+        Assert.DoesNotContain(rows, n => n.Event == NotificationEvent.Cancelled);
+        Assert.All(rows.Where(n => n.AppointmentId == original.Id), n => Assert.Equal(NotificationState.Suppressed, n.State));
+        var reminder = Assert.Single(rows, n => n.AppointmentId == next.Id && n.Event == NotificationEvent.Reminder);
+        Assert.Equal(next.StartUtc.AddHours(-24).UtcTicks, reminder.DueUtcTicks);
+        Assert.Contains("09:30", Assert.Single(app.Mail.Sent).Body);
+        Assert.Contains("09:30", Assert.Single(app.Sms.Sent).Body);
+        app.Time.Now = next.StartUtc.AddHours(-24);
+        await Drain(app);
+        Assert.Equal(2, app.Sms.Sent.Count);
+
+        await AssertStatus(await owner.PostAsJsonAsync(MoveUrl(next.Id), MoveRequest(next.StartUtc.AddHours(1))), HttpStatusCode.OK);
+        using var historical = await owner.PostAsJsonAsync(route, request);
+        Assert.Equal(HttpStatusCode.OK, historical.StatusCode);
+        Assert.Equal(next with { Status = "Cancelled" }, await historical.Content.ReadFromJsonAsync<AppointmentResponse>());
+        Assert.Equal(3, await Count(app));
+    }
+
+    [Theory]
+    [InlineData("doctor")] [InlineData("patient")] [InlineData("commit")]
+    public async Task Reschedule_failure_preserves_source_and_outbox_without_a_move_record(string mode)
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var other = await app.AsAsync(27);
+        var original = await Book(owner);
+        var replacementStart = original.StartUtc.AddHours(2);
+        if (mode == "doctor") await Book(other, Request(replacementStart.ToString("O")));
+        if (mode == "patient") await Book(owner, Request(replacementStart.ToString("O"), doctor: 36));
+        var originalCount = await Count(app);
+        var originalOutbox = (await Outbox(app)).Select(n => n.Id).Order().ToArray();
+        app.Failure.Enabled = mode == "commit";
+        await AssertStatus(await owner.PostAsJsonAsync(MoveUrl(original.Id), MoveRequest(replacementStart)),
+            mode == "commit" ? HttpStatusCode.ServiceUnavailable : HttpStatusCode.Conflict);
+        app.Failure.Enabled = false;
+        Assert.Equal(original, await owner.GetFromJsonAsync<AppointmentResponse>($"{Url}/{original.Id}"));
+        Assert.Equal(originalCount, await Count(app));
+        Assert.Equal(originalOutbox, (await Outbox(app)).Select(n => n.Id).Order());
+        await Mutate(app, async db => Assert.Empty(await db.AppointmentReschedules.ToArrayAsync()));
+    }
+
+    [Theory]
+    [InlineData("move")] [InlineData("book")] [InlineData("cancel")] [InlineData("retry")]
+    public async Task Reschedule_serializes_competing_writes_by_independent_connections(string competitor)
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var rival = await app.AsAsync(competitor == "book" ? 27 : 11);
+        var original = await Book(owner);
+        var newStart = original.StartUtc.AddHours(2);
+        var request = MoveRequest(newStart);
+        var gate = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var first = Task.Run(async () => { await gate.Task; return await owner.PostAsJsonAsync(MoveUrl(original.Id), request); });
+        var second = Task.Run(async () =>
+        {
+            await gate.Task;
+            return competitor switch
+            {
+                "move" => await rival.PostAsJsonAsync(MoveUrl(original.Id), MoveRequest(newStart.AddHours(1))),
+                "retry" => await rival.PostAsJsonAsync(MoveUrl(original.Id), request),
+                "book" => await rival.PostAsJsonAsync(Url, Request(newStart.ToString("O"))),
+                _ => await rival.PostAsync($"{Url}/{original.Id}/cancel", null)
+            };
+        });
+        gate.SetResult();
+        using var moved = await first;
+        using var competing = await second;
+        Assert.Contains(moved.StatusCode, new[] { HttpStatusCode.OK, HttpStatusCode.Conflict, HttpStatusCode.ServiceUnavailable });
+        Assert.Contains(competing.StatusCode, competitor == "book"
+            ? new[] { HttpStatusCode.Created, HttpStatusCode.Conflict }
+            : competitor == "cancel" ? new[] { HttpStatusCode.OK, HttpStatusCode.Conflict }
+            : new[] { HttpStatusCode.OK, HttpStatusCode.Conflict, HttpStatusCode.ServiceUnavailable });
+        var wasMoved = moved.StatusCode == HttpStatusCode.OK;
+        var competitorWon = competing.StatusCode is HttpStatusCode.OK or HttpStatusCode.Created;
+        Assert.True(wasMoved || competitorWon);
+        if (competitor is "move" or "book") Assert.False(wasMoved && competitorWon);
+        if (competitor == "retry")
+        {
+            using var retry = await owner.PostAsJsonAsync(MoveUrl(original.Id), request);
+            Assert.Equal(HttpStatusCode.OK, retry.StatusCode);
+            var recorded = await retry.Content.ReadFromJsonAsync<AppointmentResponse>();
+            if (wasMoved) Assert.Equal(recorded, await moved.Content.ReadFromJsonAsync<AppointmentResponse>());
+            if (competitorWon) Assert.Equal(recorded, await competing.Content.ReadFromJsonAsync<AppointmentResponse>());
+        }
+        await Mutate(app, async db =>
+        {
+            var moves = await db.AppointmentReschedules.ToArrayAsync();
+            var active = await db.Appointments.Where(a => a.Status == AppointmentStatus.Confirmed).ToArrayAsync();
+            if (wasMoved || ((competitor is "move" or "retry") && competitorWon))
+            {
+                Assert.Single(moves);
+                Assert.Equal(Assert.Single(active).Id, moves[0].ReplacementId);
+                Assert.Equal(original.Id, moves[0].SourceId);
+                Assert.DoesNotContain(await Outbox(app), n => n.Event == NotificationEvent.Cancelled);
+            }
+            else
+            {
+                Assert.Empty(moves);
+                Assert.Equal(competitor == "book" ? 2 : 0, active.Length);
+            }
+        });
+    }
+
     [Theory]
     [InlineData(0, 401)] [InlineData(13, 403)] [InlineData(15, 403)] [InlineData(16, 403)]
     public async Task Cancellation_HTTP_requires_authenticated_patient(int user, int expected)

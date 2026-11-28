@@ -125,4 +125,46 @@ public sealed class AppointmentMigrationMetadataTests
         Assert.Equal(ConnectionState.Closed, sqlite.Database.GetDbConnection().State);
         Assert.Equal(ConnectionState.Closed, pg.Database.GetDbConnection().State);
     }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public void Reschedule_ledger_migration_is_additive_and_preserves_appointment_overlap_guards(bool useSqlite)
+    {
+        using AppDbContext db = useSqlite ? new AppDbContextDesignTimeFactory().CreateDbContext([])
+            : new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
+        var assembly = db.GetService<IMigrationsAssembly>();
+        var entries = assembly.Migrations.ToArray();
+        var expectedId = useSqlite ? "20261127122653_AddAppointmentReschedules"
+            : "20261127122656_AddPostgreSqlAppointmentReschedules";
+        var indexInHistory = Array.FindIndex(entries, entry => entry.Key == expectedId);
+        Assert.True(indexInHistory > 0);
+        var reschedule = entries[indexInHistory];
+        var migration = assembly.CreateMigration(reschedule.Value, db.Database.ProviderName!);
+        var table = Assert.IsType<CreateTableOperation>(migration.UpOperations[0]);
+        Assert.Equal("AppointmentReschedules", table.Name);
+        Assert.Equal(new[] { "ClinicId", "SourceId" }, table.PrimaryKey!.Columns);
+        Assert.Equal(2, table.ForeignKeys.Count);
+        Assert.All(table.ForeignKeys, fk =>
+        {
+            Assert.Equal("Appointments", fk.PrincipalTable);
+            Assert.Equal(new[] { "ClinicId", "Id" }, fk.PrincipalColumns);
+            Assert.Equal("ClinicId", fk.Columns[0]);
+            Assert.Equal(ReferentialAction.Restrict, fk.OnDelete);
+        });
+        Assert.Equal(new[] { "ReplacementId", "SourceId" }, table.ForeignKeys.Select(fk => fk.Columns[1]).Order());
+        var index = Assert.IsType<CreateIndexOperation>(migration.UpOperations[1]);
+        Assert.Equal(2, migration.UpOperations.Count);
+        Assert.True(index.IsUnique);
+        Assert.Equal("AppointmentReschedules", index.Table);
+        Assert.Equal(new[] { "ClinicId", "ReplacementId" }, index.Columns);
+        Assert.Equal("AppointmentReschedules", Assert.IsType<DropTableOperation>(Assert.Single(migration.DownOperations)).Name);
+        var sql = db.GetService<IMigrator>().GenerateScript(entries[indexInHistory - 1].Key, reschedule.Key);
+        Assert.Contains("CREATE TABLE \"AppointmentReschedules\"", sql);
+        Assert.DoesNotContain("ALTER TABLE \"Appointments\"", sql);
+        Assert.DoesNotContain("DROP ", sql);
+        Assert.False(db.Database.HasPendingModelChanges());
+        Assert.Equal(ConnectionState.Closed, db.Database.GetDbConnection().State);
+    }
+
 }

@@ -266,6 +266,39 @@ class DentalApi {
       'date': date,
     },
   );
+  Future<SlotPage> rescheduleSlots(int appointmentId, String date) =>
+      _request('GET', '/api/appointments/$appointmentId/reschedule-slots', (v) {
+        final result = SlotPage.fromJson(object(v));
+        if (result.date != date) {
+          throw const ApiFailure('Боломжит цагийн огноо буруу байна.');
+        }
+        return result;
+      }, query: {'date': date});
+  Future<Appointment> rescheduleAppointment(
+    Appointment source,
+    DateTime startUtc,
+    String requestId,
+  ) => _request(
+    'POST',
+    '/api/appointments/${source.id}/reschedule',
+    (v) {
+      final result = Appointment.fromJson(object(v));
+      if (result.id <= 0 ||
+          result.id == source.id ||
+          result.doctorProfileId != source.doctorProfileId ||
+          result.serviceId != source.serviceId ||
+          result.startUtc != startUtc.toUtc() ||
+          (result.status != 'Confirmed' && result.status != 'Cancelled')) {
+        throw const ApiFailure('Цаг шилжүүлэлтийн хариу тодорхойгүй байна.');
+      }
+      return result;
+    },
+    body: {
+      'startUtc': startUtc.toUtc().toIso8601String(),
+      'requestId': requestId,
+    },
+  );
+
   Future<Appointment> book(
     int doctorId,
     int serviceId,

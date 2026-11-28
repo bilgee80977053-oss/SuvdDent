@@ -142,6 +142,42 @@ public sealed class AppointmentPersistenceTests
     }
 
     [Fact]
+    public async Task Reschedule_migration_preserves_existing_appointments_and_overlap_triggers()
+    {
+        await using var test = await Database.Create();
+        var original = await Insert(test);
+        var secondClinic = Valid();
+        secondClinic.ClinicId = 202; secondClinic.PatientId = 42;
+        secondClinic.DoctorProfileId = 32; secondClinic.ServiceId = 61;
+        var foreign = await Insert(test, secondClinic);
+        var validReplacement = await Insert(test, Valid(start: Valid().StartUtc.AddHours(2)));
+        const string dataQuery = "SELECT * FROM Appointments ORDER BY Id";
+        const string schemaQuery = "SELECT name,sql FROM sqlite_master WHERE tbl_name='Appointments' ORDER BY name";
+        var before = await Query(test.Connection, dataQuery);
+        var schemaBefore = await Query(test.Connection, schemaQuery);
+        var migrator = test.Db.GetService<IMigrator>();
+        var upgrade = test.Db.Database.GetMigrations().Single(m => m.EndsWith("_AddAppointmentReschedules"));
+        await migrator.MigrateAsync(upgrade);
+        Assert.Equal(before, await Query(test.Connection, dataQuery));
+        Assert.Equal(schemaBefore, await Query(test.Connection, schemaQuery));
+        Assert.Empty(await test.Db.AppointmentReschedules.ToArrayAsync());
+        async Task Reject(AppointmentReschedule move)
+        {
+            test.Db.AppointmentReschedules.Add(move);
+            await Assert.ThrowsAsync<DbUpdateException>(() => test.Db.SaveChangesAsync());
+            test.Db.ChangeTracker.Clear();
+        }
+        await Reject(new() { ClinicId = 101, SourceId = original, ReplacementId = foreign, RequestId = Guid.NewGuid() });
+        await Reject(new() { ClinicId = 101, SourceId = original, ReplacementId = original, RequestId = Guid.NewGuid() });
+        await Reject(new() { ClinicId = 101, SourceId = original, ReplacementId = validReplacement, RequestId = Guid.Empty });
+        Assert.Equal("[]", await Query(test.Connection, "PRAGMA foreign_key_check"));
+        Assert.Equal("[[\"ok\"]]", await Query(test.Connection, "PRAGMA integrity_check"));
+        await migrator.MigrateAsync(test.Target);
+        Assert.Equal(before, await Query(test.Connection, dataQuery));
+        Assert.Equal(schemaBefore, await Query(test.Connection, schemaQuery));
+    }
+
+    [Fact]
     public async Task Valid_values_round_trip_as_UTC_and_snapshot_history_survives_configuration_changes()
     {
         await using var test = await Database.Create();

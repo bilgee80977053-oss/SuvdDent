@@ -70,6 +70,24 @@ No persistent database migration or live PostgreSQL test has been authorized
 for this work. Review generated SQL and obtain the appropriate operator
 approval before any database deployment.
 
+## Reschedule ledger
+
+- SQLite: `20261127122653_AddAppointmentReschedules`
+- PostgreSQL: `20261127122656_AddPostgreSqlAppointmentReschedules`
+
+The migrations only add `AppointmentReschedules`. Each source has at most
+one direct replacement, and a replacement belongs to at most one direct
+source in its clinic. Both references use restrictive clinic-scoped foreign
+keys. The service verifies patient ownership and links only the same patient.
+Existing appointment rows/triggers/exclusions are not rebuilt or rewritten.
+SQLite in-memory upgrade and rollback tests compare original table rows and
+schema. A live database rollback that removes the ledger would lose move replay
+history; do not use these Down migrations as a data-preserving rollback.
+
+The PostgreSQL runner treats the seventh migration as a separate approval,
+not covered by the tokens for the first six. This migration and live
+PostgreSQL rescheduling remain unverified on a server.
+
 ## Offline validation
 
 `AppointmentPersistenceTests` use disposable in-memory SQLite databases to

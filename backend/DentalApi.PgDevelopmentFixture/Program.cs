@@ -21,7 +21,7 @@ internal static class PgDevelopmentFixture
     internal const string Host = "127.0.0.1";
     internal const int Port = 5432;
     internal const int ExpectedPostgreSqlMajorVersion = 18;
-    internal const int ExpectedMigrationCount = 6;
+    internal const int ExpectedMigrationCount = 7;
     internal const string WriteApproval = "CREATE_SYNTHETIC_PG_DEVELOPMENT_FIXTURE";
     internal const string DatabasePasswordVariable = "NEXORA_PG_DEVELOPMENT_DB_PASSWORD";
     internal const string WriteApprovalVariable = "NEXORA_PG_DEVELOPMENT_WRITE_OPT_IN";
@@ -36,6 +36,7 @@ internal static class PgDevelopmentFixture
     // validated separately and is intentionally not an application-data table.
     internal static readonly (string Name, string CountSql)[] TableCounts =
     [
+        ("AppointmentReschedules", "SELECT COUNT(*) AS \"Value\" FROM public.\"AppointmentReschedules\""),
         ("Appointments", "SELECT COUNT(*) AS \"Value\" FROM public.\"Appointments\""),
         ("ClinicPatientLinks", "SELECT COUNT(*) AS \"Value\" FROM public.\"ClinicPatientLinks\""),
         ("Clinics", "SELECT COUNT(*) AS \"Value\" FROM public.\"Clinics\""),
@@ -58,6 +59,7 @@ internal static class PgDevelopmentFixture
     private const string LockAllTablesSql = """
         LOCK TABLE
             public."Appointments",
+            public."AppointmentReschedules",
             public."ClinicPatientLinks",
             public."Clinics",
             public."DoctorProfiles",
@@ -229,6 +231,7 @@ internal static class PgDevelopmentFixture
     internal static async Task EnsureApplicationTablesEmptyAsync(AppDbContext db)
     {
         if (await db.Appointments.AnyAsync() ||
+            await db.AppointmentReschedules.AnyAsync() ||
             await db.Set<ClinicPatientLink>().AnyAsync() ||
             await db.Clinics.AnyAsync() ||
             await db.DoctorProfiles.AnyAsync() ||

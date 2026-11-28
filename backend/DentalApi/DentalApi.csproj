@@ -24,5 +24,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="ReferenceData/MongoliaLocations.json" />
+    <InternalsVisibleTo Include="DentalApi.IntegrationTests" />
   </ItemGroup>
 </Project>
