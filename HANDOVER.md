@@ -274,3 +274,13 @@ authentication. A successful prerequisite does not authorize a real
 receipt; durable idempotent issuance, lifecycle rules, authority and legal
 document requirements remain open. No runtime or provider connection is
 introduced by these tests and the pure check.
+
+## Draft review breakdown handoff
+
+`InvoiceDraftReviewBreakdown.Project` has no route and performs no
+authorization or pricing. It consumes an already scoped immutable draft.
+Treat `reviewTotalUnits` as a display-only total, never an amount due;
+parse integer unit strings exactly and apply the supplied scale for display.
+The fixed label key intentionally carries no procedure name or patient data.
+Do not expose the contract before a trusted store and an owner-bound audited
+read policy exist. Do not lower the line guard by truncating the result.

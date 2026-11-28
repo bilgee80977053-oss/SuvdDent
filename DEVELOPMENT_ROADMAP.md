@@ -108,3 +108,9 @@ This is a development branch, not production release approval.
   rule, provider or amount is presumed here.
 - Keep operator-approved PostgreSQL, real merchant integrations, real
   patient data and release deployment outside synthetic acceptance.
+
+- The internal draft review breakdown now provides an exact, ordered,
+  non-payable projection with generic labels. Before exposing it, design
+  authorization tied to a stored draft and its owner, audit and no-store
+  behavior. Separately approve the effective tariff, invoice lifecycle and
+  display labels before producing an issued or payable document.
