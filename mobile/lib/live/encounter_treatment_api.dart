@@ -217,6 +217,13 @@ class EncounterTreatmentApi {
     }
   }
 
+  void _discardResponse(http.StreamedResponse response) {
+    // Cleanup must not delay the status or let a stalled error-body stream
+    // turn an authoritative denial/conflict into an ambiguous timeout.
+    final subscription = response.stream.listen((_) {}, onError: (Object _) {});
+    unawaited(subscription.cancel().catchError((Object _) {}));
+  }
+
   Future<T> _call<T>(
     String path,
     T Function(Json) parse, {
@@ -251,12 +258,12 @@ class EncounterTreatmentApi {
         final streamed = await _client.send(request);
         final isReplay = streamed.statusCode == 204 && onReplay != null;
         if (streamed.statusCode != successStatus && !isReplay) {
-          await streamed.stream.listen((_) {}).cancel();
+          _discardResponse(streamed);
           return (streamed.statusCode, null as List<int>?);
         }
         final limit = isReplay ? 0 : maxResponseBytes;
         if (limit != null && (streamed.contentLength ?? 0) > limit) {
-          await streamed.stream.listen((_) {}).cancel();
+          _discardResponse(streamed);
           throw const FormatException();
         }
         final bytes = <int>[];
