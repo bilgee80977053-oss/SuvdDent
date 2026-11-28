@@ -272,11 +272,11 @@ class LiveFlowController extends ChangeNotifier {
           final result = await api.requestRegistrationCode(pending, method);
           if (!current()) return;
           if (result.userId != pending.userId ||
-              (result.registrationToken?.isEmpty ?? false) ||
+              (result.registrationToken?.isEmpty ?? true) ||
               (result.method != null && result.method != method)) {
             throw const ApiFailure('Бүртгэлийн хариу таарахгүй байна.');
           }
-          registration = result.registrationToken == null ? pending : result;
+          registration = result;
           step = 2;
         } on RegistrationFailure catch (failure) {
           if (current()) {
@@ -315,6 +315,9 @@ class LiveFlowController extends ChangeNotifier {
       registrationToken: pending.registrationToken,
     );
     if (!current()) return;
+    if (pending.registrationToken != null && result.userId != pending.userId) {
+      throw const ApiFailure('Баталгаажуулалтын хариу таарахгүй байна.');
+    }
     registration = null;
     step = 1;
     notice = '${result.message} Нууц үгээрээ нэвтэрнэ үү.';

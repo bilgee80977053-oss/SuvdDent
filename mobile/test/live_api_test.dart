@@ -1049,10 +1049,12 @@ void main() {
         'Баталгаажуулах аргаа солих',
       );
       await tester.ensureVisible(change);
+      await tester.pumpAndSettle();
       await tester.tap(change);
       await tester.pumpAndSettle();
       final sms = find.text('Утасны дугаараар — SMS');
       await tester.ensureVisible(sms);
+      await tester.pumpAndSettle();
       await tester.tap(sms);
       await tester.pumpAndSettle();
       final send = find.widgetWithText(FilledButton, 'Код авах');

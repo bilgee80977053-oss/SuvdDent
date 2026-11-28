@@ -239,7 +239,8 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                 optional: true,
                 keyboard: TextInputType.phone,
                 validate: (v) =>
-                    v.trim().isEmpty || RegExp(r'^\d{8,}$').hasMatch(v.trim())
+                    v.trim().isEmpty ||
+                        RegExp(r'^(?:976)?[0-9]{8}$').hasMatch(v.trim())
                     ? null
                     : 'Утасны дугаараа шалгана уу.',
               ),
@@ -381,8 +382,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
       final remaining = seconds - timer.tick;
       if (!mounted || remaining <= 0) timer.cancel();
-      if (mounted)
+      if (mounted) {
         setState(() => resendSeconds = remaining > 0 ? remaining : 0);
+      }
     });
   }
 

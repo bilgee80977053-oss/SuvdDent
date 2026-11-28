@@ -19,11 +19,11 @@ class RegistrationFailure extends ApiFailure {
   final int? retryAfterSeconds;
   final VerificationReceipt? pendingRegistration;
   const RegistrationFailure(
-    String message,
-    int status, {
+    super.message,
+    int super.status, {
     this.retryAfterSeconds,
     this.pendingRegistration,
-  }) : super(message, status);
+  });
 }
 
 class DentalApi {
@@ -142,6 +142,9 @@ class DentalApi {
   ) {
     int? retry;
     VerificationReceipt? pending;
+    if (response.statusCode == 503) {
+      message = 'Баталгаажуулах үйлчилгээ түр ажиллахгүй байна.';
+    }
     try {
       final j = object(jsonDecode(utf8.decode(response.bodyBytes)));
       final value = j['retryAfterSeconds'];
@@ -262,7 +265,7 @@ class DentalApi {
     body: {
       'userId': userId,
       'code': code,
-      if (registrationToken != null) 'registrationToken': registrationToken,
+      'registrationToken': ?registrationToken,
     },
   );
   // Pending email registrations can recover after a failed first SMTP send.
@@ -417,7 +420,8 @@ class DentalApi {
     int appointmentId, {
     int? expectedServiceId,
   }) async {
-    if (appointmentId <= 0 || (expectedServiceId != null && expectedServiceId <= 0)) {
+    if (appointmentId <= 0 ||
+        (expectedServiceId != null && expectedServiceId <= 0)) {
       throw const ApiFailure('Захиалгын мэдээлэл буруу байна.', 400);
     }
     return _request(
@@ -426,8 +430,11 @@ class DentalApi {
       (v) {
         final estimate = PaymentEstimate.fromJson(object(v));
         if (estimate.appointmentId != appointmentId ||
-            (expectedServiceId != null && estimate.serviceId != expectedServiceId)) {
-          throw const FormatException('Estimate does not match the selected appointment.');
+            (expectedServiceId != null &&
+                estimate.serviceId != expectedServiceId)) {
+          throw const FormatException(
+            'Estimate does not match the selected appointment.',
+          );
         }
         return estimate;
       },
@@ -439,8 +446,11 @@ class DentalApi {
   /// The server, not the selected ID or this transport, authorizes ownership.
   Future<InvoiceReviewRead?> readInvoiceDraftReview(int appointmentId) async {
     final base = Uri.parse(settings.baseUrl);
-    if (kReleaseMode || base.scheme != 'https' || base.host != '127.0.0.1' ||
-        !base.hasPort || base.port <= 0) {
+    if (kReleaseMode ||
+        base.scheme != 'https' ||
+        base.host != '127.0.0.1' ||
+        !base.hasPort ||
+        base.port <= 0) {
       throw const ApiFailure('Туршилтын HTTPS задаргаа идэвхгүй байна.');
     }
     if (appointmentId < 1 || appointmentId > 2147483647) {
@@ -468,16 +478,18 @@ class DentalApi {
     } on ApiFailure catch (error) {
       if (error.status == 404) return null;
       // Never expose a provider/body error or error details from this route.
-      throw ApiFailure('Энэ захиалгын задаргааг харуулах боломжгүй.', error.status);
+      throw ApiFailure(
+        'Энэ захиалгын задаргааг харуулах боломжгүй.',
+        error.status,
+      );
     }
   }
 
-  Future<String> emailPaymentEstimate(int appointmentId) =>
-      _request(
-        'POST',
-        '/api/appointments/$appointmentId/payment-estimate/email',
-        (v) => text(object(v), 'message'),
-      );
+  Future<String> emailPaymentEstimate(int appointmentId) => _request(
+    'POST',
+    '/api/appointments/$appointmentId/payment-estimate/email',
+    (v) => text(object(v), 'message'),
+  );
 
   Future<Appointment> appointment(int id) =>
       _request('GET', '/api/appointments/$id', (v) {
