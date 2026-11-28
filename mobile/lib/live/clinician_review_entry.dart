@@ -2,8 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 
+import 'clinical_note_panel.dart';
 import 'dental_api.dart';
 import 'encounter_treatment_api.dart';
+import 'live_flow_controller.dart' show newRequestId;
 import 'models.dart';
 import 'performed_procedure_panel.dart';
 
@@ -39,7 +41,9 @@ class _ClinicianReviewEntryState extends State<ClinicianReviewEntry> {
   EncounterTreatmentApi? _api;
   AssignedEncounterPage? _page;
   AssignedEncounter? _selected;
-  bool _inFlight = false, _unresolved = false;
+  bool _inFlight = false, _procedurePending = false, _notePending = false;
+  int _reviewTab = 0;
+  bool get _unresolved => _procedurePending || _notePending;
   int _epoch = 0;
   int _requestedPage = 1;
   String? _message;
@@ -101,7 +105,8 @@ class _ClinicianReviewEntryState extends State<ClinicianReviewEntry> {
     _page = null;
     _selected = null;
     _requestedPage = 1;
-    _inFlight = _unresolved = false;
+    _inFlight = _procedurePending = _notePending = false;
+    _reviewTab = 0;
     _message = null;
   }
 
@@ -222,25 +227,65 @@ class _ClinicianReviewEntryState extends State<ClinicianReviewEntry> {
                     TextButton(
                       onPressed: _unresolved
                           ? null
-                          : () => setState(() => _selected = null),
+                          : () => setState(() {
+                              _selected = null;
+                              _reviewTab = 0;
+                            }),
                       child: const Text('Хуваарилсан үзлэг рүү буцах'),
                     ),
                     if (_unresolved)
                       const Text(
-                        'Үзлэг солихын өмнө ажилбарын хүсэлтийг тулган баталгаажуулна уу.',
+                        'Үзлэг солихын өмнө тэмдэглэл эсвэл ажилбарын хүсэлтийг тулган баталгаажуулна уу.',
                       ),
+                    SegmentedButton<int>(
+                      segments: const [
+                        ButtonSegment(value: 0, label: Text('Ажилбар')),
+                        ButtonSegment(value: 1, label: Text('Тэмдэглэл')),
+                      ],
+                      selected: {_reviewTab},
+                      onSelectionChanged: (values) {
+                        FocusManager.instance.primaryFocus?.unfocus();
+                        setState(() => _reviewTab = values.single);
+                      },
+                    ),
                     Expanded(
-                      child: PerformedProcedurePanel(
-                        key: ValueKey(selected.appointmentId),
-                        api: api!,
-                        appointmentId: selected.appointmentId,
-                        bookedServiceId: selected.serviceId,
-                        bookedServiceLabel: selected.serviceLabel,
-                        onPendingIntentChanged: (value) {
-                          if (mounted && identical(_selected, selected)) {
-                            setState(() => _unresolved = value);
-                          }
-                        },
+                      child: IndexedStack(
+                        index: _reviewTab,
+                        sizing: StackFit.expand,
+                        children: [
+                          ExcludeFocus(
+                            excluding: _reviewTab != 0,
+                            child: PerformedProcedurePanel(
+                              key: ValueKey(selected.appointmentId),
+                              api: api!,
+                              appointmentId: selected.appointmentId,
+                              bookedServiceId: selected.serviceId,
+                              bookedServiceLabel: selected.serviceLabel,
+                              onPendingIntentChanged: (value) {
+                                if (mounted && identical(_selected, selected)) {
+                                  setState(() => _procedurePending = value);
+                                }
+                              },
+                            ),
+                          ),
+                          ExcludeFocus(
+                            excluding: _reviewTab != 1,
+                            child: SingleChildScrollView(
+                              child: ClinicalNotePanel(
+                                key: ValueKey(selected.appointmentId),
+                                api: api,
+                                appointmentId: selected.appointmentId,
+                                createAddendumRequestId: newRequestId,
+                                onPendingIntentChanged: (value) {
+                                  if (mounted &&
+                                      identical(_selected, selected)) {
+                                    setState(() => _notePending = value);
+                                  }
+                                },
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
@@ -301,7 +346,8 @@ class _ClinicianReviewEntryState extends State<ClinicianReviewEntry> {
           subtitle: Text(item.startUtc.toIso8601String()),
           trailing: const Icon(Icons.chevron_right),
           onTap: () => setState(() {
-            _unresolved = false;
+            _procedurePending = _notePending = false;
+            _reviewTab = 0;
             _selected = item;
           }),
         ),

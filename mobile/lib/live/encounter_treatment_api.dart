@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 
 import 'dental_api.dart';
@@ -22,8 +23,17 @@ const _noteMaxResponseBytes = 16384;
 final _clinicalLineEndings = RegExp(r'\r\n|[\r\u000c\u0085\u2028\u2029]');
 final _unsupportedNoteControls = RegExp(r'[\x00-\x09\x0b-\x1f\x7f-\x9f]');
 
+// Match the server's LF normalization and .NET Char.IsWhiteSpace trimming.
+final _dotnetBoundaryWhitespace = RegExp(
+  r'^[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+|[\u0009-\u000d\u0020\u0085\u00a0\u1680\u2000-\u200a\u2028\u2029\u202f\u205f\u3000]+$',
+);
+
+String canonicalClinicalNote(String value) => value
+    .replaceAll(_clinicalLineEndings, '\n')
+    .replaceAll(_dotnetBoundaryWhitespace, '');
+
 void _validateWriteNote(String note) {
-  final normalized = note.replaceAll(_clinicalLineEndings, '\n').trim();
+  final normalized = canonicalClinicalNote(note);
   if (note.length > 2000 ||
       normalized.isEmpty ||
       _unsupportedNoteControls.hasMatch(normalized)) {
@@ -421,6 +431,7 @@ class EncounterTreatmentApi {
   final http.Client _client;
   final Duration _timeout;
   String? _token;
+  final _sessionChanges = ValueNotifier<int>(0);
   int _generation = 0;
   bool _closed = false;
 
@@ -438,15 +449,24 @@ class EncounterTreatmentApi {
 
   bool get authenticated => _token != null;
 
-  void logout() {
+  /// UI consumers can clear ephemeral clinical state without seeing credentials.
+  Listenable get sessionChanges => _sessionChanges;
+
+  void _invalidateSession() {
     _generation++;
     _token = null;
+    _sessionChanges.value++;
+  }
+
+  void logout() {
+    if (!_closed) _invalidateSession();
   }
 
   void close() {
     if (_closed) return;
     _closed = true;
-    logout();
+    _invalidateSession();
+    _sessionChanges.dispose();
     _client.close();
   }
 
@@ -651,6 +671,7 @@ class EncounterTreatmentApi {
       throw const ApiFailure('Эмчийн бүртгэлийг баталгаажуулж чадсангүй.', 403);
     }
     _token = session.token;
+    _sessionChanges.value++;
   }
 
   String _encounter(int appointmentId, {String resource = 'treatment'}) {

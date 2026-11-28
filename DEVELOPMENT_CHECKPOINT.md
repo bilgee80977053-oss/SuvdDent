@@ -526,3 +526,41 @@ change and cannot change encounter during an unresolved write. No default
 route, release activation, persisted clinical state or external access.
 The isolated widget harness passed 196 Flutter tests and eight existing
 panel tests independently. The combined hosted check runs at its own SHA.
+
+## Review-only clinician note panel
+
+Adds a standalone note/addenda panel for an already selected encounter.
+Signing requires explicit confirmation, original text cannot be replaced,
+and uncertain acknowledgement is reconciled through audited reads without
+automatic writes. An addendum retry is explicit and reuses the same UUID
+and exact intended note. Session or selection changes clear protected
+state. Nine new widget tests brought independent full Flutter to 191/191
+with a clean analyzer. Exact combined CI is tracked separately.
+
+## Combined clinician review: note, addenda and performed procedure
+
+The isolated review stack combines the exact clinician-entry and standalone
+note-panel branches. Both tabs use the same authenticated clinic Doctor
+adapter and the same server-selected encounter. Tab changes retain pending
+in-memory intents without triggering a POST. While either tab has an active
+or unresolved submission, the entry disables changing encounters and
+normal back navigation. Explicit logout closes the transport and drops both
+panels and all protected data; changing encounter or review configuration
+clears the old view. No default app route or release activation was added.
+
+The locally combined mobile sources passed the Flutter analyzer and 215
+offline Flutter tests. The entry tests exercise shared selection, switching
+with an unresolved original/procedure, different-content reconciliation,
+and clearing protected state on reselection/logout. No combined hosted
+HTTPS/CI, persistent database, production behavior, or broader clinical
+workflow is verified by these widget and client checks.
+
+## Real review-shell HTTPS acceptance
+
+The native proof drives the opt-in Flutter shell through real Doctor login,
+server-selected booked service, explicit procedure confirmation, audited
+refresh and logout; a foreign-clinic Doctor sees no selectable rows. It
+also retains the separate API acceptance for note/addenda and assignment
+selection. The native harness passed 2/2 on the exact #34 parent before
+combining the two clinical panels. This combined draft runs the harness
+again; local widget regressions for the composed panels passed 215/215.
