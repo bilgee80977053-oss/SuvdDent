@@ -465,3 +465,12 @@ two simultaneously open writers plus stale replay leave exactly one
 matching pair. Release build clean, 33 focused tests passed; both new
 cases passed five repeated runs. It is evidence for the transaction
 boundary, not a deployed database implementation or paid invoice.
+
+## Approved pricing scope for immutable draft invoices
+
+The new conditional draft type binds clinic and encounter to a trusted
+pricing result with explicit approval and tariff revision references. It
+rejects missing/mismatched scope or approval and preserves exact amounts
+when pricing changes later. Existing estimate/catalog state is not approval.
+Release clean and 43 focused tests passed. No persistence, trusted pricing
+implementation, invoice number or actual document is issued here.
