@@ -224,3 +224,9 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Estimate privacy
+
+Keep appointment-linked estimates uncached and scoped to the verified active
+patient. Estimate UI must not infer a payable invoice, paid status or receipt.
+The regression uses only an isolated fixture and does not invoke email.
