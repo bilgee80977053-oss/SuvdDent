@@ -241,3 +241,11 @@ server verifier, independently bound transaction, verified finality,
 atomic unique transaction claim and audit in the same transaction. The
 internal comparison is not a trusted verifier, replay lock or settlement
 record. Do not connect it to a callback body or use it to issue a receipt.
+
+## Atomic settlement reservation
+
+A reservation is not payment. Never use a process-local test store in
+production. A durable implementation must bind both uniqueness and the
+authorized ledger effect in one transaction, and treat uncertain commit
+as unknown until reverified. The draft has neither API registration nor
+a database/provider implementation.
