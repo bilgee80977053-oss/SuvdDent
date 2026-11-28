@@ -487,3 +487,13 @@ the clinician HTTPS acceptance now includes authorized same-patient visit
 reads and denial for another clinic. The independently tested Flutter diff
 passed 175/175 offline tests and static analysis. Hosted loopback verification
 is tracked separately; clinical UI and broader history policy remain pending.
+
+## Bounded clinician encounter selection
+
+The synthetic-only clinician list returns the assigned, started, confirmed
+appointments eligible for the existing procedure workflow. It releases only
+appointment ID, UTC times and the booked service ID/label. No patient
+identifier, clinical text, money, total or unaudited has-more hint is returned.
+Audit rows commit before the page is released. Tests passed 3/3 focused and
+608 local offline, with one independent opt-in Flutter HTTPS case skipped.
+No schema, persistent database, default UI or production changes.

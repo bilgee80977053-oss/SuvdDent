@@ -261,3 +261,11 @@ This integration combines the #20 clinician transport and #21 patient
 history boundary. Its one-encounter anchor cannot be used to bypass the
 same-clinic, same-patient, active-assignment and original-signer checks.
 Do not persist returned history or enable this synthetic flow in default UI.
+
+## Clinical selection prerequisite
+
+The assigned list is Testing + in-memory SQLite only and explicitly off by
+default. The authenticated static date bounds and page size are described
+in the clinical history acceptance guide. The future Flutter selector should
+use only server-returned encounter and booked service data and clear the
+page on session changes; never ask a doctor to guess a patient or clinic ID.
