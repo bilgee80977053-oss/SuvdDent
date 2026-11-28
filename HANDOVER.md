@@ -234,3 +234,13 @@ checks for stacked PRs without adding any deployment, write permission or
 PostgreSQL access. The reconstructed Flutter adapter is independently
 reviewable above #18. A synthetic HTTPS sign/read/replay check is a separate
 milestone; do not present mocks as full client-to-server acceptance.
+
+## Local clinician HTTP acceptance command
+
+After locked Flutter package restore, set `SUVDDENT_FLUTTER_TOOL` to the local
+Flutter executable and run the backend integration test project with
+`--filter 'Category=ClinicalFlutterLoopback'`. Leave both PostgreSQL opt-in
+variables absent. The harness only binds loopback and uses an ephemeral
+certificate and in-memory fixtures. GitHub Actions run 46121334606 verified
+the clinician HTTPS bridge on head `3f991cd`. It is not a substitute for device,
+clinical UI, live PostgreSQL or production acceptance.

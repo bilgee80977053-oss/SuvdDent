@@ -24,7 +24,7 @@ using Xunit;
 
 namespace DentalApi.IntegrationTests;
 
-public sealed class StructuredProcedureDraftTests
+public sealed partial class StructuredProcedureDraftTests
 {
     [Fact]
     public async Task Uses_the_assigned_encounter_and_authoritative_label_without_prices()
@@ -622,9 +622,11 @@ public sealed class StructuredProcedureDraftTests
             [new("userId", actor.ToString()), new("clinicId", clinic.ToString()), new(ClaimTypes.Role, role.ToString())],
             "SyntheticClinic"));
 
-    private static async Task<ProcedureFactory> CreateFixture(bool httpEnabled = false, bool fakePersistentMetadata = false)
+    private static async Task<ProcedureFactory> CreateFixture(bool httpEnabled = false, bool fakePersistentMetadata = false,
+        Action<ProcedureFactory>? configure = null)
     {
         var app = new ProcedureFactory(httpEnabled, fakePersistentMetadata);
+        configure?.Invoke(app);
         await app.SeedAsync(); // The source factory gates migrations on synthetic, named in-memory SQLite.
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -651,6 +653,7 @@ public sealed class StructuredProcedureDraftTests
 
     private sealed class ProcedureFactory(bool httpEnabled, bool fakePersistentMetadata) : DoctorApiFactory
     {
+        internal bool UseLoopbackHost { get; set; }
         internal readonly FailingCommit CommitFailure = new();
         internal readonly RefusePersistentOpen OpenGuard = new();
 
@@ -660,6 +663,13 @@ public sealed class StructuredProcedureDraftTests
             if (httpEnabled)
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new Dictionary<string, string?> { ["Features:PerformedProcedureAcceptance"] = "true" }));
+            if (UseLoopbackHost)
+                builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["AllowedHosts"] = "127.0.0.1",
+                        ["Notifications:WorkerEnabled"] = "false"
+                    }));
             builder.ConfigureServices(services =>
             {
                 services.AddDbContext<AppDbContext>(options => options.AddInterceptors(CommitFailure, OpenGuard));

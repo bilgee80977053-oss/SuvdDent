@@ -444,3 +444,17 @@ with HTTPS and no default UI wiring. See this draft's distinct CI for results.
 Flutter-to-API acceptance, clinic-wide history policy and live PostgreSQL
 validation remain outstanding. No production workflow or real patient data
 is involved.
+
+## Synthetic clinician HTTPS acceptance review
+
+An opt-in test harness starts the real DentalApi on an ephemeral IPv4
+loopback HTTPS listener. It runs the Flutter clinician adapter against the
+actual JWT login, identity, signing and read endpoints with disposable
+in-memory SQLite fixtures. It checks exact replay, changed replay rejection,
+cross-clinic denial and one committed signature plus the matching audit
+events. It uses no system trust changes or external listener. The regular
+backend suite skips this explicit opt-in, and the Flutter CI job invokes it
+separately. GitHub Actions run 46121334606 passed the dedicated opt-in
+(1/1), the ordinary offline backend suite (603 passed, 1 explicit opt-in
+skip), Flutter (169 passed; analyzer clean), and PowerShell. Both jobs used
+the same functional tree as PR #20 head `3f991cd`.
