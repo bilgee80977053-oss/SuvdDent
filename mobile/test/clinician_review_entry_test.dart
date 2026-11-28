@@ -9,6 +9,7 @@ import 'package:nexora_dental_mobile/live/clinician_review_entry.dart';
 import 'package:nexora_dental_mobile/live/models.dart';
 
 const _assigned = '/api/clinical/appointments/assigned';
+const _treatment = '/api/clinical/appointments/86/treatment';
 const _procedure = '/api/clinical/appointments/86/performed-procedures';
 const _service = 'Synthetic selected service';
 const _login = 'Эмчээр нэвтрэх';
@@ -261,6 +262,14 @@ void main() {
           .onPressed,
       isNull,
     );
+    await _tap(tester, 'Тэмдэглэл');
+    expect(
+      find.byKey(const ValueKey('clinical-original-draft')),
+      findsOneWidget,
+    );
+    expect(find.text('Ижил хүсэлтийг давтах'), findsNothing);
+    expect(bodies, hasLength(1));
+    await _tap(tester, 'Ажилбар');
     await _tap(tester, 'Ижил хүсэлтийг давтах');
     expect(bodies, hasLength(2));
     expect(bodies.first, bodies.last);
@@ -271,6 +280,129 @@ void main() {
       isNotNull,
     );
   });
+
+  testWidgets(
+    'shares note scope and retains unresolved first sign across tabs',
+    (tester) async {
+      final calls = <String>[];
+      var reveal = false;
+      await _mount(
+        tester,
+        () => MockClient((request) async {
+          switch (request.url.path) {
+            case _assigned:
+              return _page();
+            case _procedure:
+              return _signedHistory();
+            case _treatment:
+              expect(
+                request.headers['Authorization'],
+                'Bearer synthetic-doctor-token-7',
+              );
+              calls.add(request.method);
+              if (request.method == 'POST') {
+                expect(jsonDecode(request.body), {
+                  'note': 'Synthetic unsigned note',
+                });
+                return _json({}, 503);
+              }
+              return reveal
+                  ? _json({
+                      'appointmentId': 86,
+                      'note': 'Different synthetic saved original',
+                      'signedUtc': '2026-11-27T12:00:00Z',
+                    })
+                  : _json({}, 404);
+            default:
+              return _session(request);
+          }
+        }),
+      );
+      final back = find.widgetWithText(TextButton, _goBack);
+      final read = find.byKey(const ValueKey('clinical-read-original'));
+      final draft = find.byKey(const ValueKey('clinical-original-draft'));
+      await _fill(tester);
+      await _tap(tester, _service);
+      expect(calls, isEmpty);
+      await _tap(tester, 'Тэмдэглэл');
+      await tester.enterText(draft, 'Synthetic unsigned note');
+      await tester.tap(find.byKey(const ValueKey('clinical-sign-original')));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byKey(const ValueKey('clinical-confirm-original')));
+      await tester.pumpAndSettle();
+      expect(calls, ['POST', 'GET']);
+      expect(tester.widget<TextButton>(back).onPressed, isNull);
+      await _tap(tester, 'Ажилбар');
+      expect(find.text('Synthetic unsigned note'), findsNothing);
+      expect(tester.widget<TextButton>(back).onPressed, isNull);
+      await _tap(tester, 'Тэмдэглэл');
+      expect(
+        tester.widget<TextField>(draft).controller!.text,
+        'Synthetic unsigned note',
+      );
+      expect(calls, ['POST', 'GET']);
+
+      reveal = true;
+      await tester.tap(read);
+      await tester.pumpAndSettle();
+      expect(calls, ['POST', 'GET', 'GET']);
+      expect(find.text('Different synthetic saved original'), findsOneWidget);
+      expect(find.textContaining('хадгалагдсан гэж үзэхгүй'), findsOneWidget);
+      expect(tester.widget<TextButton>(back).onPressed, isNotNull);
+    },
+  );
+
+  testWidgets(
+    'new selection and logout clear protected drafts and reviewed text',
+    (tester) async {
+      final reads = <String>[];
+      http.Client client() => MockClient((request) async {
+        switch (request.url.path) {
+          case _assigned:
+            return _page([
+              _encounter(),
+              {..._encounter(85), 'serviceLabel': 'Other synthetic service'},
+            ]);
+          case _procedure:
+          case '/api/clinical/appointments/85/performed-procedures':
+            return _signedHistory();
+          case '/api/clinical/appointments/85/treatment':
+            reads.add(request.url.path);
+            return _json({
+              'appointmentId': 85,
+              'note': 'Other synthetic signed note',
+              'signedUtc': '2026-11-27T12:00:00Z',
+            });
+          default:
+            return _session(request);
+        }
+      });
+      final original = find.byKey(const ValueKey('clinical-original-draft'));
+      final addendum = find.byKey(const ValueKey('clinical-addendum-draft'));
+      await _mount(tester, client);
+      await _fill(tester);
+      await _tap(tester, _service);
+      await _tap(tester, 'Тэмдэглэл');
+      await tester.enterText(original, 'Do not carry the old draft');
+      await _tap(tester, _goBack);
+      await _tap(tester, 'Other synthetic service');
+      await _tap(tester, 'Тэмдэглэл');
+      expect(tester.widget<TextField>(original).controller!.text, isEmpty);
+      await tester.tap(find.byKey(const ValueKey('clinical-read-original')));
+      await tester.pumpAndSettle();
+      expect(reads, ['/api/clinical/appointments/85/treatment']);
+      expect(find.text('Other synthetic signed note'), findsOneWidget);
+      await tester.enterText(addendum, 'Do not carry the addendum draft');
+      await _tap(tester, 'Гарах');
+      expect(find.text('Other synthetic signed note'), findsNothing);
+      expect(find.text('Do not carry the addendum draft'), findsNothing);
+      await _fill(tester);
+      await _tap(tester, 'Other synthetic service');
+      await _tap(tester, 'Тэмдэглэл');
+      expect(tester.widget<TextField>(original).controller!.text, isEmpty);
+      expect(reads, hasLength(1));
+    },
+  );
 
   testWidgets('denied assignments are not selectable and hide remote details', (
     tester,

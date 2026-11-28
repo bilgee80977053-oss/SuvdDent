@@ -292,3 +292,31 @@ enabled and always disabled in release. It requires a configured HTTPS
 clinic, caller-owned transport factory and a bounded UTC period. It never
 links from the default patient app. Preserve the panel's exact UUID until
 an uncertain submission is reconciled, and dispose session data on logout.
+
+## Note panel handoff
+
+The panel owns no authentication credentials and stores no clinical data
+outside the current widget. Existing original/addenda reads must remain
+audited. Integrate it only into the opt-in clinician review flow initially;
+do not enable it in default or release UI.
+
+## Combined clinician review handoff
+
+The explicitly enabled non-release clinician review shows notes/addenda
+and performed procedures for one server-selected appointment. Keep both
+tab widgets mounted for that selection so changing tabs cannot discard
+an uncertain write. Keep back/selection navigation blocked while either
+panel still owns an outstanding outcome. Logout intentionally clears the
+entire ephemeral session without retrying or persisting either intent.
+Do not link the entry from the default app or relax any server gate.
+Before considering broader rollout, run combined hosted synthetic HTTPS
+checks and review persistent-provider integrity separately.
+
+## Combined review-shell validation
+
+Run the ClinicalFlutterLoopback opt-in through the standard stacked CI.
+The two panels are isolated from default/release routing, share the
+selected encounter and authenticated transport, and preserve uncertain
+writes while switching tabs. The native harness verifies only synthetic
+SQLite and loopback TLS. Device/release and real PostgreSQL readiness
+remain separate.

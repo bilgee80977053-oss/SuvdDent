@@ -16,7 +16,15 @@ public sealed partial class StructuredProcedureDraftTests
 {
     [ClinicalFlutterFact]
     [Trait("Category", "ClinicalFlutterLoopback")]
-    public async Task Flutter_clinician_confirms_and_reads_treatment_and_patient_history_over_loopback_TLS()
+    public Task Flutter_clinician_confirms_and_reads_treatment_and_patient_history_over_loopback_TLS() =>
+        AssertClinicalFlutterLoopback(reviewEntry: false);
+
+    [ClinicalFlutterFact]
+    [Trait("Category", "ClinicalFlutterLoopback")]
+    public Task Flutter_review_entry_signs_the_assigned_encounter_and_clears_other_clinic_data_over_TLS() =>
+        AssertClinicalFlutterLoopback(reviewEntry: true);
+
+    private async Task AssertClinicalFlutterLoopback(bool reviewEntry)
     {
         Assert.Null(Environment.GetEnvironmentVariable("NEXORA_PG_TEST_CONNECTION"));
         Assert.Null(Environment.GetEnvironmentVariable("PGPASSWORD"));
@@ -45,9 +53,13 @@ public sealed partial class StructuredProcedureDraftTests
             factory.UseKestrel(options => options.Listen(IPAddress.Loopback, 0,
                 listen => listen.UseHttps(certificate)));
         });
-        host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
-        host.Services.GetRequiredService<IConfiguration>()["Features:ClinicalTreatment"] = "true";
-        host.Services.GetRequiredService<IConfiguration>()["Features:AssignedEncounterAcceptance"] = "true";
+        var configuration = host.Services.GetRequiredService<IConfiguration>();
+        configuration["Features:AssignedEncounterAcceptance"] = "true";
+        if (!reviewEntry)
+        {
+            configuration["Features:PatientHistoryAcceptance"] = "true";
+            configuration["Features:ClinicalTreatment"] = "true";
+        }
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -60,7 +72,10 @@ public sealed partial class StructuredProcedureDraftTests
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (var argument in new[] { "test", "--no-pub", "--reporter", "expanded", "tool/clinical_https_acceptance_test.dart" })
+        var test = reviewEntry
+            ? "tool/clinical_review_entry_https_acceptance_test.dart"
+            : "tool/clinical_https_acceptance_test.dart";
+        foreach (var argument in new[] { "test", "--no-pub", "--reporter", "expanded", test })
             options.ArgumentList.Add(argument);
         options.Environment["SUVDDENT_LOOPBACK_ORIGIN"] = origin.AbsoluteUri;
         options.Environment["SUVDDENT_LOOPBACK_CERT_PEM"] = certificate.ExportCertificatePem();
@@ -84,15 +99,31 @@ public sealed partial class StructuredProcedureDraftTests
         using var scope = host.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
         var signed = Assert.Single(await db.Set<PerformedProcedure>().AsNoTracking().ToListAsync());
-        Assert.Equal(301, signed.AppointmentId);
-        Assert.Equal(13, signed.DoctorUserId);
+        Assert.Equal((101, 301, 13, 51), (signed.ClinicId, signed.AppointmentId, signed.DoctorUserId, signed.ServiceId));
+        Assert.Equal("SingleTooth", signed.TargetScope);
+        Assert.Equal("85", signed.ToothCode);
+        Assert.NotEqual(Guid.Empty, signed.RequestId);
         var events = await db.Set<ClinicalAuditEvent>().AsNoTracking().ToListAsync();
-        Assert.Single(await db.Set<TreatmentRecord>().AsNoTracking().ToListAsync());
-        Assert.Single(await db.Set<TreatmentAddendum>().AsNoTracking().ToListAsync());
-        Assert.Equal(8, events.Count);
-        Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.TreatmentRecorded));
-        Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentAmended);
-        Assert.Equal(5, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+        var treatments = await db.Set<TreatmentRecord>().AsNoTracking().ToListAsync();
+        var addenda = await db.Set<TreatmentAddendum>().AsNoTracking().ToListAsync();
+        if (reviewEntry)
+        {
+            Assert.Empty(treatments);
+            Assert.Empty(addenda);
+            // Assigned encounter, initial procedure list, one sign and refresh.
+            Assert.Equal(4, events.Count);
+            Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentRecorded);
+            Assert.Equal(3, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+        }
+        else
+        {
+            Assert.Single(treatments);
+            Assert.Single(addenda);
+            Assert.Equal(8, events.Count);
+            Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.TreatmentRecorded));
+            Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentAmended);
+            Assert.Equal(5, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+        }
         Assert.All(events, row => Assert.Equal((101, 301, 13), (row.ClinicId, row.AppointmentId, row.ActorUserId)));
     }
 
