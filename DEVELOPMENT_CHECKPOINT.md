@@ -425,3 +425,12 @@ author separation, fixed-UTC tie ordering, signed label after catalogue
 rename, read auditing of empty pages and failure closed on audit insert
 or commit. Live PostgreSQL, production clinical roles and patient history
 were not verified or enabled.
+
+## 2026-11-28: Invoice mathematics review (no invoice issuance)
+
+An isolated internal snapshot calculates exact totals from explicitly supplied
+pre-priced synthetic charges, discounts and taxes in integer units. Currency
+format and scale are explicit, checked totals cannot silently overflow, and
+existing estimate logic is unchanged. The standalone Release build and all 19
+focused invoice tests passed before publication. No API, schema, tariff
+assumption, merchant activation, receipt or payment confirmation was added.
