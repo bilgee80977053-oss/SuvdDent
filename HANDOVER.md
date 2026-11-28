@@ -249,3 +249,11 @@ production. A durable implementation must bind both uniqueness and the
 authorized ledger effect in one transaction, and treat uncertain commit
 as unknown until reverified. The draft has neither API registration nor
 a database/provider implementation.
+
+## Synthetic SQLite settlement proof
+
+Keep these tables and connections test-only. Runtime settlement still
+needs a reviewed durable schema with equivalent key scope, trusted
+provider verification and a committed ledger effect. No payment callback
+read, financial record creation, tax receipt, migration or live PostgreSQL
+is part of the fixture.
