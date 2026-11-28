@@ -320,3 +320,10 @@ selected encounter and authenticated transport, and preserve uncertain
 writes while switching tabs. The native harness verifies only synthetic
 SQLite and loopback TLS. Device/release and real PostgreSQL readiness
 remain separate.
+
+The synthetic native review acceptance now drives the visible procedure
+and note tabs through the real backend. Keep its transport confined to the
+ephemeral loopback host and retain the independent adapter acceptance.
+The fixture checks the write and audit counts and verifies that tab changes
+do not fetch additional data or leave clinical text visible after logout.
+It does not unlock the default app, release UI, or persistent-provider use.

@@ -10,6 +10,13 @@ import 'package:nexora_dental_mobile/live/clinician_review_entry.dart';
 import 'package:nexora_dental_mobile/live/models.dart';
 
 const _endpoint = '/api/clinical/appointments/301/performed-procedures';
+const _treatment = '/api/clinical/appointments/301/treatment';
+const _addenda = '$_treatment/addenda';
+final _keyedAddendum = RegExp(
+  '^$_addenda/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\$',
+);
+const _syntheticOriginal = 'Synthetic review shell original';
+const _syntheticAddendum = 'Synthetic review shell addendum';
 const _service = 'Synthetic booked service';
 const _empty = 'Бүртгэл хараахан байхгүй.';
 const _start = 'Ажилбар бүртгэх';
@@ -32,6 +39,7 @@ class _LoopbackClient extends http.BaseClient {
   final Uri _origin;
   final calls = <String>[];
   final signs = <Map<String, Object?>>[];
+  String? addendumRequestId;
   bool closed = false;
   final _completed = <Future<void>>[];
 
@@ -51,7 +59,10 @@ class _LoopbackClient extends http.BaseClient {
         (path == '/api/Auth/login' && method == 'POST') ||
         (path == '/api/Auth/me' && method == 'GET') ||
         (path == _assigned && method == 'GET') ||
-        (path == _endpoint && (method == 'GET' || method == 'POST'));
+        (path == _endpoint && (method == 'GET' || method == 'POST')) ||
+        ((path == _treatment || path == _addenda) &&
+            (method == 'GET' || method == 'POST')) ||
+        (_keyedAddendum.hasMatch(path) && method == 'GET');
     if (uri.scheme != 'https' ||
         uri.host != '127.0.0.1' ||
         uri.port != _origin.port ||
@@ -67,6 +78,11 @@ class _LoopbackClient extends http.BaseClient {
       signs.add(
         jsonDecode((request as http.Request).body) as Map<String, Object?>,
       );
+    }
+    if (path == _addenda && method == 'POST') {
+      final payload =
+          jsonDecode((request as http.Request).body) as Map<String, Object?>;
+      addendumRequestId = payload['requestId'] as String;
     }
     final response = _zone.run(() async {
       final result = await _client.send(request);
@@ -93,7 +109,7 @@ class _LoopbackClient extends http.BaseClient {
 }
 
 void main() {
-  testWidgets('review entry signs a server-selected encounter over real TLS', (
+  testWidgets('review entry signs procedure, note and addendum over real TLS', (
     tester,
   ) async {
     final origin = Uri.parse(Platform.environment['SUVDDENT_LOOPBACK_ORIGIN']!);
@@ -205,12 +221,85 @@ void main() {
     expect(find.textContaining('$_service · 85'), findsOneWidget);
     expect(find.text(_empty), findsNothing);
 
+    Finder control(String name) => find.byKey(ValueKey(name));
+    Future<void> selectTab(String label) async {
+      await tester.tap(find.text(label));
+      await tester.pumpAndSettle();
+    }
+
+    Future<void> useControl(String name, int requestNumber) async {
+      final button = control(name);
+      await tester.ensureVisible(button);
+      await tester.tap(button);
+      await complete(owner, requestNumber);
+      await tester.pumpAndSettle();
+    }
+
+    await selectTab('Тэмдэглэл');
+    expect(owner.calls, hasLength(6)); // Switching alone never opens an audit.
+    await tester.enterText(
+      control('clinical-original-draft'),
+      _syntheticOriginal,
+    );
+    await tester.tap(control('clinical-sign-original'));
+    await tester.pumpAndSettle();
+    expect(control('clinical-confirm-original'), findsOneWidget);
+    expect(owner.calls, hasLength(6)); // Explicit confirmation is required.
+    await tester.tap(control('clinical-confirm-original'));
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 300));
+    await complete(owner, 7);
+    await tester.pumpAndSettle();
+    expect(find.text('Анхны тэмдэглэл баталгаажлаа.'), findsOneWidget);
+    expect(control('clinical-original-draft'), findsNothing);
+
+    await useControl('clinical-read-original', 8);
+    expect(find.text(_syntheticOriginal), findsOneWidget);
+    await tester.enterText(
+      control('clinical-addendum-draft'),
+      _syntheticAddendum,
+    );
+    await useControl('clinical-sign-addendum', 9);
+    expect(find.text('Нэмэлт баталгаажлаа.'), findsOneWidget);
+    expect(find.text(_syntheticOriginal), findsOneWidget);
+
+    await useControl('clinical-list-addenda', 10);
+    final newestAddendum = find.textContaining(
+      RegExp(r'^\d{4}-\d{2}-\d{2}T.*Z$'),
+    );
+    expect(newestAddendum, findsOneWidget);
+    await tester.ensureVisible(newestAddendum);
+    await tester.tap(newestAddendum);
+    await complete(owner, 11);
+    await tester.pumpAndSettle();
+    expect(find.text(_syntheticAddendum), findsOneWidget);
+    expect(owner.calls.sublist(6, 10), [
+      'POST $_treatment',
+      'GET $_treatment',
+      'POST $_addenda',
+      'GET $_addenda',
+    ]);
+    expect(owner.addendumRequestId, isNotNull);
+    expect(owner.calls.last, 'GET $_addenda/${owner.addendumRequestId}');
+
+    await selectTab('Ажилбар');
+    expect(owner.calls, hasLength(11));
+    expect(find.textContaining('$_service · 85'), findsOneWidget);
+    expect(find.text(_syntheticOriginal), findsNothing);
+    expect(find.text(_syntheticAddendum), findsNothing);
+    await selectTab('Тэмдэглэл');
+    expect(owner.calls, hasLength(11));
+    expect(find.text(_syntheticOriginal), findsOneWidget);
+    expect(find.text(_syntheticAddendum), findsOneWidget);
+
     await tester.tap(find.text('Гарах'));
     await tester.pumpAndSettle();
     expect(owner.closed, isTrue);
     expect(find.text(_login), findsOneWidget);
     expect(find.textContaining(_service), findsNothing);
     expect(find.text(_start), findsNothing);
+    expect(find.text(_syntheticOriginal), findsNothing);
+    expect(find.text(_syntheticAddendum), findsNothing);
     expect(
       tester.widget<TextField>(find.byType(TextField).at(1)).controller!.text,
       isEmpty,
@@ -229,6 +318,8 @@ void main() {
     expect(find.textContaining(_service), findsNothing);
     expect(find.text(_start), findsNothing);
     expect(foreign.signs, isEmpty);
+    expect(find.text(_syntheticOriginal), findsNothing);
+    expect(find.text(_syntheticAddendum), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     expect(foreign.closed, isTrue);
   });

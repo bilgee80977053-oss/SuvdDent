@@ -21,7 +21,7 @@ public sealed partial class StructuredProcedureDraftTests
 
     [ClinicalFlutterFact]
     [Trait("Category", "ClinicalFlutterLoopback")]
-    public Task Flutter_review_entry_signs_the_assigned_encounter_and_clears_other_clinic_data_over_TLS() =>
+    public Task Flutter_review_entry_signs_procedure_note_and_addendum_and_clears_other_clinic_data_over_TLS() =>
         AssertClinicalFlutterLoopback(reviewEntry: true);
 
     private async Task AssertClinicalFlutterLoopback(bool reviewEntry)
@@ -55,11 +55,9 @@ public sealed partial class StructuredProcedureDraftTests
         });
         var configuration = host.Services.GetRequiredService<IConfiguration>();
         configuration["Features:AssignedEncounterAcceptance"] = "true";
+        configuration["Features:ClinicalTreatment"] = "true";
         if (!reviewEntry)
-        {
             configuration["Features:PatientHistoryAcceptance"] = "true";
-            configuration["Features:ClinicalTreatment"] = "true";
-        }
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -108,12 +106,18 @@ public sealed partial class StructuredProcedureDraftTests
         var addenda = await db.Set<TreatmentAddendum>().AsNoTracking().ToListAsync();
         if (reviewEntry)
         {
-            Assert.Empty(treatments);
-            Assert.Empty(addenda);
-            // Assigned encounter, initial procedure list, one sign and refresh.
-            Assert.Equal(4, events.Count);
-            Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentRecorded);
-            Assert.Equal(3, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+            var treatment = Assert.Single(treatments);
+            var addendum = Assert.Single(addenda);
+            Assert.Equal((101, 301, 13), (treatment.ClinicId, treatment.AppointmentId, treatment.AuthorUserId));
+            Assert.Equal((101, 301, 13), (addendum.ClinicId, addendum.AppointmentId, addendum.AuthorUserId));
+            Assert.NotEqual(Guid.Empty, addendum.RequestId);
+            Assert.Equal("Synthetic review shell original", treatment.Note);
+            Assert.Equal("Synthetic review shell addendum", addendum.Note);
+            // Assignment, procedure list and refresh, original read, addenda page and keyed read.
+            Assert.Equal(9, events.Count);
+            Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.TreatmentRecorded));
+            Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentAmended);
+            Assert.Equal(6, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
         }
         else
         {
