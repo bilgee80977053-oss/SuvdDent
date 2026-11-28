@@ -224,3 +224,12 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Invoice amount snapshot boundary
+
+The internal amount calculator is not an issued invoice. It accepts already
+priced same-currency line amounts; it does not pick a tariff or tax rule.
+Next require approved effective tariffs and tax/rounding policy, then review
+authorization, numbering, immutable persistence, verified settlement and
+receipt lifecycle separately. No live gateway or patient records are needed
+for reviewing this arithmetic slice.
