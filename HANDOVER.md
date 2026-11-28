@@ -270,3 +270,10 @@ GET to reconcile uncertain results. The Flutter adapter verifies a suitable
 Location for creation without following redirects. A separate cross-origin
 browser deployment review must address Location exposure; no CORS expansion
 or production route is implied by this work.
+
+## Note panel handoff
+
+The panel owns no authentication credentials and stores no clinical data
+outside the current widget. Existing original/addenda reads must remain
+audited. Integrate it only into the opt-in clinician review flow initially;
+do not enable it in default or release UI.

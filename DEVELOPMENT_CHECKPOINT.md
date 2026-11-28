@@ -497,3 +497,13 @@ automatic POST/retry or false success on conflict. Its focused 47/47 and
 full 182/182 local Flutter checks passed; the HTTPS acceptance is extended
 to sign, check immutable conflict, add, replay and read. Real data,
 production and default UI remain outside this draft.
+
+## Review-only clinician note panel
+
+Adds a standalone note/addenda panel for an already selected encounter.
+Signing requires explicit confirmation, original text cannot be replaced,
+and uncertain acknowledgement is reconciled through audited reads without
+automatic writes. An addendum retry is explicit and reuses the same UUID
+and exact intended note. Session or selection changes clear protected
+state. Nine new widget tests brought independent full Flutter to 191/191
+with a clean analyzer. Exact combined CI is tracked separately.
