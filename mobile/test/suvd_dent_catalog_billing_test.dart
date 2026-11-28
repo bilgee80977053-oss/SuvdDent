@@ -114,6 +114,7 @@ void main() {
                     context,
                     category: service.name,
                     service: service,
+                    isAcademic: reduced,
                     onBook: () => bookings++,
                   ),
                   child: const Text('Үзлэгийн танилцуулга'),
@@ -124,7 +125,25 @@ void main() {
         );
         await tester.tap(opened);
         await tester.pumpAndSettle();
+        final scrollable = find.descendant(
+          of: find.byKey(const ValueKey('clinical-service-sheet-content')),
+          matching: find.byType(Scrollable),
+        );
+        final caption = find.textContaining(
+          reduced
+              ? 'Сургалтын жишиг үнэ. Бодит төлбөрийн дүн биш.'
+              : 'Эмнэлгийн LIVE үйлчилгээний бүртгэлээс ирсэн үнэ.',
+        );
+        await tester.scrollUntilVisible(caption, 180, scrollable: scrollable);
+        expect(caption, findsOneWidget);
+        expect(
+          find.textContaining(
+            reduced ? 'LIVE үйлчилгээний' : 'Сургалтын жишиг үнэ.',
+          ),
+          findsNothing,
+        );
         final close = find.byTooltip('Танилцуулгыг хаах');
+        await tester.scrollUntilVisible(close, -180, scrollable: scrollable);
         final route = ModalRoute.of(tester.element(close));
         expect(route, isA<ModalBottomSheetRoute<void>>());
         expect(

@@ -45,6 +45,7 @@ class ClinicalServiceDetails {
     BuildContext context, {
     required String category,
     BookingService? service,
+    bool isAcademic = false,
     VoidCallback? onBook,
   }) => showModalBottomSheet<void>(
     context: context,
@@ -108,7 +109,7 @@ class ClinicalServiceDetails {
                     ),
                   ],
                   const SizedBox(height: 17),
-                  _PricePanel(service: service),
+                  _PricePanel(service: service, isAcademic: isAcademic),
                   const SizedBox(height: 20),
                   const _SectionHeader('Үзлэг, ажилбарын үед'),
                   const SizedBox(height: 10),
@@ -177,8 +178,9 @@ class ClinicalServiceDetails {
 }
 
 class _PricePanel extends StatelessWidget {
-  const _PricePanel({required this.service});
+  const _PricePanel({required this.service, required this.isAcademic});
   final BookingService? service;
+  final bool isAcademic;
   @override
   Widget build(BuildContext context) => Container(
     padding: const EdgeInsets.all(17),
@@ -199,7 +201,11 @@ class _PricePanel extends StatelessWidget {
                 fontWeight: FontWeight.w800, fontSize: 22)),
         const SizedBox(height: 5),
         Text(
-          service == null
+          isAcademic
+              ? service == null
+                    ? 'Сургалтын энэ тайлбарт жишиг үнэ оруулаагүй.'
+                    : 'Сургалтын жишиг үнэ. Бодит төлбөрийн дүн биш.'
+              : service == null
               ? 'Одоогоор энэ төрлийн үйлчилгээний үнэ эмнэлгээс ирээгүй.'
               : 'Эмнэлгийн LIVE үйлчилгээний бүртгэлээс ирсэн үнэ. '
                 'Оношилгоо, нэмэлт эмчилгээний дараа төлөх дүн өөрчлөгдөж болно.',

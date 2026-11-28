@@ -436,7 +436,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     ],
   );
   void openEducationalInfo(String category) {
-    ClinicalServiceDetails.show(context, category: category);
+    ClinicalServiceDetails.show(
+      context,
+      category: category,
+      isAcademic: widget.settings.isAcademic,
+    );
   }
 
   void openServiceInfo(BookingService s) {
@@ -445,6 +449,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       context,
       category: s.name,
       service: s,
+      isAcademic: widget.settings.isAcademic,
       onBook: () {
         if (!mounted || flow.busy || flow.uncertainBooking) return;
         flow.selectService(s);
@@ -980,9 +985,11 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         ],
       ),
       const SizedBox(height: 24),
-      const Text(
-        'Үйлчилгээ, эмч, цагийн мэдээллийг эмнэлгийн LIVE системээс авна.',
-        style: TextStyle(fontSize: 12, color: AppColors.muted),
+      Text(
+        widget.settings.isAcademic
+            ? 'Үйлчилгээ, эмч, цагийн мэдээлэл нь сургалтын жишээ.'
+            : 'Үйлчилгээ, эмч, цагийн мэдээллийг эмнэлгийн LIVE системээс авна.',
+        style: const TextStyle(fontSize: 12, color: AppColors.muted),
       ),
     ],
   );

@@ -1,6 +1,7 @@
 """Local launcher included in the explicitly synthetic academic demo ZIP."""
 
 import argparse
+import errno
 from functools import partial
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 import os
@@ -50,11 +51,17 @@ def demo_environment():
 
 
 def ensure_api_port_free():
-    with socket.socket() as probe:
-        try:
-            probe.bind((HOST, API_PORT))
-        except OSError as error:
-            raise RuntimeError(f"Port {API_PORT} is already in use. Stop the other local demo and retry.") from error
+    # A bind-only probe can reject a closed listener while old TCP connections
+    # are in TIME_WAIT. Reject an active listener; let Kestrel enforce the real
+    # bind and never accept its health response before our child's ready marker.
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as probe:
+        probe.settimeout(0.5)
+        status = probe.connect_ex((HOST, API_PORT))
+        if status == 0:
+            raise RuntimeError(f"Port {API_PORT} is already in use. Stop the other local demo and retry.")
+        refused = {errno.ECONNREFUSED, getattr(errno, "WSAECONNREFUSED", errno.ECONNREFUSED)}
+        if status not in refused:
+            raise RuntimeError(f"Could not verify loopback port {API_PORT} is free (socket error {status}).")
 
 
 def relay(child, ready):
