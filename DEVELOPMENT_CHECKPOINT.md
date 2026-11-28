@@ -455,3 +455,13 @@ lookup and verifies only one claim is reserved. Same-invoice replay cannot
 reserve a second time. Release build and all 31 focused tests passed.
 Production storage, verified provider calls, ledger effects, invoice status,
 receipts and deployment remain untouched.
+
+## Settlement reservation and ledger atomicity on actual SQLite
+
+The new synthetic fixture uses separate connections to a unique named
+in-memory SQLite database and a single non-deferred transaction for claim
+and ledger marker. A real ledger constraint abort leaves neither row;
+two simultaneously open writers plus stale replay leave exactly one
+matching pair. Release build clean, 33 focused tests passed; both new
+cases passed five repeated runs. It is evidence for the transaction
+boundary, not a deployed database implementation or paid invoice.
