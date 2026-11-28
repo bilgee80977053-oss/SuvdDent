@@ -487,3 +487,13 @@ the clinician HTTPS acceptance now includes authorized same-patient visit
 reads and denial for another clinic. The independently tested Flutter diff
 passed 175/175 offline tests and static analysis. Hosted loopback verification
 is tracked separately; clinical UI and broader history policy remain pending.
+
+## Flutter signed clinical notes and append-only addenda
+
+The clinician adapter submits original immutable notes and UUID-scoped
+addenda and handles real acknowledgements without reading clinical data from
+a write response. Ambiguous writes require an explicit audited read; no
+automatic POST/retry or false success on conflict. Its focused 47/47 and
+full 182/182 local Flutter checks passed; the HTTPS acceptance is extended
+to sign, check immutable conflict, add, replay and read. Real data,
+production and default UI remain outside this draft.
