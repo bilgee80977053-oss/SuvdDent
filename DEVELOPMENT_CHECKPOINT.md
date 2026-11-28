@@ -474,3 +474,16 @@ rejects missing/mismatched scope or approval and preserves exact amounts
 when pricing changes later. Existing estimate/catalog state is not approval.
 Release clean and 43 focused tests passed. No persistence, trusted pricing
 implementation, invoice number or actual document is issued here.
+
+## Verified settlement prerequisite for future receipt review
+
+The internal check rejects missing, unknown, candidate or reserved evidence.
+It requires a positive amount and trusted verified-committed ledger evidence
+bound to the same opaque invoice identity, clinic, appointment, approval,
+tariff revision, currency, scale and ordered monetary lines. Matching
+amounts on a different invoice cannot pass. This is a precondition only:
+nothing issues a receipt, produces a paid state, or supplies provenance,
+runtime storage, authorization or tax policy.
+Release build completed with no warnings or errors and 50 focused tests
+passed, including seven new receipt prerequisite cases. Hosted regression
+is tracked separately.
