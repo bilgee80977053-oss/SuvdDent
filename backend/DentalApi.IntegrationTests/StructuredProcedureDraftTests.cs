@@ -17,6 +17,7 @@ using Microsoft.EntityFrameworkCore.Migrations.Operations;
 using DentalApi.Clinical;
 using DentalApi.Data;
 using DentalApi.Models;
+using DentalApi.Services;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
@@ -770,6 +771,10 @@ public sealed partial class StructuredProcedureDraftTests
     private sealed class ProcedureFactory(bool httpEnabled, bool fakePersistentMetadata) : DoctorApiFactory
     {
         internal bool UseLoopbackHost { get; set; }
+        private Action<IServiceCollection>? _invoiceReview;
+        internal void WithInvoiceDraftReview() => _invoiceReview = services => services.AddInvoiceDraftReviewFixture();
+        internal void WithInvoiceDraftReview(ServerApprovedInvoicePricing pricing) =>
+            _invoiceReview = services => services.AddInvoiceDraftReviewFixture(pricing);
         internal readonly FailingCommit CommitFailure = new();
         internal readonly RefusePersistentOpen OpenGuard = new();
 
@@ -793,6 +798,7 @@ public sealed partial class StructuredProcedureDraftTests
                 services.AddSingleton<TimeProvider>(new FixedClock());
                 if (fakePersistentMetadata)
                     services.AddControllers(options => options.Filters.Add(new SwapConnectionMetadata()));
+                _invoiceReview?.Invoke(services);
             });
         }
     }
@@ -809,7 +815,7 @@ public sealed partial class StructuredProcedureDraftTests
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (context.Controller is not (PerformedProcedureAcceptanceController or PatientHistoryAcceptanceController or AssignedEncounterAcceptanceController))
+            if (context.Controller is not (PerformedProcedureAcceptanceController or PatientHistoryAcceptanceController or AssignedEncounterAcceptanceController or InvoiceDraftReviewFixtureController))
             {
                 await next();
                 return;

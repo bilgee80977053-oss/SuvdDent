@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:http/http.dart' as http;
 
 import 'models.dart';
+import 'patient_invoice_review.dart';
 
 class ApiFailure implements Exception {
   final int? status;
@@ -341,6 +343,43 @@ class DentalApi {
       },
       privateResponse: true,
     );
+  }
+
+  /// Review composition only; never called by the normal or release entry.
+  /// The server, not the selected ID or this transport, authorizes ownership.
+  Future<InvoiceReviewRead?> readInvoiceDraftReview(int appointmentId) async {
+    final base = Uri.parse(settings.baseUrl);
+    if (kReleaseMode || base.scheme != 'https' || base.host != '127.0.0.1' ||
+        !base.hasPort || base.port <= 0) {
+      throw const ApiFailure('Туршилтын HTTPS задаргаа идэвхгүй байна.');
+    }
+    if (appointmentId < 1 || appointmentId > 2147483647) {
+      throw const ApiFailure('Захиалгын мэдээлэл буруу байна.', 400);
+    }
+    try {
+      return await _request(
+        'GET',
+        '/api/appointments/$appointmentId/invoice-draft-review',
+        (v) {
+          final data = object(v);
+          if (data.length != 2 ||
+              data['appointmentId'] is! int ||
+              data['appointmentId'] != appointmentId ||
+              !data.containsKey('breakdown')) {
+            throw const FormatException('Review does not match the booking.');
+          }
+          return InvoiceReviewRead(
+            appointmentId,
+            InvoiceReviewBreakdown.fromJson(data['breakdown']),
+          );
+        },
+        privateResponse: true,
+      );
+    } on ApiFailure catch (error) {
+      if (error.status == 404) return null;
+      // Never expose a provider/body error or error details from this route.
+      throw ApiFailure('Энэ захиалгын задаргааг харуулах боломжгүй.', error.status);
+    }
   }
 
   Future<String> emailPaymentEstimate(int appointmentId) =>
