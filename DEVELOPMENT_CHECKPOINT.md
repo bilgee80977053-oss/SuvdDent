@@ -454,4 +454,7 @@ in-memory SQLite fixtures. It checks exact replay, changed replay rejection,
 cross-clinic denial and one committed signature plus the matching audit
 events. It uses no system trust changes or external listener. The regular
 backend suite skips this explicit opt-in, and the Flutter CI job invokes it
-separately. Do not infer a passing result until the dedicated check passes.
+separately. GitHub Actions run 46121334606 passed the dedicated opt-in
+(1/1), the ordinary offline backend suite (603 passed, 1 explicit opt-in
+skip), Flutter (169 passed; analyzer clean), and PowerShell. Both jobs used
+the same functional tree as PR #20 head `3f991cd`.

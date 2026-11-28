@@ -241,5 +241,6 @@ After locked Flutter package restore, set `SUVDDENT_FLUTTER_TOOL` to the local
 Flutter executable and run the backend integration test project with
 `--filter 'Category=ClinicalFlutterLoopback'`. Leave both PostgreSQL opt-in
 variables absent. The harness only binds loopback and uses an ephemeral
-certificate and in-memory fixtures; it is not a substitute for device,
+certificate and in-memory fixtures. GitHub Actions run 46121334606 verified
+the clinician HTTPS bridge on head `3f991cd`. It is not a substitute for device,
 clinical UI, live PostgreSQL or production acceptance.
