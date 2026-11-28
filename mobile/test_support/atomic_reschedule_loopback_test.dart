@@ -250,6 +250,29 @@ void main() {
         history.items.singleWhere((item) => item.id == original.id).status,
         'Cancelled',
       );
+      // The success notice appears before the widget's own history refresh
+      // completes. Wait for that distinct real request to finish before
+      // disposal, rather than leaving its timeout in the fake-time zone.
+      final progress = find.byType(LinearProgressIndicator);
+      final deadline = DateTime.now().add(const Duration(seconds: 10));
+      while (progress.evaluate().isNotEmpty &&
+          DateTime.now().isBefore(deadline)) {
+        await tester.runAsync(
+          () => Future<void>.delayed(const Duration(milliseconds: 25)),
+        );
+        await tester.pump(const Duration(milliseconds: 30));
+      }
+      expect(
+        progress,
+        findsNothing,
+        reason: 'Patient history refresh is pending',
+      );
+      expect(
+        find.text(
+          'Шинэ цаг баталгаажсан. Захиалгын жагсаалтыг дахин шинэчилнэ үү.',
+        ),
+        findsNothing,
+      );
       await tester.pumpWidget(const SizedBox());
       // C# harness requires this sentinel; does not include credentials or data.
       debugPrint('loopback widget confirmed the appointment lifecycle');

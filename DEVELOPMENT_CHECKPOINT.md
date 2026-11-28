@@ -746,3 +746,17 @@ fixture teardown. Prior green PRs are evidence for those original revisions,
 not for this combined candidate. Review this candidate's own check runs before
 claiming combined acceptance. No live PostgreSQL, real providers, production,
 deployments or default financial/clinician rollout are in scope.
+
+## Follow-up to exact five-tip review
+
+On #46 (`487de485560eb82209837b91c67cf9af59403619`), hosted run
+46142163578 passed both jobs, including both real synthetic loopback steps.
+Local Release was clean, default backend 665 passed with the three isolated
+native tests opt-in, and Flutter 227 passed. The clinician native pair
+passed locally; one local appointment-native run finished the lifecycle
+but disposed its widget before its own history read timeout cleared.
+The standalone test-only repair passed 1/1 locally by waiting for the real
+history refresh. #46 is unchanged; this follow-up adds that test repair,
+the narrow/200%-text nonpayable invoice review accessibility regression, and
+an offline source inventory for 21 SQLite/11 PostgreSQL migrations.
+These are not additional independent test totals for this combined tree.

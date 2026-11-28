@@ -219,17 +219,31 @@ class _PatientInvoiceReviewPanelState extends State<PatientInvoiceReviewPanel> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Төлөх боломжгүй ноорог',
-                style: TextStyle(fontWeight: FontWeight.bold),
+              Semantics(
+                container: true,
+                header: true,
+                child: const Text(
+                  'Төлөх боломжгүй ноорог',
+                  style: TextStyle(fontWeight: FontWeight.bold),
+                ),
               ),
               const Text(
                 'Зөвхөн туршилтын задаргаа. Энэ нь төлбөр төлөх нэхэмжлэх эсвэл төлбөрийн баримт биш.',
               ),
               if (snapshot.connectionState != ConnectionState.done)
-                const Text('Нооргийг ачаалж байна…')
+                Semantics(
+                  container: true,
+                  liveRegion: true,
+                  child: const Text('Нооргийг ачаалж байна…'),
+                )
               else if (review == null)
-                const Text('Энэ захиалгын задаргааг харуулах боломжгүй.')
+                Semantics(
+                  container: true,
+                  liveRegion: true,
+                  child: const Text(
+                    'Энэ захиалгын задаргааг харуулах боломжгүй.',
+                  ),
+                )
               else ...[
                 for (final row in review.lines) ...[
                   const Divider(),
@@ -243,7 +257,12 @@ class _PatientInvoiceReviewPanelState extends State<PatientInvoiceReviewPanel> {
                 Text('Дэд нийлбэр: ${review.format(review.subtotal)}'),
                 Text('Нийт хөнгөлөлт: ${review.format(review.discount)}'),
                 Text('Нийт татвар: ${review.format(review.tax)}'),
-                Text('Нооргийн нийлбэр: ${review.format(review.total)}'),
+                Semantics(
+                  container: true,
+                  child: Text(
+                    'Нооргийн нийлбэр: ${review.format(review.total)}',
+                  ),
+                ),
               ],
             ],
           ),

@@ -204,3 +204,23 @@ not reported as passed. Remaining tests use in-memory SQLite or offline checks.
 The optional, explicitly gated PostgreSQL test and migration-rehearsal workflows
 are documented in [`backend/scripts`](../../scripts/README.md); they are
 separate from offline validation and were not executed as part of this phase.
+
+### Offline clinical migration source inventory
+
+`ClinicalMigrationSourceInventoryTests` pins the reviewed ordered design-time
+histories (21 SQLite / 11 PostgreSQL source migrations). The four clinical
+additions after the reschedule ledger cover audit events, signed treatment
+records, treatment addenda and performed procedures. Their `Up` operations are
+checked for only additive table/index/transaction-bound trigger-function work,
+same-clinic restrictive foreign keys, logical column/key/index parity, and
+exact reviewed provider-specific append-only SQL. The SQL digests are a change
+detector, not a policy grant or proof of live enforcement. Expected values
+require explicit source review when histories or guard bodies change. These
+tests construct provider metadata with closed connections; they do not connect,
+generate an operational approval, apply migrations, or authorize rollback.
+
+The operational PostgreSQL runner and rehearsal remain restricted to the
+previously reviewed seven-migration chain. Keep that restriction until an
+operator explicitly authorizes a separately reviewed clinical rehearsal and
+runtime test plan, including predecessor history, all required guards, backup
+and verified restore, and independent permission for any writes.

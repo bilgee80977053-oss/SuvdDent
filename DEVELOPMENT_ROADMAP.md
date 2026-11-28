@@ -155,3 +155,8 @@ verification on that exact tree. Green results do not imply persistent
 PostgreSQL acceptance, device release readiness or permission to deploy.
 The clinical entry and invoice review remain isolated; invoice issuance, real
 settlement, legal receipt handling and other release prerequisites are separate.
+
+The supplemental draft keeps both distinct loopback checks and the nonpayable
+review release-disabled, and pins reviewed migration source metadata only.
+Keep the operational PostgreSQL rehearsal runner at its reviewed seven-ID
+chain until a separate clinical rehearsal is reviewed and authorized.
