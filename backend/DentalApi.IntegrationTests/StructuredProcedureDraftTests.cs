@@ -24,7 +24,7 @@ using Xunit;
 
 namespace DentalApi.IntegrationTests;
 
-public sealed class StructuredProcedureDraftTests
+public sealed partial class StructuredProcedureDraftTests
 {
     [Fact]
     public async Task Uses_the_assigned_encounter_and_authoritative_label_without_prices()
@@ -442,6 +442,9 @@ public sealed class StructuredProcedureDraftTests
         Assert.True(nonMemory.Headers.CacheControl?.NoStore);
         using var nonMemoryRead = await clinician.GetAsync(PerformedRoute(301));
         Assert.Equal(HttpStatusCode.NotFound, nonMemoryRead.StatusCode);
+        app.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
+        using var nonMemoryHistory = await clinician.GetAsync(HistoryRoute(301));
+        Assert.Equal(HttpStatusCode.NotFound, nonMemoryHistory.StatusCode);
 
         using var postgresModelOnly = new PostgreSqlAppDbContextDesignTimeFactory().CreateDbContext([]);
         Assert.False(PerformedProcedureService.IsTestingMemorySqlite(host, postgresModelOnly));
@@ -603,6 +606,119 @@ public sealed class StructuredProcedureDraftTests
         }
     }
 
+    [Fact]
+    public async Task Patient_history_is_opt_in_bounded_to_same_patient_and_audits_released_visits()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        await SeedPatientHistory(app);
+        using var doctor = await app.AsAsync(13);
+        using var foreign = await app.AsAsync(23, clinicId: 202);
+        using var patientRole = await app.AsAsync(11);
+        using var otherDoctor = await app.AsAsync(17);
+        using var anonymous = app.Client();
+        foreach (var id in new[] { 301, 304, 305 })
+        {
+            using var signed = await doctor.PostAsJsonAsync(PerformedRoute(id), SignRequest(Guid.NewGuid()));
+            Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        }
+        using var anotherAuthor = await otherDoctor.PostAsJsonAsync(PerformedRoute(306), SignRequest(Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.Created, anotherAuthor.StatusCode);
+        var url = HistoryRoute(301);
+        using var off = await doctor.GetAsync(url);
+        Assert.Equal(HttpStatusCode.NotFound, off.StatusCode);
+        var config = app.Services.GetRequiredService<IConfiguration>();
+        config["Features:PatientHistoryAcceptance"] = "true";
+        config["Features:PerformedProcedureAcceptance"] = "false";
+        using var dependencyOff = await doctor.GetAsync(url);
+        Assert.Equal(HttpStatusCode.NotFound, dependencyOff.StatusCode);
+        config["Features:PerformedProcedureAcceptance"] = "true";
+        foreach (var (client, expected) in new[]
+        {
+            (foreign, HttpStatusCode.NotFound), (otherDoctor, HttpStatusCode.NotFound),
+            (anonymous, HttpStatusCode.Unauthorized), (patientRole, HttpStatusCode.Forbidden)
+        })
+        {
+            using var denied = await client.GetAsync(url);
+            Assert.Equal(expected, denied.StatusCode);
+        }
+        foreach (var bad in new[] { "?from=2026-01-01&until=2026-11-27", "?from=2026-11-26", "?from=2026-11-26&until=2026-11-27&pageSize=21" })
+        {
+            using var invalid = await doctor.GetAsync(HistoryRoute(301, bad));
+            Assert.Equal(HttpStatusCode.BadRequest, invalid.StatusCode);
+        }
+        await CheckPage(1, [301], true);
+        await CheckPage(2, [304], false);
+        await CheckPage(3, [], false);
+
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        var events = await db.Set<ClinicalAuditEvent>().Where(row => row.Action == ClinicalAuditAction.HistoryRead)
+            .OrderBy(row => row.Id).ToArrayAsync();
+        Assert.Equal(new[] { 301, 301, 304, 301 }, events.Select(row => row.AppointmentId));
+        Assert.All(events, row => Assert.Equal((101, 13), (row.ClinicId, row.ActorUserId)));
+        Assert.Equal(events[1].CorrelationId, events[2].CorrelationId);
+
+        async Task CheckPage(int page, int[] expected, bool more)
+        {
+            using var response = await doctor.GetAsync(url + $"&page={page}&pageSize=1");
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            Assert.True(response.Headers.CacheControl?.NoStore);
+            var json = await response.Content.ReadFromJsonAsync<JsonElement>();
+            Assert.Equal(4, json.EnumerateObject().Count());
+            Assert.Equal(more, json.GetProperty("hasMore").GetBoolean());
+            var items = json.GetProperty("items").EnumerateArray().ToArray();
+            Assert.Equal(expected, items.Select(row => row.GetProperty("appointmentId").GetInt32()));
+            Assert.All(items, row => Assert.Equal(2, row.EnumerateObject().Count()));
+        }
+    }
+
+    [Fact]
+    public async Task Failed_audit_on_a_nonanchor_history_visit_rolls_back_all_metadata_and_no_page_escapes()
+    {
+        using var app = await CreateFixture(httpEnabled: true);
+        await SeedPatientHistory(app);
+        app.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
+        using var doctor = await app.AsAsync(13);
+        using var signed = await doctor.PostAsJsonAsync(PerformedRoute(304), SignRequest(Guid.NewGuid()));
+        Assert.Equal(HttpStatusCode.Created, signed.StatusCode);
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        await db.Database.ExecuteSqlRawAsync("""
+            CREATE TRIGGER "SyntheticPatientHistoryAuditFailure" BEFORE INSERT ON "ClinicalAuditEvents"
+            FOR EACH ROW WHEN NEW."AppointmentId" = 304 BEGIN
+                SELECT RAISE(ABORT, 'SyntheticPatientHistoryAuditFailure');
+            END;
+            """);
+        using var blocked = await doctor.GetAsync(HistoryRoute(301));
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, blocked.StatusCode);
+        Assert.True(blocked.Headers.CacheControl?.NoStore);
+        var body = await blocked.Content.ReadAsStringAsync();
+        Assert.DoesNotContain("SyntheticPatientHistoryAuditFailure", body);
+        Assert.DoesNotContain("startedUtc", body);
+        Assert.DoesNotContain("items", body);
+        Assert.Equal(0, await db.Set<ClinicalAuditEvent>().CountAsync(row => row.Action == ClinicalAuditAction.HistoryRead));
+    }
+
+    private static string HistoryRoute(int id, string query = "?from=2026-11-26&until=2026-11-27")
+        => $"/api/clinical/appointments/{id}/patient-history" + query;
+
+    private static async Task SeedPatientHistory(ProcedureFactory app)
+    {
+        using var scope = app.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
+        db.Patients.Add(new Patient { Id = 43, ClinicId = 101, FullName = "Synthetic other patient", Phone = "synthetic" });
+        db.DoctorServices.Add(new DoctorService { ClinicId = 101, DoctorProfileId = 33, ServiceId = 51, DurationMinutes = 30 });
+        await db.SaveChangesAsync();
+        db.Appointments.Add(Encounter(304, FixedClock.Utc.AddHours(-3)));
+        var unrelated = Encounter(305, FixedClock.Utc.AddHours(-4));
+        unrelated.PatientId = 43;
+        db.Appointments.Add(unrelated);
+        var otherDoctor = Encounter(306, FixedClock.Utc.AddHours(-5));
+        otherDoctor.DoctorProfileId = 33;
+        db.Appointments.Add(otherDoctor);
+        await db.SaveChangesAsync();
+    }
+
     private static SignPerformedProcedureRequest SignRequest(Guid id) => new(id, 51, "SingleTooth", "85");
     private static string PerformedRoute(int appointmentId) => $"/api/clinical/appointments/{appointmentId}/performed-procedures";
 
@@ -622,9 +738,11 @@ public sealed class StructuredProcedureDraftTests
             [new("userId", actor.ToString()), new("clinicId", clinic.ToString()), new(ClaimTypes.Role, role.ToString())],
             "SyntheticClinic"));
 
-    private static async Task<ProcedureFactory> CreateFixture(bool httpEnabled = false, bool fakePersistentMetadata = false)
+    private static async Task<ProcedureFactory> CreateFixture(bool httpEnabled = false, bool fakePersistentMetadata = false,
+        Action<ProcedureFactory>? configure = null)
     {
         var app = new ProcedureFactory(httpEnabled, fakePersistentMetadata);
+        configure?.Invoke(app);
         await app.SeedAsync(); // The source factory gates migrations on synthetic, named in-memory SQLite.
         using var scope = app.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<AppDbContext>();
@@ -651,6 +769,7 @@ public sealed class StructuredProcedureDraftTests
 
     private sealed class ProcedureFactory(bool httpEnabled, bool fakePersistentMetadata) : DoctorApiFactory
     {
+        internal bool UseLoopbackHost { get; set; }
         internal readonly FailingCommit CommitFailure = new();
         internal readonly RefusePersistentOpen OpenGuard = new();
 
@@ -660,6 +779,13 @@ public sealed class StructuredProcedureDraftTests
             if (httpEnabled)
                 builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
                     new Dictionary<string, string?> { ["Features:PerformedProcedureAcceptance"] = "true" }));
+            if (UseLoopbackHost)
+                builder.ConfigureAppConfiguration((_, configuration) => configuration.AddInMemoryCollection(
+                    new Dictionary<string, string?>
+                    {
+                        ["AllowedHosts"] = "127.0.0.1",
+                        ["Notifications:WorkerEnabled"] = "false"
+                    }));
             builder.ConfigureServices(services =>
             {
                 services.AddDbContext<AppDbContext>(options => options.AddInterceptors(CommitFailure, OpenGuard));
@@ -683,7 +809,7 @@ public sealed class StructuredProcedureDraftTests
     {
         public async Task OnActionExecutionAsync(ActionExecutingContext context, ActionExecutionDelegate next)
         {
-            if (context.Controller is not PerformedProcedureAcceptanceController)
+            if (context.Controller is not (PerformedProcedureAcceptanceController or PatientHistoryAcceptanceController or AssignedEncounterAcceptanceController))
             {
                 await next();
                 return;

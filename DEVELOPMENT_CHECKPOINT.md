@@ -516,3 +516,233 @@ changes are included.
 Flutter analysis passed with no issues. The final offline Flutter suite
 passed 159/159, including eight model and real-My-Bookings widget mock cases.
 The review has no live backend acceptance or deployed client evidence.
+
+## 2026-11-28: Stacked CI and Flutter performed-procedure review
+
+The owner resumed isolated development and draft PR publication. PostgreSQL
+live access, production, and main merges remain unauthorized. PR #1–#4 are
+ancestors of #6. #7 includes #5 and #6 and resolves the overlapping checkpoint
+and handover edits. Review #7–#16 in base order. Validation-only draft #17 ran
+the exact #16 tree `40e2e489`; GitHub Actions run 46120829550 passed 603
+offline backend tests, 151 Flutter tests and the PowerShell helper. Draft #18
+extends only the offline PR trigger to stacked development branches.
+
+The previous local Flutter commit `7efc7e9` was not available after the
+environment restart; historical test logs are not evidence for this new tree.
+This draft reconstructs the clinician adapter and mock tests against #16.
+The adapter supports only single-encounter signing, replay and bounded reads,
+with HTTPS and no default UI wiring. See this draft's distinct CI for results.
+Flutter-to-API acceptance, clinic-wide history policy and live PostgreSQL
+validation remain outstanding. No production workflow or real patient data
+is involved.
+
+## Synthetic clinician HTTPS acceptance review
+
+An opt-in test harness starts the real DentalApi on an ephemeral IPv4
+loopback HTTPS listener. It runs the Flutter clinician adapter against the
+actual JWT login, identity, signing and read endpoints with disposable
+in-memory SQLite fixtures. It checks exact replay, changed replay rejection,
+cross-clinic denial and one committed signature plus the matching audit
+events. It uses no system trust changes or external listener. The regular
+backend suite skips this explicit opt-in, and the Flutter CI job invokes it
+separately. GitHub Actions run 46121334606 passed the dedicated opt-in
+(1/1), the ordinary offline backend suite (603 passed, 1 explicit opt-in
+skip), Flutter (169 passed; analyzer clean), and PowerShell. Both jobs used
+the same functional tree as PR #20 head `3f991cd`.
+
+## Test-only anchor-bound patient period history
+
+Isolated `dot/patient-period-history` starts from exact PR #16 head `83dc282`.
+A current assigned doctor may discover visit IDs and start UTC for the same
+clinic/patient from an authorized anchor, only within a bounded period and
+only for visits currently assigned to that doctor with their signed procedure.
+No broader patient browsing or personal and clinical text is released.
+The anchor and each distinct disclosed visit share an atomic metadata audit;
+failure blocks the whole page. Double opt-in and Testing/in-memory SQLite
+guards remain closed outside synthetic testing. No new migration, rollout,
+persistent database, live PostgreSQL or remote write was used.
+
+Exact Release build passed with 0 warnings/errors. Focused synthetic HTTP
+and existing clinical regression tests passed 39/39, and the full offline
+backend suite passed 605/605 (0 failures/skips, opt-in PostgreSQL excluded).
+Tests verify same-clinic/author/patient isolation, bounded and empty pages,
+both flags, no persistent open attempts, and rollback of all page audit data
+when a non-anchor audit row fails. PowerShell, real listener and production
+policy were not tested in this slice.
+
+## Flutter patient visit history integration
+
+The staged mobile client validates a bounded, read-only UTC-period history
+response and discards stale session results. On the isolated app/API stack,
+the clinician HTTPS acceptance now includes authorized same-patient visit
+reads and denial for another clinic. The independently tested Flutter diff
+passed 175/175 offline tests and static analysis. Hosted loopback verification
+is tracked separately; clinical UI and broader history policy remain pending.
+
+## Flutter signed clinical notes and append-only addenda
+
+The clinician adapter submits original immutable notes and UUID-scoped
+addenda and handles real acknowledgements without reading clinical data from
+a write response. Ambiguous writes require an explicit audited read; no
+automatic POST/retry or false success on conflict. Its focused 47/47 and
+full 182/182 local Flutter checks passed; the HTTPS acceptance is extended
+to sign, check immutable conflict, add, replay and read. Real data,
+production and default UI remain outside this draft.
+
+## Bounded clinician encounter selection
+
+The synthetic-only clinician list returns the assigned, started, confirmed
+appointments eligible for the existing procedure workflow. It releases only
+appointment ID, UTC times and the booked service ID/label. No patient
+identifier, clinical text, money, total or unaudited has-more hint is returned.
+Audit rows commit before the page is released. Tests passed 3/3 focused and
+608 local offline, with one independent opt-in Flutter HTTPS case skipped.
+No schema, persistent database, default UI or production changes.
+
+## Flutter authorized encounter selection contract
+
+The bounded Flutter client consumes only five server-approved fields and
+strict UTC bounds, rejects unexpected identifiers and totals, and does not
+cache results. Independent analysis, focused 53/53 and full 188/188 passed.
+The real synthetic HTTPS exercise now selects the server-supplied encounter
+and service, checks the other clinic gets no rows, then signs and verifies
+the audits. Treat hosted integration results separately from mocks.
+
+## Review-only clinician path: sign in, select and confirm
+
+The opt-in Flutter entry verifies a clinic Doctor, loads the audited
+assignment list and passes the server-supplied appointment and booked
+service to the confirmation panel. It clears state on logout or clinic
+change and cannot change encounter during an unresolved write. No default
+route, release activation, persisted clinical state or external access.
+The isolated widget harness passed 196 Flutter tests and eight existing
+panel tests independently. The combined hosted check runs at its own SHA.
+
+## Review-only clinician note panel
+
+Adds a standalone note/addenda panel for an already selected encounter.
+Signing requires explicit confirmation, original text cannot be replaced,
+and uncertain acknowledgement is reconciled through audited reads without
+automatic writes. An addendum retry is explicit and reuses the same UUID
+and exact intended note. Session or selection changes clear protected
+state. Nine new widget tests brought independent full Flutter to 191/191
+with a clean analyzer. Exact combined CI is tracked separately.
+
+## Combined clinician review: note, addenda and performed procedure
+
+The isolated review stack combines the exact clinician-entry and standalone
+note-panel branches. Both tabs use the same authenticated clinic Doctor
+adapter and the same server-selected encounter. Tab changes retain pending
+in-memory intents without triggering a POST. While either tab has an active
+or unresolved submission, the entry disables changing encounters and
+normal back navigation. Explicit logout closes the transport and drops both
+panels and all protected data; changing encounter or review configuration
+clears the old view. No default app route or release activation was added.
+
+The locally combined mobile sources passed the Flutter analyzer and 215
+offline Flutter tests. The entry tests exercise shared selection, switching
+with an unresolved original/procedure, different-content reconciliation,
+and clearing protected state on reselection/logout. No combined hosted
+HTTPS/CI, persistent database, production behavior, or broader clinical
+workflow is verified by these widget and client checks.
+
+## Real review-shell HTTPS acceptance
+
+The native proof drives the opt-in Flutter shell through real Doctor login,
+server-selected booked service, explicit procedure confirmation, audited
+refresh and logout; a foreign-clinic Doctor sees no selectable rows. It
+also retains the separate API acceptance for note/addenda and assignment
+selection. The native harness passed 2/2 on the exact #34 parent before
+combining the two clinical panels. This combined draft runs the harness
+again; local widget regressions for the composed panels passed 215/215.
+
+## Native clinician review acceptance: immutable note and signed addendum
+
+The same opt-in Flutter review widget now has synthetic acceptance over
+loopback HTTPS for procedure confirmation, deliberate original-note signing,
+audited original read, append-only addendum, audited addendum discovery and
+keyed read. Switching in either direction does not send a request and keeps
+the result tied to the selected encounter. Logout and changing clinics hide
+both notes. The independent adapter acceptance remains in the same suite.
+
+The in-memory SQLite fixture verified exactly one original, one addendum and
+one procedure for the approved clinic/encounter/doctor. The exact nine audit
+events were two records, one amendment and six history reads, all scoped to
+that encounter and doctor. Both loopback acceptances passed locally. Release
+build was clean. This is synthetic acceptance only, not a rollout or a
+verification of any persistent database.
+
+
+## Director service assignment preserves unchanged inactive links
+
+A catalog deactivation no longer prevents a Director from updating another
+service on the same doctor's full replacement assignment form. An inactive
+catalog link can be carried forward only if it is already stored and exactly
+unchanged; new or edited inactive rows are still rejected, and omission
+retains the existing deactivation policy. The synthetic HTTP and Flutter
+regressions passed (44 focused backend, 18 focused Flutter). The rule does
+not make an inactive service bookable or alter clinic visibility.
+
+## Real-loopback Flutter appointment move acceptance
+
+Isolated `dot/flutter-real-api-e2e` starts from exact draft PR #16
+`83dc282`. The optional `FlutterLoopback` native widget case drove the real
+patient login, history, date/slot picker, stale-slot 409 and explicit
+identical-key retry over an ephemeral IPv4 Kestrel listener using only
+synthetic in-memory SQLite in Testing. A real committed 200 was deliberately
+discarded by the test transport before it reached the app; replay returned
+200 without a second replacement. A history read proved the original was
+unchanged on conflict, then cancelled only on success. The backend verified
+one linked move ledger and no duplicate or cancellation notifications.
+
+Release build passed with 0 warnings/errors; offline backend regression
+passed 603/603, and the separately opted-in native loopback case passed 1/1.
+No live PostgreSQL, external/DNS target, real notifications, device build,
+browser CORS or deployed same-version environment was validated.
+
+## 2026-11-28: Director tariff input validation
+
+The Director create and edit APIs now require an explicit minimum price.
+An omitted field no longer silently saves zero; an explicitly entered zero
+remains valid. The existing Flutter client already sends the field. On the
+isolated branch, 604 offline backend tests passed, including synthetic
+Director create/update regressions and preservation of the existing tariff.
+No schema, tariff policy, payment, live PostgreSQL or production changes.
+
+## Patient estimate cache boundary
+
+Appointment-linked price estimates and their email response now opt out of
+HTTP caching. A synthetic HTTP test checks a no-store owner response,
+404/no-store for other patients in both clinics, and no final amount,
+tracked payment or issued receipt in the estimate DTO. The focused test and
+Release build passed. No message, payment, receipt, schema or live connection
+was made by this change.
+
+## Flutter estimate contract and selection boundary
+
+An estimate must match the selected appointment and booked service, remain
+nonpayable and untracked, and contain no issued receipt or inconsistent price
+range. Flutter refuses model mismatches and requests no-store without
+following redirects. Switching inputs reloads the estimate and discards
+late results from the old selection. A distinct real invoice contract is
+still needed. This change sends no email, payment or receipt. Hosted
+verification is tracked separately from local tooling.
+
+## Five-tip release-review candidate (isolated, synthetic only)
+
+The common foundation is #18. This candidate retains the exact source tips:
+
+| PR | Head | Scope |
+| --- | --- | --- |
+| #45 | `c39211c4a10cda8d30d1a000c2712d29d4223015` | Finance prerequisites and release-disabled nonpayable review (first parent) |
+| #43 | `9ced6c02bd263c33153cbbdb3b958685918211b8` | Clinical review HTTPS and Director assignment preservation |
+| #23 | `c0234c88c65bb8932f49144ea2eb4693369803f9` | Patient rescheduling widget-to-API acceptance |
+| #25 | `e533192d113422889ec943e4847a32dd9857b00f` | Explicit minimum tariff |
+| #38 | `f399bdba8987f5cda4db9513b3490d8b5d8d0fdd` | Private, uncached patient estimate |
+
+The documentation histories are carried forward and both loopback actions run
+as separate steps with independent per-command opt-ins, test categories and
+fixture teardown. Prior green PRs are evidence for those original revisions,
+not for this combined candidate. Review this candidate's own check runs before
+claiming combined acceptance. No live PostgreSQL, real providers, production,
+deployments or default financial/clinician rollout are in scope.
