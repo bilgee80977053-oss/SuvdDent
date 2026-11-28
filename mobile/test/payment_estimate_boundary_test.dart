@@ -129,8 +129,9 @@ void main() {
     final late = Completer<http.Response>();
     final api = (await tester.runAsync(
       () => patient((request) {
-        if (request.url.path == '/api/appointments/41/payment-estimate')
+        if (request.url.path == '/api/appointments/41/payment-estimate') {
           return late.future;
+        }
         expect(request.url.path, '/api/appointments/42/payment-estimate');
         return jsonReply(quote(appointment: 42, service: 6));
       }),
