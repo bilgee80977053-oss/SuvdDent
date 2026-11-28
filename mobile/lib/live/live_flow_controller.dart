@@ -136,6 +136,7 @@ class LiveFlowController extends ChangeNotifier {
     session = null;
     identity = null;
     registration = null;
+    registrationRetryAfterSeconds = null;
     patient = null;
     services = [];
     doctors = [];
@@ -227,6 +228,69 @@ class LiveFlowController extends ChangeNotifier {
     });
   }
 
+  Future<void> registerWithMethod(
+    String name,
+    String email,
+    String password,
+    String? phone,
+    RegistrationMethod method,
+  ) => run((current) async {
+    registrationRetryAfterSeconds = null;
+    try {
+      final result = await api.register(
+        name,
+        email,
+        password,
+        phone,
+        verificationMethod: method,
+      );
+      if (!current()) return;
+      if (result.userId <= 0 ||
+          (result.registrationToken?.isEmpty ?? true) ||
+          (result.method != null && result.method != method)) {
+        throw const ApiFailure('Бүртгэлийн хариуг баталгаажуулж чадсангүй.');
+      }
+      registration = result;
+      step = 2;
+    } on RegistrationFailure catch (failure) {
+      if (current()) {
+        registrationRetryAfterSeconds = failure.retryAfterSeconds;
+        if (failure.pendingRegistration != null) {
+          registration = failure.pendingRegistration;
+        }
+      }
+      rethrow;
+    }
+  });
+
+  Future<void> requestRegistrationCode(RegistrationMethod method) =>
+      run((current) async {
+        registrationRetryAfterSeconds = null;
+        final pending = registration;
+        if (pending == null) return;
+        try {
+          final result = await api.requestRegistrationCode(pending, method);
+          if (!current()) return;
+          if (result.userId != pending.userId ||
+              (result.registrationToken?.isEmpty ?? true) ||
+              (result.method != null && result.method != method)) {
+            throw const ApiFailure('Бүртгэлийн хариу таарахгүй байна.');
+          }
+          registration = result;
+          step = 2;
+        } on RegistrationFailure catch (failure) {
+          if (current()) {
+            if (failure.pendingRegistration?.userId == pending.userId) {
+              registration = failure.pendingRegistration;
+            }
+            registrationRetryAfterSeconds = failure.retryAfterSeconds;
+          }
+          rethrow;
+        }
+      });
+
+  int? registrationRetryAfterSeconds;
+
   Future<void> resendRegistrationCode(String email) => run((current) async {
     final message = await api.resendRegistrationCode(email);
     if (!current()) return;
@@ -244,8 +308,16 @@ class LiveFlowController extends ChangeNotifier {
 
   Future<void> verify(String code) => run((current) async {
     if (registration == null) return;
-    final result = await api.verify(registration!.userId, code);
+    final pending = registration!;
+    final result = await api.verify(
+      pending.userId,
+      code,
+      registrationToken: pending.registrationToken,
+    );
     if (!current()) return;
+    if (pending.registrationToken != null && result.userId != pending.userId) {
+      throw const ApiFailure('Баталгаажуулалтын хариу таарахгүй байна.');
+    }
     registration = null;
     step = 1;
     notice = '${result.message} Нууц үгээрээ нэвтэрнэ үү.';

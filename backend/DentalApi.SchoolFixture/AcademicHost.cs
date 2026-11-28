@@ -52,7 +52,7 @@ internal sealed class AcademicHost : WebApplicationFactory<Program>
         Console.WriteLine("  school-director@example.invalid");
         Console.WriteLine("  school-doctor@example.invalid");
         Console.WriteLine($"This run's synthetic password: {password}");
-        Console.WriteLine("Use only invented names and @example.invalid addresses. Registration codes appear here; nothing is sent.");
+        Console.WriteLine("Use only invented names, @example.invalid addresses and 0000xxxx phone numbers. Email/SMS codes appear here only; nothing is sent.");
         Console.WriteLine("Ctrl+C exits. No classroom records survive restart.");
         var completion = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         ConsoleCancelEventHandler stop = (_, e) => { e.Cancel = true; completion.TrySetResult(); };
@@ -94,6 +94,8 @@ internal sealed class AcademicHost : WebApplicationFactory<Program>
         {
             services.RemoveAll<EmailService>();
             services.AddScoped<EmailService, AcademicEmailSink>();
+            services.RemoveAll<IPhoneVerificationSmsSender>();
+            services.AddScoped<IPhoneVerificationSmsSender, AcademicSmsSink>();
         });
     }
 
@@ -157,6 +159,8 @@ internal sealed class AcademicHost : WebApplicationFactory<Program>
 
     private sealed class AcademicEmailSink() : EmailService(new ConfigurationBuilder().Build())
     {
+        public override bool IsAvailable => true;
+
         public override Task SendAsync(string toEmail, string subject, string body,
             string? messageId = null, CancellationToken cancellationToken = default)
         {
@@ -170,4 +174,21 @@ internal sealed class AcademicHost : WebApplicationFactory<Program>
             return Task.CompletedTask;
         }
     }
+
+    // Standalone classroom dependency override: never invokes any SMS gateway.
+    private sealed class AcademicSmsSink : IPhoneVerificationSmsSender
+    {
+        public bool IsAvailable => true;
+
+        public Task SendAsync(string destination, string code, string deliveryKey, CancellationToken ct)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (!Regex.IsMatch(destination, @"\A(?:[+]976)?0000[0-9]{4}\z") ||
+                !Regex.IsMatch(code, @"\A[0-9]{6}\z"))
+                throw new InvalidOperationException("Only synthetic 0000xxxx phone numbers are allowed in the classroom.");
+            Console.WriteLine($"Classroom SMS verification code: {code}");
+            return Task.CompletedTask;
+        }
+    }
+
 }

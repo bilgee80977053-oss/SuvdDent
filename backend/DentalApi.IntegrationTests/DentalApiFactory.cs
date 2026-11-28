@@ -21,6 +21,8 @@ public sealed class DentalApiFactory : WebApplicationFactory<Program>
 
     public DentalApiFactory() => connection.Open();
 
+    internal Action<IServiceCollection>? CustomizeServices { get; init; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Testing");
@@ -52,6 +54,7 @@ public sealed class DentalApiFactory : WebApplicationFactory<Program>
             // the sender address, before opening any network connection.
             services.RemoveAll<EmailService>();
             services.AddScoped(_ => new EmailService(new ConfigurationBuilder().Build()));
+            CustomizeServices?.Invoke(services);
         });
     }
 

@@ -958,16 +958,45 @@ void main() {
   testWidgets(
     'LIVE registration validates fields, waits for email code response and returns to login',
     (tester) async {
-      var registrations = 0, verifications = 0;
+      var registrations = 0, verifications = 0, reissues = 0;
       final api = makeApi((r) {
         if (r.url.path.endsWith('/register')) {
           registrations++;
-          return response({'message': 'Код илгээлээ.', 'userId': 9});
+          expect(jsonDecode(r.body)['verificationMethod'], 'email');
+          return response({
+            'message': 'Код илгээлээ.',
+            'userId': 9,
+            'registrationToken': 'synthetic-start',
+            'retryAfterSeconds': 60,
+          });
+        }
+        if (r.url.path.endsWith('/registration-code')) {
+          reissues++;
+          final body = jsonDecode(r.body);
+          expect(body['verificationMethod'], 'sms');
+          expect(body['registrationToken'], 'synthetic-start');
+          return response({
+            'message': 'Код илгээлээ.',
+            'userId': 9,
+            'registrationToken': 'synthetic-switched',
+            'retryAfterSeconds': 60,
+          });
         }
         if (r.url.path.endsWith('/verify')) {
           verifications++;
-          if (jsonDecode(r.body)['code'] == '000000') {
-            return response({'error': 'Код буруу'}, 400);
+          final body = jsonDecode(r.body);
+          expect(body['registrationToken'], 'synthetic-switched');
+          if (body['code'] == '000000') {
+            return response({
+              'error': 'Код буруу',
+              'reason': 'invalid_code',
+            }, 400);
+          }
+          if (body['code'] == '111111') {
+            return response({
+              'error': 'Хугацаа дууссан',
+              'reason': 'expired_code',
+            }, 400);
           }
           return response({'message': 'Бүртгэл баталгаажлаа.', 'userId': 9});
         }
@@ -997,25 +1026,114 @@ void main() {
       final fields = find.byType(TextFormField);
       await tester.enterText(fields.at(0), 'Тест');
       await tester.enterText(fields.at(1), 'synthetic@example.invalid');
+      await tester.enterText(fields.at(2), '99112233');
       await tester.enterText(fields.at(3), 'synthetic-password');
       await press('Бүртгэл үүсгэх');
+      expect(registrations, 0);
+      expect(
+        find.text('Баталгаажуулах код авах аргаа сонгоно уу'),
+        findsOneWidget,
+      );
+      expect(find.text('s•••@e•••'), findsOneWidget);
+      expect(find.text('•••• 33'), findsOneWidget);
+      expect(find.text('synthetic@example.invalid'), findsNothing);
+      await press('Код авах');
       expect(registrations, 1);
       expect(verifications, 0);
       expect(api.authenticated, isFalse);
+      expect(find.text('Дахин хүсэх хүртэл 01:00'), findsOneWidget);
+      final resend = find.widgetWithText(OutlinedButton, 'Код дахин авах');
+      expect(tester.widget<OutlinedButton>(resend).onPressed, isNull);
+      final change = find.widgetWithText(
+        OutlinedButton,
+        'Баталгаажуулах аргаа солих',
+      );
+      await tester.ensureVisible(change);
+      await tester.pumpAndSettle();
+      await tester.tap(change);
+      await tester.pumpAndSettle();
+      final sms = find.text('Утасны дугаараар — SMS');
+      await tester.ensureVisible(sms);
+      await tester.pumpAndSettle();
+      await tester.tap(sms);
+      await tester.pumpAndSettle();
+      final send = find.widgetWithText(FilledButton, 'Код авах');
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+      await tester.pump(const Duration(seconds: 60));
+      await press('Код авах');
+      expect(reissues, 1);
+      expect(find.text('•••• 33'), findsOneWidget);
       await tester.enterText(find.byType(TextFormField), '000000');
       await press('Код шалгах');
       expect(verifications, 1);
-      expect(find.text('Код буруу'), findsOneWidget);
+      expect(find.text('Баталгаажуулах код буруу байна.'), findsOneWidget);
       expect(find.widgetWithText(FilledButton, 'Код шалгах'), findsOneWidget);
       expect(api.authenticated, isFalse);
-      await tester.enterText(find.byType(TextFormField), '123456');
+      await tester.enterText(find.byType(TextFormField), '111111');
       await press('Код шалгах');
       expect(verifications, 2);
+      expect(
+        find.text('Кодын хугацаа дууссан. Шинэ код хүснэ үү.'),
+        findsOneWidget,
+      );
+      await tester.enterText(find.byType(TextFormField), '123456');
+      await press('Код шалгах');
+      expect(verifications, 3);
       expect(find.widgetWithText(FilledButton, 'Нэвтрэх'), findsOneWidget);
       expect(find.byType(TextFormField), findsNWidgets(2));
       expect(api.authenticated, isFalse);
       expect(tester.takeException(), isNull);
       await tester.pumpWidget(const SizedBox());
+    },
+  );
+  test(
+    'Failed delivery retains a protected pending context for explicit fallback',
+    () async {
+      final api = makeApi((r) {
+        final body = jsonDecode(r.body) as Map<String, dynamic>;
+        expect(r.headers['authorization'], isNull);
+        expect(r.headers['cache-control'], 'no-store');
+        if (r.url.path.endsWith('/register')) {
+          expect(body['verificationMethod'], 'sms');
+          return response({
+            'error': 'Код илгээж чадсангүй',
+            'reason': 'delivery_unavailable',
+            'userId': 9,
+            'registrationToken': 'synthetic-recovery',
+            'retryAfterSeconds': 60,
+          }, 503);
+        }
+        expect(r.url.path, '/api/Auth/registration-code');
+        expect(body, {
+          'userId': 9,
+          'verificationMethod': 'email',
+          'registrationToken': 'synthetic-recovery',
+        });
+        return response({
+          'error': 'Түр хүлээнэ үү',
+          'reason': 'retry_cooldown',
+          'retryAfterSeconds': 19,
+        }, 429);
+      });
+      final flow = LiveFlowController(api)..enterClinic();
+      addTearDown(flow.dispose);
+      await flow.registerWithMethod(
+        'Тест',
+        'synthetic@example.invalid',
+        'synthetic-password',
+        '99112233',
+        RegistrationMethod.sms,
+      );
+      expect(flow.step, 1);
+      expect(flow.error, contains('код илгээж чадсангүй'));
+      expect(flow.registration?.registrationToken, 'synthetic-recovery');
+      expect(flow.registrationRetryAfterSeconds, 60);
+      expect(api.authenticated, isFalse);
+      await flow.requestRegistrationCode(RegistrationMethod.email);
+      expect(flow.step, 1);
+      expect(flow.registrationRetryAfterSeconds, 19);
+      expect(flow.registration?.registrationToken, 'synthetic-recovery');
+      expect(api.authenticated, isFalse);
     },
   );
   testWidgets('Reconfiguring the LIVE widget clears the old clinic session', (

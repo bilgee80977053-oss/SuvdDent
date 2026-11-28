@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../app/app_theme.dart';
 import '../app/clinical_widgets.dart';
@@ -50,10 +53,16 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       recoveringEmail = false,
       showHistory = false,
       showDashboard = false;
+  bool selectingVerificationMethod = false;
+  RegistrationMethod? selectedMethod, sentMethod;
+  Timer? resendTimer;
+  int resendSeconds = 0;
+  static const methodTitle = 'Баталгаажуулах код авах аргаа сонгоно уу';
+
   static const titles = [
     'Эмнэлэг сонгох',
     'Нэвтрэх / Бүртгүүлэх',
-    'Имэйл баталгаажуулалт',
+    'Бүртгэл баталгаажуулах',
     'Миний мэдээлэл',
     'Үйлчилгээ сонгох',
     'Эмч сонгох',
@@ -89,12 +98,17 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       }
       showHistory = false;
       showDashboard = false;
+      selectingVerificationMethod = false;
+      selectedMethod = sentMethod = null;
+      resendTimer?.cancel();
+      resendSeconds = 0;
     }
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
+    resendTimer?.cancel();
     flow.removeListener(onChange);
     flow.dispose();
     historyScroll.dispose();
@@ -208,10 +222,14 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
               field(name, 'Овог нэр'),
               field(
                 email,
-                'Имэйл',
+                'Имэйл (заавал биш)',
+                optional: true,
                 keyboard: TextInputType.emailAddress,
-                validate: (v) =>
-                    RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$').hasMatch(v.trim())
+                validate: (v) => v.trim().isEmpty && phone.text.trim().isEmpty
+                    ? 'Имэйл эсвэл утасны дугаар оруулна уу.'
+                    : v.trim().isEmpty ||
+                          RegExp(r'^[^\s@]+@[^\s@]+\.[^\s@]+$')
+                              .hasMatch(v.trim())
                     ? null
                     : 'Имэйл хаягаа шалгана уу.',
               ),
@@ -220,7 +238,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                 'Утас (заавал биш)',
                 optional: true,
                 keyboard: TextInputType.phone,
-                validate: (v) => v.isEmpty || RegExp(r'^\d{8,}$').hasMatch(v)
+                validate: (v) =>
+                    v.trim().isEmpty ||
+                        RegExp(r'^(?:976)?[0-9]{8}$').hasMatch(v.trim())
                     ? null
                     : 'Утасны дугаараа шалгана уу.',
               ),
@@ -239,31 +259,21 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                   : null,
             ),
             if (registering)
-              Text(
-                widget.settings.isAcademic
-                    ? 'Сургалтын код серверийн цонхонд гарна. Имэйл илгээхгүй.'
-                    : 'Бодит имэйлээр ирсэн 6 оронтой код шаардлагатай. Имэйл үйлчилгээ ажиллахгүй бол бүртгэл баталгаажихгүй.',
+              const Text(
+                'Имэйл эсвэл утасны дугаараас дор хаяж нэгийг оруулна уу.',
               ),
             button(registering ? 'Бүртгэл үүсгэх' : 'Нэвтрэх', () async {
               if (!authKey.currentState!.validate()) return;
               final secret = password.text;
               if (registering) {
-                await flow.register(
-                  name.text.trim(),
-                  email.text.trim(),
-                  secret,
-                  phone.text.isEmpty ? null : phone.text.trim(),
-                );
+                openMethodSelection();
               } else {
                 await flow.login(identifier.text.trim(), secret);
+                if (mounted) password.clear();
               }
-              password.clear();
             }),
-            if (flow.registration != null)
-              button('Ирсэн кодыг оруулах', () {
-                flow.step = 2;
-                flow.changed();
-              }),
+            if (flow.registration != null && sentMethod != null)
+              button('Ирсэн кодыг оруулах', returnToOtp, secondary: true),
             if (!registering)
               button(
                 recoveringEmail
@@ -323,13 +333,214 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ),
     ),
   );
+  String maskedDestination(RegistrationMethod method) {
+    if (method == RegistrationMethod.sms) {
+      final number = phone.text.trim();
+      if (number.length < 2) return '';
+      return '•••• ${number.substring(number.length - 2)}';
+    }
+    final address = email.text.trim();
+    final separator = address.indexOf('@');
+    if (separator <= 0 || separator == address.length - 1) return '';
+    final domain = address.substring(separator + 1);
+    final localFirst = String.fromCharCode(address.runes.first);
+    final domainFirst = String.fromCharCode(domain.runes.first);
+    return '$localFirst•••@$domainFirst•••';
+  }
+
+  void openMethodSelection() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      selectedMethod =
+          sentMethod ??
+          (email.text.trim().isNotEmpty
+              ? RegistrationMethod.email
+              : RegistrationMethod.sms);
+      selectingVerificationMethod = true;
+      flow.error = null;
+      flow.notice = null;
+    });
+    if (historyScroll.hasClients) historyScroll.jumpTo(0);
+  }
+
+  void returnToOtp() {
+    FocusScope.of(context).unfocus();
+    setState(() {
+      selectingVerificationMethod = false;
+      flow.error = null;
+      flow.notice = null;
+      flow.step = 2;
+    });
+    if (historyScroll.hasClients) historyScroll.jumpTo(0);
+  }
+
+  void startResendCountdown(int seconds) {
+    resendTimer?.cancel();
+    if (!mounted) return;
+    setState(() => resendSeconds = seconds);
+    if (seconds <= 0) return;
+    resendTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      final remaining = seconds - timer.tick;
+      if (!mounted || remaining <= 0) timer.cancel();
+      if (mounted) {
+        setState(() => resendSeconds = remaining > 0 ? remaining : 0);
+      }
+    });
+  }
+
+  Future<void> sendRegistrationCode(RegistrationMethod method) async {
+    if (flow.busy || resendSeconds > 0) return;
+    final pending = flow.registration;
+    if (pending == null) {
+      await flow.registerWithMethod(
+        name.text.trim(),
+        email.text.trim(),
+        password.text,
+        phone.text.trim().isEmpty ? null : phone.text.trim(),
+        method,
+      );
+    } else {
+      await flow.requestRegistrationCode(method);
+    }
+    if (!mounted || flow.step == 0) return;
+    final currentPending = flow.registration;
+    if (currentPending != null) password.clear();
+    if (flow.error != null) {
+      final seconds =
+          flow.registrationRetryAfterSeconds ??
+          (currentPending != pending
+              ? currentPending?.retryAfterSeconds
+              : null);
+      if (seconds != null && seconds > 0) startResendCountdown(seconds);
+      if (pending == null && currentPending?.method != null) {
+        // The server found a previous accepted delivery; no new code was sent.
+        setState(() {
+          sentMethod = currentPending!.method;
+          selectingVerificationMethod = false;
+          flow.step = 2;
+        });
+      }
+      return;
+    }
+    if (currentPending == null) return;
+    code.clear();
+    setState(() {
+      sentMethod = method;
+      selectingVerificationMethod = false;
+    });
+    startResendCountdown(currentPending.retryAfterSeconds ?? 60);
+  }
+
+  String get cooldownLabel {
+    final minutes = (resendSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (resendSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
+
+  Widget resendStatus() => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 8),
+    child: Semantics(
+      liveRegion: resendSeconds == 0,
+      label: resendSeconds == 0
+          ? 'Шинэ код хүсэх боломжтой.'
+          : 'Дахин хүсэх хүртэл $resendSeconds секунд.',
+      child: ExcludeSemantics(
+        child: Text(
+          resendSeconds > 0
+              ? 'Дахин хүсэх хүртэл $cooldownLabel'
+              : 'Шинэ код хүсэх боломжтой.',
+          style: const TextStyle(color: AppColors.muted),
+        ),
+      ),
+    ),
+  );
+
+  Widget methodSelection() {
+    final sms = maskedDestination(RegistrationMethod.sms);
+    final mail = maskedDestination(RegistrationMethod.email);
+    final current = selectedMethod;
+    final canSend =
+        current != null &&
+        maskedDestination(current).isNotEmpty &&
+        resendSeconds == 0;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        ClinicalChoiceCard(
+          icon: Icons.sms_outlined,
+          label: 'Утасны дугаараар — SMS',
+          subtitle: sms.isEmpty ? 'Утасны дугаар оруулаагүй' : sms,
+          selected: current == RegistrationMethod.sms,
+          onTap: flow.busy || sms.isEmpty
+              ? null
+              : () => setState(() => selectedMethod = RegistrationMethod.sms),
+        ),
+        ClinicalChoiceCard(
+          icon: Icons.mail_outline_rounded,
+          label: 'Имэйл хаягаар — Email',
+          subtitle: mail.isEmpty ? 'Имэйл хаяг оруулаагүй' : mail,
+          selected: current == RegistrationMethod.email,
+          onTap: flow.busy || mail.isEmpty
+              ? null
+              : () => setState(() => selectedMethod = RegistrationMethod.email),
+        ),
+        if (current == RegistrationMethod.sms)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: Text(
+              'SMS-ээр нэвтрэх бүртгэлээ баталгаажуулна. Цаг захиалахад баталгаажсан имэйл шаардлагатай.',
+            ),
+          ),
+        if (widget.settings.isAcademic)
+          const Text(
+            'Сургалтын горим: SMS болон имэйл бодитоор илгээхгүй. Код серверийн цонхонд гарна.',
+          ),
+        if (resendSeconds > 0) resendStatus(),
+        button('Код авах', () {
+          if (current != null) sendRegistrationCode(current);
+        }, enabled: canSend),
+        if (sentMethod != null)
+          button('Код оруулах хэсэг рүү буцах', returnToOtp, secondary: true)
+        else if (flow.registration == null)
+          button(
+            'Бүртгэлийн мэдээлэл засах',
+            backFromVerification,
+            secondary: true,
+          ),
+      ],
+    );
+  }
+
+  void backFromVerification() {
+    if (flow.busy) return;
+    if (selectingVerificationMethod) {
+      if (sentMethod != null) {
+        returnToOtp();
+      } else if (flow.registration == null) {
+        setState(() {
+          selectingVerificationMethod = false;
+          flow.error = null;
+          flow.notice = null;
+        });
+      } else {
+        flow.logout();
+      }
+    } else if (flow.step == 2 &&
+        sentMethod != null &&
+        flow.registration != null) {
+      openMethodSelection();
+    } else {
+      flow.back();
+    }
+  }
+
   Widget verification() {
     if (flow.session != null) {
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           const Text(
-            'Нэвтрэлт амжилттай. Имэйлээ баталгаажуулсан бүртгэлээр цаг захиална уу.',
+            'Нэвтрэлт амжилттай. Үргэлжлүүлэхийн тулд профайлаа нээнэ үү.',
           ),
           button('Миний профайлыг авах', flow.loadProfile),
         ],
@@ -341,37 +552,90 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         flow.changed();
       });
     }
-    return Form(
-      key: verifyKey,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Text(
-            widget.settings.isAcademic
-                ? 'Серверийн цонхонд гарсан сургалтын кодыг оруулна уу.'
-                : 'Имэйлд ирсэн кодоо оруулна уу. Код 120 секунд хүчинтэй.',
-          ),
-          field(
-            code,
-            '6 оронтой код',
-            secret: true,
-            keyboard: TextInputType.number,
-            validate: (v) => RegExp(r'^\d{6}$').hasMatch(v)
-                ? null
-                : '6 оронтой код оруулна уу.',
-          ),
-          button('Код шалгах', () async {
-            if (verifyKey.currentState!.validate()) {
-              await flow.verify(code.text);
-              code.clear();
-              if (mounted && flow.registration == null && flow.step == 1) {
-                setState(() => registering = false);
-              }
-            }
-          }),
-        ],
+    final method = sentMethod;
+    final destination = method == null ? '' : maskedDestination(method);
+    return AutofillGroup(
+      onDisposeAction: AutofillContextAction.cancel,
+      child: Form(
+        key: verifyKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (destination.isNotEmpty)
+              ClinicalInfoPanel(
+                title: method == RegistrationMethod.sms
+                    ? 'Утасны дугаараар · SMS'
+                    : 'Имэйл хаягаар · Email',
+                children: [ClinicalDetail('Сонгосон хаяг', destination)],
+              ),
+            const SizedBox(height: 12),
+            Text(
+              widget.settings.isAcademic
+                  ? 'Серверийн цонхонд гарсан сургалтын кодыг оруулна уу. Бодит мессеж илгээгээгүй.'
+                  : 'Сонгосон сувгаар хүлээж авсан кодоо оруулна уу. Код 120 секунд хүчинтэй.',
+            ),
+            const SizedBox(height: 16),
+            TextFormField(
+              controller: code,
+              enabled: !flow.busy,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.done,
+              autofillHints: const [AutofillHints.oneTimeCode],
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(6),
+              ],
+              autocorrect: false,
+              enableSuggestions: false,
+              obscureText: true,
+              maxLength: 6,
+              decoration: const InputDecoration(labelText: '6 оронтой код'),
+              validator: (v) => RegExp(r'^[0-9]{6}$').hasMatch(v ?? '')
+                  ? null
+                  : '6 оронтой код оруулна уу.',
+              onFieldSubmitted: (_) => submitOtp(),
+            ),
+            button('Код шалгах', submitOtp),
+            if (method != null &&
+                flow.registration?.registrationToken != null) ...[
+              resendStatus(),
+              button(
+                'Код дахин авах',
+                () => sendRegistrationCode(method),
+                enabled: resendSeconds == 0,
+                secondary: true,
+              ),
+              button(
+                'Баталгаажуулах аргаа солих',
+                openMethodSelection,
+                secondary: true,
+              ),
+            ],
+          ],
+        ),
       ),
     );
+  }
+
+  Future<void> submitOtp() async {
+    if (flow.busy || !(verifyKey.currentState?.validate() ?? false)) return;
+    final wasSms = sentMethod == RegistrationMethod.sms;
+    await flow.verify(code.text);
+    if (!mounted) return;
+    code.clear();
+    if (flow.registration == null && flow.step == 1) {
+      resendTimer?.cancel();
+      setState(() {
+        registering = false;
+        selectingVerificationMethod = false;
+        selectedMethod = sentMethod = null;
+        resendSeconds = 0;
+        if (wasSms) {
+          flow.notice =
+              '${flow.notice} Цаг захиалахад баталгаажсан имэйл шаардлагатай.';
+        }
+      });
+    }
   }
 
   void openNotificationSettings() {
@@ -871,7 +1135,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   String get stepHint => const [
     'Үйлчлүүлэх эмнэлгээ сонгоод үргэлжлүүлнэ үү.',
     'Бүртгэлээрээ нэвтрэх эсвэл шинээр бүртгүүлнэ үү.',
-    'Нэвтэрсэн бол өөрийн профайлыг авна уу. Шинэ бүртгэлтэй бол имэйлээ баталгаажуулна уу.',
+    'Нэвтэрсэн бол өөрийн профайлыг авна уу. Шинэ бүртгэлтэй бол кодоо оруулна уу.',
     'Өөрийн мэдээллээ шалгаад үйлчилгээ сонгоно уу.',
     'Авах үйлчилгээгээ сонгоод эмч сонгох товчийг дарна уу.',
     'Эмчээ сонгоод боломжит огноо, цагийг харна уу.',
@@ -1141,7 +1405,9 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       7: 'АЛХАМ 04 / 04    •    Баталгаажуулалт',
     };
     final isBooking = flow.step >= 4;
-    final title = flow.step == 2 && flow.session != null
+    final title = selectingVerificationMethod
+        ? methodTitle
+        : flow.step == 2 && flow.session != null
         ? 'Нэвтрэлт амжилттай'
         : titles[flow.step];
     return Column(
@@ -1153,7 +1419,13 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
               (flow.step == 3 ? 'Миний бүртгэл' : 'Suvd Dent · Бүртгэл'),
           title: bookingTitles[flow.step] ?? title,
           titleKey: const ValueKey('screen-title'),
-          description: isBooking ? null : stepHint,
+          description: isBooking
+              ? null
+              : selectingVerificationMethod
+              ? '6 оронтой код авах сувгаа сонгоорой.'
+              : flow.step == 2 && flow.session == null
+              ? null
+              : stepHint,
           progress: isBooking ? (flow.step - 3) / 4 : null,
         ),
         if (isBooking && (flow.service != null || flow.doctor != null)) ...[
@@ -1196,7 +1468,17 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
           ),
         if (flow.notice != null)
           Semantics(liveRegion: true, child: Text(flow.notice!)),
-        screen(),
+        if (flow.step == 1 || (flow.step == 2 && flow.session == null))
+          TweenAnimationBuilder<double>(
+            key: ValueKey((flow.step, selectingVerificationMethod)),
+            duration: clinicalMotion(context, 180),
+            tween: Tween(begin: .88, end: 1),
+            builder: (context, opacity, child) =>
+                Opacity(opacity: opacity, child: child),
+            child: selectingVerificationMethod ? methodSelection() : screen(),
+          )
+        else
+          screen(),
       ],
     );
   }
@@ -1209,7 +1491,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         if (showHistory) {
           setState(() => showHistory = false);
         } else {
-          flow.back();
+          backFromVerification();
         }
       }
     },
@@ -1221,7 +1503,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
                   !flow.busy &&
                   !flow.uncertainBooking &&
                   flow.appointment == null
-            ? flow.back
+            ? backFromVerification
             : null,
         actions: [
           if (flow.session != null)

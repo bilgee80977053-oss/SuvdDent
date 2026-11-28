@@ -16,7 +16,8 @@ public record RegisterRequest(
     string? Phone,
     string? Email,
     string Password,
-    int ClinicId = 1
+    int ClinicId = 1,
+    string? VerificationMethod = null
 );
 
 public record LoginRequest(
@@ -27,7 +28,14 @@ public record LoginRequest(
 
 public record VerifyRequest(
     int UserId,
-    string Code
+    string Code,
+    string? RegistrationToken = null
+);
+
+public record RegistrationCodeRequest(
+    int UserId,
+    string? VerificationMethod,
+    string? RegistrationToken
 );
 
 public record VerifyEmailRequest(
@@ -67,7 +75,8 @@ public class AuthController(
     AppDbContext db,
     JwtService jwt,
     VerificationService verification,
-    EmailService emailService
+    EmailService emailService,
+    RegistrationOtpService registrationOtp
 ) : ControllerBase
 {
     [EnableRateLimiting("auth")]
@@ -106,21 +115,33 @@ public class AuthController(
         if (!await db.Clinics.AnyAsync(c => c.Id == r.ClinicId))
             return BadRequest(new { error = "Эмнэлэг олдсонгүй" });
 
-        if (!string.IsNullOrWhiteSpace(phone) &&
-            await db.Users.AnyAsync(u =>
-                u.ClinicId == r.ClinicId && u.Phone == phone))
-            return Conflict(new
-            {
-                error = "Утас бүртгэлтэй байна"
-            });
+        var method = r.VerificationMethod?.Trim().ToLowerInvariant();
+        if (method is not null && System.Text.Encoding.UTF8.GetByteCount(r.Password) > 72)
+            return BadRequest(new { error = "Нууц үг хэт урт байна." });
 
-        if (!string.IsNullOrWhiteSpace(email) &&
-            await db.Users.AnyAsync(u =>
-                u.ClinicId == r.ClinicId && u.Email == email))
-            return Conflict(new
+        if (!string.IsNullOrWhiteSpace(phone))
+        {
+            var existingPhone = await db.Users.AsNoTracking().FirstOrDefaultAsync(u =>
+                u.ClinicId == r.ClinicId && u.Phone == phone);
+            if (existingPhone is not null)
             {
-                error = "Имэйл бүртгэлтэй байна"
-            });
+                if (method is not null && await registrationOtp.RecoverAsync(existingPhone, phone, email,
+                    r.Password, method, HttpContext.RequestAborted) is { } recovery) return OtpResponse(recovery);
+                return Conflict(new { error = "Утас бүртгэлтэй байна" });
+            }
+        }
+
+        if (!string.IsNullOrWhiteSpace(email))
+        {
+            var existingEmail = await db.Users.AsNoTracking().FirstOrDefaultAsync(u =>
+                u.ClinicId == r.ClinicId && u.Email == email);
+            if (existingEmail is not null)
+            {
+                if (method is not null && await registrationOtp.RecoverAsync(existingEmail, phone, email,
+                    r.Password, method, HttpContext.RequestAborted) is { } recovery) return OtpResponse(recovery);
+                return Conflict(new { error = "Имэйл бүртгэлтэй байна" });
+            }
+        }
 
         var user = new AppUser
         {
@@ -135,6 +156,9 @@ public class AuthController(
             IsActive = false,
             CreatedAt = DateTime.UtcNow
         };
+
+        if (method is not null)
+            return OtpResponse(await registrationOtp.RegisterAsync(user, method, HttpContext.RequestAborted));
 
         var code = verification.GenerateCode();
         var now = DateTime.UtcNow;
@@ -199,6 +223,20 @@ public class AuthController(
         });
     }
 
+    private IActionResult OtpResponse(RegistrationOtpResult result)
+    {
+        Response.Headers.CacheControl = "no-store";
+        if (result.RetryAfter.HasValue)
+            Response.Headers.RetryAfter = result.RetryAfter.Value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+        return StatusCode(result.Status, result.Body);
+    }
+
+    [EnableRateLimiting("auth")]
+    [HttpPost("registration-code")]
+    public async Task<IActionResult> RequestRegistrationCode(RegistrationCodeRequest request) =>
+        OtpResponse(await registrationOtp.RequestAsync(request.UserId, request.RegistrationToken,
+            (request.VerificationMethod ?? "").Trim().ToLowerInvariant(), HttpContext.RequestAborted));
+
     // Өмнө бүртгэгдсэн имэйл рүү шинэ код илгээх
     [EnableRateLimiting("auth")]
     [HttpPost("resend-code")]
@@ -222,7 +260,7 @@ public class AuthController(
             !u.IsActive &&
             !u.IsEmailVerified);
 
-        if (user is null)
+        if (user is null || await registrationOtp.IsChoiceAccountAsync(user.Id))
             return Ok(response);
 
         var now = DateTime.UtcNow;
@@ -302,8 +340,11 @@ public class AuthController(
 
     [EnableRateLimiting("auth")]
     [HttpPost("verify")]
-    public Task<IActionResult> Verify(VerifyRequest r) =>
-        VerifyPendingRegistrationAsync(r.UserId, r.Code, emailOnly: false);
+    public async Task<IActionResult> Verify(VerifyRequest r) =>
+        r.RegistrationToken is null
+            ? await VerifyPendingRegistrationAsync(r.UserId, r.Code, emailOnly: false)
+            : OtpResponse(await registrationOtp.ConfirmAsync(r.UserId, r.RegistrationToken, r.Code,
+                HttpContext.RequestAborted));
 
     // Recover an email registration after the first SMTP delivery failed:
     // the initial 503 did not return the numeric user ID to the app.
@@ -614,10 +655,11 @@ public class AuthController(
         var identifier = (r.Identifier ?? "").Trim();
         var email = identifier.ToLowerInvariant();
 
+        var choiceAccounts = registrationOtp.ChoiceAccounts;
         var user = await db.Users.FirstOrDefaultAsync(u =>
-            u.ClinicId == r.ClinicId &&
-            (u.Phone == identifier || u.Email == email) &&
-            u.IsActive);
+            u.ClinicId == r.ClinicId && u.IsActive &&
+            (u.Phone == identifier && (u.IsPhoneVerified || !choiceAccounts.Contains(u.Id)) ||
+             u.Email == email && (u.IsEmailVerified || !choiceAccounts.Contains(u.Id))));
 
         if (user is null ||
             !BCrypt.Net.BCrypt.Verify(

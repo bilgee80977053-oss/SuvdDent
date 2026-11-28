@@ -484,3 +484,13 @@ No payment or store exists to test through this route.
 The isolated academic runner and web entry are documented in
 `ACADEMIC_DEMO.md`. The ephemeral data, loopback limits, explicit web
 entry, and synthetic outbound sink must remain separate from production.
+
+## Academic registration OTP follow-up (isolated review)
+
+The stable academic package and `release/academic-mvp-v0.1` remain
+separate. The follow-up adds the verification method and OTP screens,
+provider-backed registration API and console-only classroom adapters.
+Use [the OTP contract](backend/docs/REGISTRATION-OTP.md) and
+[the academic demo instructions](ACADEMIC_DEMO.md). No live provider,
+PostgreSQL, production deployment, or main/release merge is part of this
+review. The existing verified-email requirement for booking is unchanged.
