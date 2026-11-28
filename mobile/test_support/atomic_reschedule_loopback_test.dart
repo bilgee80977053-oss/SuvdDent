@@ -86,6 +86,7 @@ Future<void> _visible(
     return switch (matches.single.widget) {
       ButtonStyleButton(:final onPressed) => onPressed != null,
       IconButton(:final onPressed) => onPressed != null,
+      InkWell(:final onTap) => onTap != null,
       _ => true,
     };
   }
@@ -112,6 +113,12 @@ Future<void> _tap(WidgetTester tester, Finder finder) async {
   await tester.tap(finder);
   await tester.pump(const Duration(milliseconds: 350));
 }
+
+Finder _slot(String time) => find.byWidgetPredicate(
+  (widget) =>
+      widget is Semantics &&
+      (widget.properties.label?.startsWith('$time–') ?? false),
+);
 
 void main() {
   _NativeBinding();
@@ -172,20 +179,18 @@ void main() {
       );
       final date = DateTime.parse(_day);
       final dateLabel = '${date.year} · ${LiveLabels.date(_day)}';
+      final dateCell = find.byWidgetPredicate(
+        (widget) =>
+            widget is Semantics &&
+            widget.properties.label == '${date.year}-${date.month}-${date.day}',
+      );
+      // The first real availability load temporarily disables the day cells.
+      // Wait for the actual hit target before testing the automatic date load.
       await _tap(
         tester,
-        find.byWidgetPredicate(
-          (widget) =>
-              widget is Semantics &&
-              widget.properties.label ==
-                  '${date.year}-${date.month}-${date.day}',
-        ),
+        find.descendant(of: dateCell, matching: find.byType(InkWell)),
       );
-      await _tap(
-        tester,
-        find.widgetWithText(FilledButton, 'Боломжит цагийг шинэчлэх'),
-      );
-      await _tap(tester, find.widgetWithText(OutlinedButton, '09:15'));
+      await _tap(tester, _slot('09:15'));
       await _tap(tester, find.widgetWithText(FilledButton, 'Захиалгыг хянах'));
       await _tap(
         tester,
@@ -217,7 +222,7 @@ void main() {
       await _tap(tester, find.text(dateLabel).last);
       await _tap(tester, find.widgetWithText(FilledButton, 'Сонгох'));
 
-      await _tap(tester, find.widgetWithText(OutlinedButton, '10:45'));
+      await _tap(tester, _slot('10:45'));
       await tester.runAsync(
         () => competitor.book(
           31,
@@ -237,7 +242,7 @@ void main() {
         ),
       );
       expect(wire.moves.map((entry) => entry.status), [409]);
-      expect(find.widgetWithText(OutlinedButton, '10:45'), findsNothing);
+      expect(_slot('10:45'), findsNothing);
       final afterConflict = (await tester.runAsync(
         () => originalOwner.appointment(original.id),
       ))!;
@@ -252,7 +257,7 @@ void main() {
         original.id,
       ]);
 
-      await _tap(tester, find.widgetWithText(OutlinedButton, '11:45'));
+      await _tap(tester, _slot('11:45'));
       wire.discardNextCommittedMove = true;
       await _tap(
         tester,
