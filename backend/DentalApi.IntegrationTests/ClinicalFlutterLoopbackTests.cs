@@ -47,6 +47,7 @@ public sealed partial class StructuredProcedureDraftTests
         });
         host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
         host.Services.GetRequiredService<IConfiguration>()["Features:ClinicalTreatment"] = "true";
+        host.Services.GetRequiredService<IConfiguration>()["Features:AssignedEncounterAcceptance"] = "true";
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -88,10 +89,10 @@ public sealed partial class StructuredProcedureDraftTests
         var events = await db.Set<ClinicalAuditEvent>().AsNoTracking().ToListAsync();
         Assert.Single(await db.Set<TreatmentRecord>().AsNoTracking().ToListAsync());
         Assert.Single(await db.Set<TreatmentAddendum>().AsNoTracking().ToListAsync());
-        Assert.Equal(7, events.Count);
+        Assert.Equal(8, events.Count);
         Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.TreatmentRecorded));
         Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentAmended);
-        Assert.Equal(4, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+        Assert.Equal(5, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
         Assert.All(events, row => Assert.Equal((101, 301, 13), (row.ClinicId, row.AppointmentId, row.ActorUserId)));
     }
 

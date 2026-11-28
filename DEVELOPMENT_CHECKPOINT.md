@@ -497,3 +497,22 @@ automatic POST/retry or false success on conflict. Its focused 47/47 and
 full 182/182 local Flutter checks passed; the HTTPS acceptance is extended
 to sign, check immutable conflict, add, replay and read. Real data,
 production and default UI remain outside this draft.
+
+## Bounded clinician encounter selection
+
+The synthetic-only clinician list returns the assigned, started, confirmed
+appointments eligible for the existing procedure workflow. It releases only
+appointment ID, UTC times and the booked service ID/label. No patient
+identifier, clinical text, money, total or unaudited has-more hint is returned.
+Audit rows commit before the page is released. Tests passed 3/3 focused and
+608 local offline, with one independent opt-in Flutter HTTPS case skipped.
+No schema, persistent database, default UI or production changes.
+
+## Flutter authorized encounter selection contract
+
+The bounded Flutter client consumes only five server-approved fields and
+strict UTC bounds, rejects unexpected identifiers and totals, and does not
+cache results. Independent analysis, focused 53/53 and full 188/188 passed.
+The real synthetic HTTPS exercise now selects the server-supplied encounter
+and service, checks the other clinic gets no rows, then signs and verifies
+the audits. Treat hosted integration results separately from mocks.
