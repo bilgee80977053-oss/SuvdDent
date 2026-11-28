@@ -84,10 +84,99 @@ class EncounterAddendaPage {
   }
 }
 
+const _procedureMaxResponseBytes = 65536;
+final _toothCode = RegExp(r'^(?:[1-4][1-8]|[5-8][1-5])$');
+
+enum PerformedProcedureScope { visit, singleTooth }
+
+PerformedProcedureScope _scope(String value) => switch (value) {
+  'Visit' => PerformedProcedureScope.visit,
+  'SingleTooth' => PerformedProcedureScope.singleTooth,
+  _ => throw const FormatException(),
+};
+
+String _scopeValue(PerformedProcedureScope value) => switch (value) {
+  PerformedProcedureScope.visit => 'Visit',
+  PerformedProcedureScope.singleTooth => 'SingleTooth',
+};
+
+bool _validTarget(PerformedProcedureScope scope, String? toothCode) =>
+    scope == PerformedProcedureScope.visit
+    ? toothCode == null
+    : toothCode != null &&
+          toothCode.length == 2 &&
+          _toothCode.hasMatch(toothCode);
+
+bool _positiveId(int id) => id >= 1 && id <= 2147483647;
+
+class PerformedProcedure {
+  final String requestId, serviceLabel;
+  final int serviceId;
+  final PerformedProcedureScope scope;
+  final String? toothCode;
+  final DateTime signedUtc;
+
+  PerformedProcedure._(Json data)
+    : requestId = _requestId(text(data, 'requestId')),
+      serviceId = number(data, 'serviceId'),
+      serviceLabel = text(data, 'serviceLabel'),
+      scope = _scope(text(data, 'scope')),
+      toothCode = data['toothCode'] as String?,
+      signedUtc = instant(data, 'signedUtc') {
+    if (!_positiveId(serviceId) ||
+        serviceLabel.trim().length < 2 ||
+        serviceLabel.length > 160 ||
+        serviceLabel.runes.any((c) => c < 32 || (c >= 127 && c <= 159)) ||
+        !data.containsKey('toothCode') ||
+        !_validTarget(scope, toothCode)) {
+      throw const FormatException();
+    }
+  }
+}
+
+class PerformedProcedurePage {
+  final int page, pageSize;
+  final bool hasMore;
+  final List<PerformedProcedure> items;
+
+  PerformedProcedurePage._(Json data, int requestedPage, int requestedSize)
+    : page = number(data, 'page'),
+      pageSize = number(data, 'pageSize'),
+      hasMore = data['hasMore'] as bool,
+      items = List.unmodifiable(
+        (data['items'] as List).map(
+          (item) => PerformedProcedure._(object(item)),
+        ),
+      ) {
+    if (page != requestedPage ||
+        pageSize != requestedSize ||
+        items.length > pageSize ||
+        (hasMore && items.length != pageSize) ||
+        items.map((item) => item.requestId).toSet().length != items.length) {
+      throw const FormatException();
+    }
+  }
+}
+
+sealed class PerformedProcedureSignResult {
+  const PerformedProcedureSignResult();
+}
+
+final class PerformedProcedureRecorded extends PerformedProcedureSignResult {
+  final int appointmentId;
+  final PerformedProcedure procedure;
+  const PerformedProcedureRecorded._(this.appointmentId, this.procedure);
+}
+
+final class PerformedProcedureReplayed extends PerformedProcedureSignResult {
+  const PerformedProcedureReplayed._();
+}
+
 /// Unwired review adapter for one encounter at a time. Requires an explicit
 /// transport and keeps only a verified doctor token in memory, never clinical
 /// responses. The caller owns the returned records and must not persist them.
-/// No default client, UI entry point, writes or patient-wide discovery.
+/// No default client, UI entry point or patient-wide discovery. The only write
+/// is an explicit single-encounter procedure sign; never retried automatically.
 class EncounterTreatmentApi {
   final ApiSettings _settings;
   final http.Client _client;
@@ -136,6 +225,9 @@ class EncounterTreatmentApi {
     bool login = false,
     Json? body,
     Map<String, String>? query,
+    int successStatus = 200,
+    T Function()? onReplay,
+    int? maxResponseBytes,
   }) async {
     _checkGeneration(generation);
     if (!login && token == null) {
@@ -143,10 +235,11 @@ class EncounterTreatmentApi {
     }
     final uri = Uri.parse(_settings.baseUrl)
         .replace(path: path, queryParameters: query);
-    final request = http.Request(login ? 'POST' : 'GET', uri)
-      ..followRedirects = false
-      ..headers['Accept'] = 'application/json'
-      ..headers['Cache-Control'] = 'no-store';
+    final request =
+        http.Request(login || onReplay != null ? 'POST' : 'GET', uri)
+          ..followRedirects = false
+          ..headers['Accept'] = 'application/json'
+          ..headers['Cache-Control'] = 'no-store';
     if (token != null) request.headers['Authorization'] = 'Bearer $token';
     if (body != null) {
       request.headers['Content-Type'] = 'application/json';
@@ -156,11 +249,26 @@ class EncounterTreatmentApi {
       // Refuse unexpected redirect/error bodies without reading their content.
       final response = await (() async {
         final streamed = await _client.send(request);
-        if (streamed.statusCode != 200) {
+        final isReplay = streamed.statusCode == 204 && onReplay != null;
+        if (streamed.statusCode != successStatus && !isReplay) {
           await streamed.stream.listen((_) {}).cancel();
-          return (streamed.statusCode, null);
+          return (streamed.statusCode, null as List<int>?);
         }
-        return (200, await http.Response.fromStream(streamed));
+        final limit = isReplay ? 0 : maxResponseBytes;
+        if (limit != null && (streamed.contentLength ?? 0) > limit) {
+          await streamed.stream.listen((_) {}).cancel();
+          throw const FormatException();
+        }
+        final bytes = <int>[];
+        await for (final chunk in streamed.stream) {
+          // A timed-out or replaced session may receive late transport data.
+          _checkGeneration(generation);
+          if (limit != null && chunk.length > limit - bytes.length) {
+            throw const FormatException();
+          }
+          bytes.addAll(chunk);
+        }
+        return (streamed.statusCode, bytes);
       })().timeout(_timeout);
       _checkGeneration(generation);
       final (status, success) = response;
@@ -173,7 +281,8 @@ class EncounterTreatmentApi {
           status,
         );
       }
-      return parse(object(jsonDecode(utf8.decode(success.bodyBytes))));
+      if (status == 204 && onReplay != null) return onReplay();
+      return parse(object(jsonDecode(utf8.decode(success))));
     } on ApiFailure {
       rethrow;
     } on TimeoutException {
@@ -221,11 +330,11 @@ class EncounterTreatmentApi {
     _token = session.token;
   }
 
-  String _encounter(int appointmentId) {
-    if (appointmentId < 1 || appointmentId > 2147483647) {
+  String _encounter(int appointmentId, {String resource = 'treatment'}) {
+    if (!_positiveId(appointmentId)) {
       throw const ApiFailure('Захиалгын дугаар буруу байна.', 400);
     }
-    return '/api/clinical/appointments/$appointmentId/treatment';
+    return '/api/clinical/appointments/$appointmentId/$resource';
   }
 
   Future<EncounterTreatmentNote> readTreatment(int appointmentId) async =>
@@ -268,6 +377,67 @@ class EncounterTreatmentApi {
       (data) => EncounterTreatmentAddendum._(data, id),
       generation: _generation,
       token: _token,
+    );
+  }
+
+  Future<PerformedProcedurePage> listPerformedProcedures(
+    int appointmentId, {
+    int page = 1,
+    int pageSize = 20,
+  }) async {
+    if (page < 1 || page > 1000 || pageSize < 1 || pageSize > 50) {
+      throw const ApiFailure('Хуудасны дугаар эсвэл хэмжээ буруу байна.', 400);
+    }
+    return _call(
+      _encounter(appointmentId, resource: 'performed-procedures'),
+      (data) => PerformedProcedurePage._(data, page, pageSize),
+      generation: _generation,
+      token: _token,
+      query: {'page': '$page', 'pageSize': '$pageSize'},
+      maxResponseBytes: _procedureMaxResponseBytes,
+    );
+  }
+
+  Future<PerformedProcedureSignResult> signPerformedProcedure(
+    int appointmentId, {
+    required String requestId,
+    required int serviceId,
+    required PerformedProcedureScope scope,
+    String? toothCode,
+  }) async {
+    final String key;
+    try {
+      key = _requestId(requestId);
+      if (!_positiveId(serviceId) || !_validTarget(scope, toothCode)) {
+        throw const FormatException();
+      }
+    } on FormatException {
+      throw const ApiFailure('Ажилбарын мэдээлэл буруу байна.', 400);
+    }
+    return _call<PerformedProcedureSignResult>(
+      _encounter(appointmentId, resource: 'performed-procedures'),
+      (data) {
+        final procedure = PerformedProcedure._(data);
+        if (number(data, 'appointmentId') != appointmentId ||
+            procedure.requestId != key ||
+            procedure.serviceId != serviceId ||
+            procedure.scope != scope ||
+            procedure.toothCode != toothCode) {
+          throw const FormatException();
+        }
+        return PerformedProcedureRecorded._(appointmentId, procedure);
+      },
+      generation: _generation,
+      token: _token,
+      body: {
+        'requestId': key,
+        'serviceId': serviceId,
+        'scope': _scopeValue(scope),
+        'toothCode': toothCode,
+      },
+      successStatus: 201,
+      onReplay: PerformedProcedureReplayed._,
+      maxResponseBytes: _procedureMaxResponseBytes,
     );
   }
 }
