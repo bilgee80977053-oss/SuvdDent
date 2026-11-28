@@ -224,3 +224,13 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Offline real-loopback rescheduling acceptance
+
+The opt-in `FlutterLoopback` test drives the actual Flutter patient
+rescheduling screen and ASP.NET endpoints together over local Kestrel, with
+only synthetic fixtures and in-memory SQLite. See
+[the offline invocation](backend/DentalApi.IntegrationTests/README.md#offline-flutter-to-api-appointment-acceptance-optional).
+No default app, database target or CI execution policy was changed. This does
+not replace the blocked live PostgreSQL acceptance, staging/device checks,
+or end-to-end booking/cancellation UI coverage beyond the reschedule path.

@@ -301,3 +301,31 @@ reset is used. These tests have not been run against PostgreSQL in offline
 validation. With the opt-in variable absent, expect thirteen PostgreSQL tests
 skipped (the original ten, these two appointment tests, and the tenant-root
 foreign-key test), not passed.
+
+## Offline Flutter-to-API appointment acceptance (optional)
+
+The separately opted-in `FlutterLoopback` case launches the actual API with
+Kestrel on an ephemeral IPv4 loopback port. It uses the existing synthetic
+appointment fixture and a test-owned in-memory SQLite connection, not a local
+app, PostgreSQL, or an externally configured address. Outbound notifications
+are disabled. The Flutter widget test uses real loopback HTTP and checks login,
+history, a stale-slot conflict, an explicit identical-key retry after a
+deliberately discarded committed response, and the final history. The backend
+also verifies one move ledger row and no duplicate notification events.
+
+Preinstall the repository-pinned Flutter SDK and prepare its packages/engine
+artifacts and .NET packages before running; this optional test does not restore
+packages or provision either SDK. From the repository root on Bash:
+
+```bash
+(cd mobile && flutter pub get --enforce-lockfile)
+dotnet restore backend/NexoraDental.sln
+unset NEXORA_PG_TEST_CONNECTION PGPASSWORD
+SUVDDENT_E2E_FLUTTER="$(command -v flutter)" \
+  dotnet test backend/DentalApi.IntegrationTests --configuration Release --no-restore \
+  --filter "Category=FlutterLoopback"
+```
+
+The opt-in opens a loopback socket and runs Flutter as a subprocess. Without
+the opt-in, the test is skipped. This is not staging/production, mobile-device,
+browser CORS, or PostgreSQL certification.
