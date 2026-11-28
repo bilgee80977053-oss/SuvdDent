@@ -425,3 +425,20 @@ author separation, fixed-UTC tie ordering, signed label after catalogue
 rename, read auditing of empty pages and failure closed on audit insert
 or commit. Live PostgreSQL, production clinical roles and patient history
 were not verified or enabled.
+
+## Real-loopback Flutter appointment move acceptance
+
+Isolated `dot/flutter-real-api-e2e` starts from exact draft PR #16
+`83dc282`. The optional `FlutterLoopback` native widget case drove the real
+patient login, history, date/slot picker, stale-slot 409 and explicit
+identical-key retry over an ephemeral IPv4 Kestrel listener using only
+synthetic in-memory SQLite in Testing. A real committed 200 was deliberately
+discarded by the test transport before it reached the app; replay returned
+200 without a second replacement. A history read proved the original was
+unchanged on conflict, then cancelled only on success. The backend verified
+one linked move ledger and no duplicate or cancellation notifications.
+
+Release build passed with 0 warnings/errors; offline backend regression
+passed 603/603, and the separately opted-in native loopback case passed 1/1.
+No live PostgreSQL, external/DNS target, real notifications, device build,
+browser CORS or deployed same-version environment was validated.
