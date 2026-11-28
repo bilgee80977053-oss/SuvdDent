@@ -72,6 +72,39 @@ public sealed class CrossTenantIsolationTests
         Assert.Equal(clinicOneBefore, await SnapshotClinicAsync(app, 101));
     }
 
+    [Fact]
+    public async Task Director_service_writes_require_an_explicit_minimum_tariff_but_allow_zero()
+    {
+        using var app = new DentalApiFactory();
+        await app.SeedAsync();
+        var ids = await SeedTenantRecordsAsync(app);
+        using var director = await LoginAsync(app, 16, 202);
+        const string catalog = "/api/admin/services";
+        var existing = $"{catalog}/{ids.ClinicTwoServiceId}";
+
+        var incomplete = new { name = "Synthetic rejected", description = "Synthetic only" };
+        using var createWithoutPrice = await director.PostAsJsonAsync(catalog, incomplete);
+        using var updateWithoutPrice = await director.PutAsJsonAsync(existing, incomplete);
+        Assert.Equal(HttpStatusCode.BadRequest, createWithoutPrice.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, updateWithoutPrice.StatusCode);
+
+        var services = await director.GetFromJsonAsync<JsonElement[]>(catalog);
+        var original = Assert.Single(services!);
+        Assert.Equal(ids.ClinicTwoServiceId, original.GetProperty("id").GetInt32());
+        Assert.Equal("Synthetic clinic two service", original.GetProperty("name").GetString());
+        Assert.Equal(20, original.GetProperty("minPrice").GetInt64());
+
+        var explicitZero = new { name = "Synthetic zero tariff", description = "Synthetic only", minPrice = 0 };
+        using var createZero = await director.PostAsJsonAsync(catalog, explicitZero);
+        Assert.Equal(HttpStatusCode.Created, createZero.StatusCode);
+        var created = await createZero.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, created.GetProperty("minPrice").GetInt64());
+        using var updateZero = await director.PutAsJsonAsync(existing, explicitZero with { name = "Synthetic updated tariff" });
+        Assert.Equal(HttpStatusCode.OK, updateZero.StatusCode);
+        var updated = await updateZero.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(0, updated.GetProperty("minPrice").GetInt64());
+    }
+
     private static async Task<(int ClinicOneServiceId, int ClinicTwoServiceId,
         int ClinicOneDoctorProfileId, int ClinicTwoDoctorProfileId, int ClinicOneAppointmentId)>
         SeedTenantRecordsAsync(DentalApiFactory app)
