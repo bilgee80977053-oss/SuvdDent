@@ -434,3 +434,13 @@ format and scale are explicit, checked totals cannot silently overflow, and
 existing estimate logic is unchanged. The standalone Release build and all 19
 focused invoice tests passed before publication. No API, schema, tariff
 assumption, merchant activation, receipt or payment confirmation was added.
+
+## 2026-11-28: Settlement evidence comparison only
+
+A pure internal comparison checks that separately verified capture evidence
+matches an expected invoice, provider scope, seller and transaction, as well
+as integer amount, currency and scale. Missing, mismatched, reused or
+unknown evidence never qualifies. A matching result is only a candidate,
+not settlement or authorization to issue a receipt. The Release build and
+25 focused amount/settlement tests passed. No external gateway, ledger write,
+payment state, receipt issue, schema or production change.
