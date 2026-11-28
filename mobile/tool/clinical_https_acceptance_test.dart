@@ -72,6 +72,24 @@ void main() {
       expect(page.items.single.requestId, key);
       expect(page.items.single.serviceLabel, 'Synthetic booked service');
       expect(page.items.single.toothCode, '85');
+      Future<PatientHistoryPage> history(EncounterTreatmentApi api) =>
+          api.listPatientPeriodHistory(
+            301,
+            fromUtc: DateTime.utc(2026, 11, 26),
+            untilUtc: DateTime.utc(2026, 11, 28),
+          );
+      await expectLater(
+        history(foreignDoctor),
+        throwsA(
+          isA<ApiFailure>().having((failure) => failure.status, 'status', 404),
+        ),
+      );
+      final patientHistory = await history(doctor);
+      expect(patientHistory.items.single.appointmentId, 301);
+      expect(
+        patientHistory.items.single.startedUtc,
+        DateTime.utc(2026, 11, 26, 23),
+      );
       doctor.logout();
       expect(doctor.authenticated, isFalse);
     },

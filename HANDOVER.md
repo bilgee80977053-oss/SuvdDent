@@ -244,3 +244,20 @@ variables absent. The harness only binds loopback and uses an ephemeral
 certificate and in-memory fixtures. GitHub Actions run 46121334606 verified
 the clinician HTTPS bridge on head `3f991cd`. It is not a substitute for device,
 clinical UI, live PostgreSQL or production acceptance.
+
+## Test-only anchor-bound patient period history
+
+`dot/patient-period-history` limits one synthetic date-range page to the same
+clinic/patient from a currently assigned anchor and the same doctor's own
+signed visits. It discloses only visit ID and start UTC; any page is released
+only after all anchor/returned-visit audit entries commit. Both explicit flags
+and the Testing/in-memory gate are required. No broader production policy,
+schema or real data is implied. See
+[patient history acceptance](backend/DentalApi/PatientPeriodHistoryAcceptance.md).
+
+## Flutter history follow-up
+
+This integration combines the #20 clinician transport and #21 patient
+history boundary. Its one-encounter anchor cannot be used to bypass the
+same-clinic, same-patient, active-assignment and original-signer checks.
+Do not persist returned history or enable this synthetic flow in default UI.

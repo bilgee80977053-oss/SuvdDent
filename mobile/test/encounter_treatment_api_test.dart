@@ -50,6 +50,219 @@ TypeMatcher<ApiFailure> _failure(int? status) =>
     isA<ApiFailure>().having((error) => error.status, 'status', status);
 
 void main() {
+  const historyPath = '/api/clinical/appointments/41/patient-history';
+  final historyFrom = DateTime.utc(2026, 11, 1);
+  final historyUntil = DateTime.utc(2026, 12, 1);
+  Future<PatientHistoryPage> history(
+    EncounterTreatmentApi api, {
+    int anchor = 41,
+    DateTime? from,
+    DateTime? until,
+    int page = 1,
+    int pageSize = 10,
+  }) => api.listPatientPeriodHistory(
+    anchor,
+    fromUtc: from ?? historyFrom,
+    untilUtc: until ?? historyUntil,
+    page: page,
+    pageSize: pageSize,
+  );
+
+  test(
+    'anchor-bound history is read-only HTTPS UTC metadata, not cached',
+    () async {
+      var requests = 0;
+      final api = _client((request) {
+        if (request.url.path != historyPath) return _default(request);
+        requests++;
+        expect(request.method, 'GET');
+        expect(request.body, isEmpty);
+        expect(request.url.scheme, 'https');
+        expect(request.url.host, 'clinical.invalid');
+        expect(request.url.queryParameters, {
+          'from': '2026-11-01',
+          'until': '2026-12-01',
+          'page': '1',
+          'pageSize': '2',
+        });
+        expect(
+          request.headers['Authorization'],
+          'Bearer synthetic-doctor-token',
+        );
+        expect(request.headers['Cache-Control'], 'no-store');
+        expect(request.followRedirects, isFalse);
+        if (requests > 1) return _json({'detail': _synthetic}, 503);
+        return _json({
+          'page': 1,
+          'pageSize': 2,
+          'hasMore': true,
+          'items': [
+            {'appointmentId': 41, 'startedUtc': '2026-11-26T12:00:00+00:00'},
+            {'appointmentId': 39, 'startedUtc': '2026-11-26T12:00:00Z'},
+          ],
+        });
+      });
+      await expectLater(history(api), throwsA(_failure(401)));
+      await _authenticate(api);
+      final page = await history(api, pageSize: 2);
+      expect(page.hasMore, isTrue);
+      expect(page.items.map((item) => item.appointmentId), [41, 39]);
+      expect(page.items.first.startedUtc, DateTime.utc(2026, 11, 26, 12));
+      expect(() => page.items.clear(), throwsUnsupportedError);
+      await expectLater(history(api, pageSize: 2), throwsA(_failure(503)));
+      expect(requests, 2);
+    },
+  );
+
+  test(
+    'history rejects bad ids, UTC dates and paging before transport',
+    () async {
+      final api = _client(_default);
+      await _authenticate(api);
+      final invalid = <Future<PatientHistoryPage> Function()>[
+        () => history(api, anchor: 0),
+        () => history(api, anchor: 2147483648),
+        () => history(api, page: 0),
+        () => history(api, page: 101),
+        () => history(api, pageSize: 0),
+        () => history(api, pageSize: 21),
+        () => history(api, from: DateTime(2026, 11, 1)),
+        () => history(api, from: DateTime.utc(2026, 11, 1, 1)),
+        () => history(api, until: historyFrom),
+        () => history(api, until: DateTime.utc(2026, 12, 3)),
+      ];
+      for (final attempt in invalid) {
+        await expectLater(attempt(), throwsA(_failure(400)));
+      }
+    },
+  );
+
+  test(
+    'history permits an exact empty page and rejects payload widening',
+    () async {
+      const valid = {'appointmentId': 41, 'startedUtc': '2026-11-26T12:00:00Z'};
+      final badRows = <Object>[
+        [valid, valid],
+        [
+          {...valid, 'patientId': 1},
+        ],
+        [
+          {...valid, 'appointmentId': '41'},
+        ],
+        [
+          {...valid, 'startedUtc': '2026-11-31T12:00:00Z'},
+        ],
+        [
+          {...valid, 'startedUtc': '2026-11-26T12:00:00+08:00'},
+        ],
+        [
+          {...valid, 'startedUtc': '2026-12-01T00:00:00+00:00'},
+        ],
+        [
+          {...valid, 'appointmentId': 39},
+          valid,
+        ],
+      ];
+      var responseBody = <String, Object>{
+        'page': 1,
+        'pageSize': 2,
+        'hasMore': false,
+        'items': <Object>[],
+      };
+      final api = _client(
+        (request) => request.url.path == historyPath
+            ? _json(responseBody)
+            : _default(request),
+      );
+      await _authenticate(api);
+      expect((await history(api, pageSize: 2)).items, isEmpty);
+      for (final rows in badRows) {
+        responseBody = {...responseBody, 'items': rows};
+        await expectLater(history(api, pageSize: 2), throwsA(_failure(null)));
+      }
+      responseBody = {
+        ...responseBody,
+        'items': [valid],
+        'total': 1,
+      };
+      await expectLater(history(api, pageSize: 2), throwsA(_failure(null)));
+    },
+  );
+
+  test(
+    'history preserves server tick ordering when Dart UTC times are equal',
+    () async {
+      final api = _client(
+        (request) => request.url.path == historyPath
+            ? _json({
+                'page': 1,
+                'pageSize': 2,
+                'hasMore': false,
+                'items': [
+                  {
+                    'appointmentId': 39,
+                    'startedUtc': '2026-11-26T12:00:00.1234567Z',
+                  },
+                  {
+                    'appointmentId': 41,
+                    'startedUtc': '2026-11-26T12:00:00.1234566+00:00',
+                  },
+                ],
+              })
+            : _default(request),
+      );
+      await _authenticate(api);
+      final page = await history(api, pageSize: 2);
+      expect(page.items.map((item) => item.appointmentId), [39, 41]);
+      expect(page.items.first.startedUtc, page.items.last.startedUtc);
+    },
+  );
+
+  test('history refuses oversized payloads and cross-host redirects', () async {
+    var requests = 0;
+    final api = _client((request) {
+      if (request.url.path != historyPath) return _default(request);
+      requests++;
+      expect(request.url.host, 'clinical.invalid');
+      expect(request.followRedirects, isFalse);
+      if (requests == 1) {
+        return http.Response(
+          "${jsonEncode({'page': 1, 'pageSize': 10, 'hasMore': false, 'items': []})}${' ' * 8192}",
+          200,
+        );
+      }
+      return http.Response(
+        '',
+        302,
+        headers: {'location': 'https://other.invalid/'},
+      );
+    });
+    await _authenticate(api);
+    await expectLater(history(api), throwsA(_failure(null)));
+    await expectLater(history(api), throwsA(_failure(302)));
+    expect(requests, 2);
+  });
+
+  test('history discarded after doctor session generation changes', () async {
+    final sent = Completer<void>();
+    final held = Completer<http.Response>();
+    final api = _client((request) {
+      if (request.url.path != historyPath) return _default(request);
+      sent.complete();
+      return held.future;
+    });
+    await _authenticate(api);
+    final pending = history(api);
+    final rejected = expectLater(pending, throwsA(_failure(401)));
+    await sent.future;
+    api.logout();
+    held.complete(
+      _json({'page': 1, 'pageSize': 10, 'hasMore': false, 'items': []}),
+    );
+    await rejected;
+    expect(api.authenticated, isFalse);
+  });
+
   const procedurePath = '/api/clinical/appointments/41/performed-procedures';
   const row = {
     'requestId': _key,

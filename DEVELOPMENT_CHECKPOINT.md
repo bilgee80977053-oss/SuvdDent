@@ -458,3 +458,32 @@ separately. GitHub Actions run 46121334606 passed the dedicated opt-in
 (1/1), the ordinary offline backend suite (603 passed, 1 explicit opt-in
 skip), Flutter (169 passed; analyzer clean), and PowerShell. Both jobs used
 the same functional tree as PR #20 head `3f991cd`.
+
+## Test-only anchor-bound patient period history
+
+Isolated `dot/patient-period-history` starts from exact PR #16 head `83dc282`.
+A current assigned doctor may discover visit IDs and start UTC for the same
+clinic/patient from an authorized anchor, only within a bounded period and
+only for visits currently assigned to that doctor with their signed procedure.
+No broader patient browsing or personal and clinical text is released.
+The anchor and each distinct disclosed visit share an atomic metadata audit;
+failure blocks the whole page. Double opt-in and Testing/in-memory SQLite
+guards remain closed outside synthetic testing. No new migration, rollout,
+persistent database, live PostgreSQL or remote write was used.
+
+Exact Release build passed with 0 warnings/errors. Focused synthetic HTTP
+and existing clinical regression tests passed 39/39, and the full offline
+backend suite passed 605/605 (0 failures/skips, opt-in PostgreSQL excluded).
+Tests verify same-clinic/author/patient isolation, bounded and empty pages,
+both flags, no persistent open attempts, and rollback of all page audit data
+when a non-anchor audit row fails. PowerShell, real listener and production
+policy were not tested in this slice.
+
+## Flutter patient visit history integration
+
+The staged mobile client validates a bounded, read-only UTC-period history
+response and discards stale session results. On the isolated app/API stack,
+the clinician HTTPS acceptance now includes authorized same-patient visit
+reads and denial for another clinic. The independently tested Flutter diff
+passed 175/175 offline tests and static analysis. Hosted loopback verification
+is tracked separately; clinical UI and broader history policy remain pending.

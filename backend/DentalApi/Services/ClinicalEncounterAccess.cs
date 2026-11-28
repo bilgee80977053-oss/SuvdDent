@@ -21,8 +21,18 @@ internal sealed class ClinicalEncounterAccess(AppDbContext db, TimeProvider cloc
             appointmentId <= 0)
             return null;
 
+        return await AssignedEncounters(clinicId, userId)
+            .Where(row => row.Id == appointmentId)
+            .Select(row => new ClinicalEncounterScope(row.ClinicId, row.PatientId, row.Id, userId))
+            .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    // Query only with clinic/user identities obtained from validated clinic claims
+    // or from a fresh FindAsync result in the same transaction.
+    internal IQueryable<Appointment> AssignedEncounters(int clinicId, int userId)
+    {
         var now = clock.GetUtcNow();
-        return await (
+        return
             from appointment in db.Appointments.AsNoTracking()
             join patient in db.Patients
                 on new { appointment.ClinicId, appointment.PatientId }
@@ -33,11 +43,10 @@ internal sealed class ClinicalEncounterAccess(AppDbContext db, TimeProvider cloc
             join user in db.Users
                 on new { doctor.ClinicId, doctor.UserId }
                 equals new { user.ClinicId, UserId = user.Id }
-            where appointment.ClinicId == clinicId && appointment.Id == appointmentId &&
+            where appointment.ClinicId == clinicId &&
                   appointment.Status == AppointmentStatus.Confirmed && appointment.StartUtc <= now &&
                   patient.IsActive && doctor.IsActive && user.Id == userId &&
                   user.IsActive && user.Role == Role.Doctor
-            select new ClinicalEncounterScope(appointment.ClinicId, patient.Id, appointment.Id, user.Id))
-            .SingleOrDefaultAsync(cancellationToken);
+            select appointment;
     }
 }
