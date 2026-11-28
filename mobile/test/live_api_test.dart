@@ -10,6 +10,7 @@ import 'package:nexora_dental_mobile/app/patient_flow.dart';
 import 'package:nexora_dental_mobile/live/dental_api.dart';
 import 'package:nexora_dental_mobile/live/live_flow_controller.dart';
 import 'package:nexora_dental_mobile/live/live_patient_flow.dart';
+import 'package:nexora_dental_mobile/live/live_presentation.dart';
 import 'package:nexora_dental_mobile/live/models.dart';
 
 const settings = ApiSettings(
@@ -234,8 +235,7 @@ void main() {
       );
     },
   );
-  test('Pending registration resend uses the selected clinic without authentication',
-      () async {
+  test('Pending registration resend uses the selected clinic without authentication', () async {
     final requests = <http.Request>[];
     final api = makeApi((request) {
       requests.add(request);
@@ -258,10 +258,16 @@ void main() {
     final requests = <http.Request>[];
     final api = makeApi((request) {
       requests.add(request);
-      return response({'message': 'Бүртгэл амжилттай баталгаажлаа', 'userId': 9});
+      return response({
+        'message': 'Бүртгэл амжилттай баталгаажлаа',
+        'userId': 9,
+      });
     });
     addTearDown(api.close);
-    final receipt = await api.verifyRegistrationEmail('pending@example.invalid', '274190');
+    final receipt = await api.verifyRegistrationEmail(
+      'pending@example.invalid',
+      '274190',
+    );
     expect(receipt.userId, 9);
     expect(requests.single.url.path, '/api/Auth/verify-email');
     expect(jsonDecode(requests.single.body), {
@@ -865,8 +871,12 @@ void main() {
     'LIVE eight-step login booking uses mocked API responses and paginated history',
     (tester) async {
       var bookings = 0;
+      final slotDates = <String>[];
       final api = makeApi((r) {
         if (r.url.path == '/api/appointments') bookings++;
+        if (r.url.path == '/api/appointments/slots') {
+          slotDates.add(r.url.queryParameters['date']!);
+        }
         return standard(r);
       });
       await tester.pumpWidget(
@@ -904,7 +914,25 @@ void main() {
       await tester.tap(find.text('Тест эмч'));
       await tester.pumpAndSettle();
       await press('Огноо, цаг сонгох');
-      await press('Боломжит цагийг шинэчлэх');
+      expect(slotDates, hasLength(1));
+      final alternate = find.widgetWithText(OutlinedButton, 'Өөр огноо сонгох');
+      await tester.ensureVisible(alternate);
+      await tester.pumpAndSettle();
+      expect(alternate.hitTestable(), findsOneWidget);
+      await tester.tap(alternate);
+      await tester.pumpAndSettle();
+      final picker = tester.widget<DropdownButtonFormField<DateTime>>(
+        find.byType(DropdownButtonFormField<DateTime>),
+      );
+      final alternateDay = BookingDateWindow.dates(
+        DateTime.now(),
+        'Asia/Ulaanbaatar',
+      ).firstWhere((date) => calendarDate(date) != slotDates.single);
+      picker.onChanged!(alternateDay);
+      await tester.pumpAndSettle();
+      await press('Сонгох');
+      expect(slotDates, hasLength(2));
+      expect(slotDates.last, calendarDate(alternateDay));
       final slot = find.text('09:00');
       await tester.ensureVisible(slot);
       await tester.tap(slot);

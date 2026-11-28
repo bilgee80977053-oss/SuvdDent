@@ -136,6 +136,7 @@ public static class EntryPoint
     {
         try
         {
+            if (args is ["serve-memory"]) return await AcademicHost.RunAsync();
             if (args.Length < 2) throw new InvalidOperationException("Usage: plan|create|inspect|check-start <absolute SQLite FILE PATH> [API project directory]");
             var path = FixtureSafety.Resolve(args[1]);
             Console.WriteLine($"Database FILE PATH: {path}");

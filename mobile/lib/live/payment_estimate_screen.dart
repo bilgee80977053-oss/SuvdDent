@@ -14,14 +14,15 @@ class PaymentEstimateScreen extends StatefulWidget {
     super.key,
     required this.api,
     required this.appointment,
+    this.allowEstimateEmail = true,
   });
 
   final DentalApi api;
   final Appointment appointment;
+  final bool allowEstimateEmail;
 
   @override
-  State<PaymentEstimateScreen> createState() =>
-      _PaymentEstimateScreenState();
+  State<PaymentEstimateScreen> createState() => _PaymentEstimateScreenState();
 }
 
 class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
@@ -33,18 +34,42 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   int _selectionVersion = 0;
 
   static const _methods = <(String, String, IconData, String)>[
-    ('qpay', 'QPay / QR', Icons.qr_code_2_rounded,
-        'Баталгаатай нэхэмжлэх, QR болон төлбөр шалгах серверийн холболт шаардлагатай.'),
-    ('card', 'Банкны карт / POS', Icons.credit_card_rounded,
-        'Эмнэлгийн төлбөрийн терминал эсвэл баталгаажсан картын gateway шаардлагатай.'),
-    ('transfer', 'Дансны шилжүүлэг', Icons.account_balance_outlined,
-        'Эмнэлгийн албан ёсны данс болон гүйлгээ тулгалтын баталгаажуулалт шаардлагатай.'),
-    ('bankapp', 'Банкны апп', Icons.phone_android_rounded,
-        'Мерчантын deeplink/QR нэхэмжлэхийг баталгаатай төлбөрийн үйлчилгээ үүсгэнэ.'),
-    ('cash', 'Бэлэн мөнгө', Icons.payments_outlined,
-        'Зөвхөн эмнэлгийн касс төлбөр хүлээн авч баталгаажуулсны дараа баримт гарна.'),
-    ('corporate', 'Байгууллагын нэхэмжлэх', Icons.business_outlined,
-        'Эмнэлгийн гэрээ, нэхэмжлэл ба баталгаажуулалтын тусдаа үйл явц шаардлагатай.'),
+    (
+      'qpay',
+      'QPay / QR',
+      Icons.qr_code_2_rounded,
+      'Баталгаатай нэхэмжлэх, QR болон төлбөр шалгах серверийн холболт шаардлагатай.',
+    ),
+    (
+      'card',
+      'Банкны карт / POS',
+      Icons.credit_card_rounded,
+      'Эмнэлгийн төлбөрийн терминал эсвэл баталгаажсан картын gateway шаардлагатай.',
+    ),
+    (
+      'transfer',
+      'Дансны шилжүүлэг',
+      Icons.account_balance_outlined,
+      'Эмнэлгийн албан ёсны данс болон гүйлгээ тулгалтын баталгаажуулалт шаардлагатай.',
+    ),
+    (
+      'bankapp',
+      'Банкны апп',
+      Icons.phone_android_rounded,
+      'Мерчантын deeplink/QR нэхэмжлэхийг баталгаатай төлбөрийн үйлчилгээ үүсгэнэ.',
+    ),
+    (
+      'cash',
+      'Бэлэн мөнгө',
+      Icons.payments_outlined,
+      'Зөвхөн эмнэлгийн касс төлбөр хүлээн авч баталгаажуулсны дараа баримт гарна.',
+    ),
+    (
+      'corporate',
+      'Байгууллагын нэхэмжлэх',
+      Icons.business_outlined,
+      'Эмнэлгийн гэрээ, нэхэмжлэл ба баталгаажуулалтын тусдаа үйл явц шаардлагатай.',
+    ),
   ];
 
   @override
@@ -77,14 +102,20 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   }
 
   Future<void> _sendEstimateEmail() async {
-    if (_sendingEmail) return;
+    if (_sendingEmail ||
+        !widget.allowEstimateEmail ||
+        widget.api.settings.isAcademic) {
+      return;
+    }
     final selection = _selectionVersion;
     setState(() {
       _sendingEmail = true;
       _emailResult = null;
     });
     try {
-      final result = await widget.api.emailPaymentEstimate(widget.appointment.id);
+      final result = await widget.api.emailPaymentEstimate(
+        widget.appointment.id,
+      );
       if (!mounted || selection != _selectionVersion) return;
       setState(() => _emailResult = result);
     } on ApiFailure catch (e) {
@@ -92,7 +123,9 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
       setState(() => _emailResult = e.message);
     } catch (_) {
       if (!mounted || selection != _selectionVersion) return;
-      setState(() => _emailResult = 'Имэйл илгээлтийг баталгаажуулж чадсангүй.');
+      setState(
+        () => _emailResult = 'Имэйл илгээлтийг баталгаажуулж чадсангүй.',
+      );
     } finally {
       if (mounted && selection == _selectionVersion) {
         setState(() => _sendingEmail = false);
@@ -111,7 +144,8 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
   String _preview(PaymentEstimate quote) => [
     'Suvd Dent',
     'Дархан-Уул • Suvd Dent',
-    'Сонгосон төлбөрийн арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
+    if (!widget.api.settings.isAcademic)
+      'Сонгосон төлбөрийн арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
     'ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ (ТӨЛБӨРИЙН БАРИМТ БИШ)',
     'Захиалгын дугаар: ${quote.appointmentId}',
     'Үйлчилгээ: ${quote.serviceName}',
@@ -144,8 +178,11 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        const Icon(Icons.error_outline_rounded,
-                            color: AppColors.blue, size: 42),
+                        const Icon(
+                          Icons.error_outline_rounded,
+                          color: AppColors.blue,
+                          size: 42,
+                        ),
                         const SizedBox(height: 14),
                         const Text(
                           'Үнийн мэдээллийг авах боломжгүй байна. '
@@ -169,8 +206,9 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                   const ClinicalPageIntro(
                     eyebrow: 'СУВД ДЕНТ  •  ҮНИЙН МЭДЭЭЛЭЛ',
                     title: 'Төлбөрийн дэлгэрэнгүй',
-                    description: 'Төлбөр яагаад ийм хэмжээтэй гарахыг '
-                        'үйлчилгээ бүрээр ойлгомжтой харуулна.',
+                    description:
+                        'Захиалгад хамаарах үйлчилгээний үнийн мэдээлэл. '
+                        'Энэ нь төлбөр төлөх нэхэмжлэх биш.',
                   ),
                   const SizedBox(height: 23),
                   ClinicalInfoPanel(
@@ -208,156 +246,187 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        const Text('ЭЦСИЙН ТӨЛӨХ ДҮН',
-                          style: TextStyle(color: AppColors.blue,
-                              fontWeight: FontWeight.w800, fontSize: 12)),
+                        const Text(
+                          'ЭЦСИЙН ТӨЛӨХ ДҮН',
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 12,
+                          ),
+                        ),
                         const SizedBox(height: 8),
                         Text(
                           q.isFinalAmount && q.totalDueMnt != null
                               ? mnt(q.totalDueMnt!)
                               : 'Одоогоор баталгаажаагүй',
                           style: const TextStyle(
-                              color: AppColors.navy,
-                              fontWeight: FontWeight.w800, fontSize: 22),
+                            color: AppColors.navy,
+                            fontWeight: FontWeight.w800,
+                            fontSize: 22,
+                          ),
                         ),
                         const SizedBox(height: 10),
-                        Text(q.priceExplanation,
-                          style: const TextStyle(color: AppColors.muted,
-                            fontSize: 12, height: 1.5)),
+                        Text(
+                          q.priceExplanation,
+                          style: const TextStyle(
+                            color: AppColors.muted,
+                            fontSize: 12,
+                            height: 1.5,
+                          ),
+                        ),
                       ],
                     ),
                   ),
-                  const SizedBox(height: 26),
-                  Text('Төлбөрийн хэрэгсэл',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 8),
-                  const Text(
-                    'Арга сонгоход тухайн төлбөрийн шаардлага гарна. '
-                    'Серверээр баталгаажаагүй гүйлгээг эндээс хийхгүй.',
-                    style: TextStyle(fontSize: 12, color: AppColors.muted),
-                  ),
-                  const SizedBox(height: 16),
-                  ..._methods.map((method) => _methodCard(method)),
-                  const SizedBox(height: 13),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 250),
-                    child: Container(
-                      key: ValueKey(_method),
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                        color: AppColors.sky,
-                        borderRadius: BorderRadius.circular(14),
-                      ),
-                      child: Text(
-                        _methods.firstWhere((m) => m.$1 == _method).$4,
-                        style: const TextStyle(
-                          color: AppColors.ink,
-                          fontSize: 13,
-                          height: 1.45,
+                  if (!widget.api.settings.isAcademic) ...[
+                    const SizedBox(height: 26),
+                    Text(
+                      'Төлбөрийн хэрэгсэл',
+                      style: Theme.of(context).textTheme.titleLarge,
+                    ),
+                    const SizedBox(height: 8),
+                    const Text(
+                      'Арга сонгоход тухайн төлбөрийн шаардлага гарна. '
+                      'Серверээр баталгаажаагүй гүйлгээг эндээс хийхгүй.',
+                      style: TextStyle(fontSize: 12, color: AppColors.muted),
+                    ),
+                    const SizedBox(height: 16),
+                    ..._methods.map((method) => _methodCard(method)),
+                    const SizedBox(height: 13),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      child: Container(
+                        key: ValueKey(_method),
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: AppColors.sky,
+                          borderRadius: BorderRadius.circular(14),
+                        ),
+                        child: Text(
+                          _methods.firstWhere((m) => m.$1 == _method).$4,
+                          style: const TextStyle(
+                            color: AppColors.ink,
+                            fontSize: 13,
+                            height: 1.45,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 19),
-                  AnimatedSwitcher(
-                    duration: const Duration(milliseconds: 240),
-                    child: Card(
-                      key: ValueKey('preview-$_method'),
-                      child: Padding(
-                        padding: const EdgeInsets.all(17),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              'ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ',
-                              style: TextStyle(
+                    const SizedBox(height: 19),
+                    AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 240),
+                      child: Card(
+                        key: ValueKey('preview-$_method'),
+                        child: Padding(
+                          padding: const EdgeInsets.all(17),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              const Text(
+                                'ҮНИЙН МЭДЭЭЛЛИЙН ТӨСӨЛ',
+                                style: TextStyle(
                                   color: AppColors.navy,
                                   fontWeight: FontWeight.w800,
-                                  fontSize: 15),
-                            ),
-                            const SizedBox(height: 12),
-                            Text(
-                              'Арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
-                              style: const TextStyle(
-                                color: AppColors.blue,
-                                fontWeight: FontWeight.w700,
+                                  fontSize: 15,
+                                ),
                               ),
-                            ),
-                            const SizedBox(height: 9),
-                            ClinicalDetail('Захиалга', '#${q.appointmentId}'),
-                            ClinicalDetail('Үйлчилгээ', q.serviceName),
-                            ClinicalDetail('Үнийн хүрээ', _estimateText(q)),
-                            const Divider(),
-                            const Text(
-                              'Гүйлгээний баримт биш • Эцсийн дүн баталгаажаагүй',
-                              style: TextStyle(
-                                color: AppColors.muted, fontSize: 12),
-                            ),
-                          ],
+                              const SizedBox(height: 12),
+                              Text(
+                                'Арга: ${_methods.firstWhere((m) => m.$1 == _method).$2}',
+                                style: const TextStyle(
+                                  color: AppColors.blue,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                              ),
+                              const SizedBox(height: 9),
+                              ClinicalDetail('Захиалга', '#${q.appointmentId}'),
+                              ClinicalDetail('Үйлчилгээ', q.serviceName),
+                              ClinicalDetail('Үнийн хүрээ', _estimateText(q)),
+                              const Divider(),
+                              const Text(
+                                'Гүйлгээний баримт биш • Эцсийн дүн баталгаажаагүй',
+                                style: TextStyle(
+                                  color: AppColors.muted,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text('Баримт авах сонголт',
-                      style: Theme.of(context).textTheme.titleLarge),
-                  const SizedBox(height: 12),
-                  SegmentedButton<String>(
-                    segments: const [
-                      ButtonSegment(
-                        value: 'email',
-                        label: Text('Имэйл'),
-                        icon: Icon(Icons.mail_outline),
-                      ),
-                      ButtonSegment(
-                        value: 'paper',
-                        label: Text('Хэвлэмэл'),
-                        icon: Icon(Icons.print_outlined),
-                      ),
-                    ],
-                    selected: {_delivery},
-                    onSelectionChanged: (values) {
-                      setState(() => _delivery = values.first);
-                    },
-                  ),
-                  const SizedBox(height: 12),
-                  Text(
-                    _delivery == 'email'
-                        ? 'Төлбөрийг эмнэлэг баталгаажуулсны дараа '
-                          'баримтыг бүртгэлтэй имэйл хаягаар илгээх боломжтой болно.'
-                        : 'Төлбөр баталгаажсаны дараа эмнэлгийн кассаас '
-                          'хэвлэмэл баримт авах боломжтой.',
-                    style: const TextStyle(
-                      color: AppColors.muted, fontSize: 13, height: 1.5),
-                  ),
-                  if (_delivery == 'email') ...[
-                    const SizedBox(height: 18),
-                    FilledButton.icon(
-                      onPressed: _sendingEmail ? null : _sendEstimateEmail,
-                      icon: _sendingEmail
-                          ? const SizedBox(
-                              width: 19,
-                              height: 19,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2, color: Colors.white),
-                            )
-                          : const Icon(Icons.send_outlined),
-                      label: const Text('Үнийн мэдээллийг имэйлээр авах'),
+                  ],
+                  if (widget.allowEstimateEmail &&
+                      !widget.api.settings.isAcademic) ...[
+                    const SizedBox(height: 28),
+                    Text(
+                      'Баримт авах сонголт',
+                      style: Theme.of(context).textTheme.titleLarge,
                     ),
-                    if (_emailResult != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 10),
-                        child: Text(_emailResult!,
-                            style: const TextStyle(
-                              color: AppColors.blue, fontSize: 13)),
+                    const SizedBox(height: 12),
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: 'email',
+                          label: Text('Имэйл'),
+                          icon: Icon(Icons.mail_outline),
+                        ),
+                        ButtonSegment(
+                          value: 'paper',
+                          label: Text('Хэвлэмэл'),
+                          icon: Icon(Icons.print_outlined),
+                        ),
+                      ],
+                      selected: {_delivery},
+                      onSelectionChanged: (values) {
+                        setState(() => _delivery = values.first);
+                      },
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      _delivery == 'email'
+                          ? 'Төлбөрийг эмнэлэг баталгаажуулсны дараа '
+                                'баримтыг бүртгэлтэй имэйл хаягаар илгээх боломжтой болно.'
+                          : 'Төлбөр баталгаажсаны дараа эмнэлгийн кассаас '
+                                'хэвлэмэл баримт авах боломжтой.',
+                      style: const TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 13,
+                        height: 1.5,
                       ),
+                    ),
+                    if (_delivery == 'email') ...[
+                      const SizedBox(height: 18),
+                      FilledButton.icon(
+                        onPressed: _sendingEmail ? null : _sendEstimateEmail,
+                        icon: _sendingEmail
+                            ? const SizedBox(
+                                width: 19,
+                                height: 19,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                  color: Colors.white,
+                                ),
+                              )
+                            : const Icon(Icons.send_outlined),
+                        label: const Text('Үнийн мэдээллийг имэйлээр авах'),
+                      ),
+                      if (_emailResult != null)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 10),
+                          child: Text(
+                            _emailResult!,
+                            style: const TextStyle(
+                              color: AppColors.blue,
+                              fontSize: 13,
+                            ),
+                          ),
+                        ),
+                    ],
                   ],
                   const SizedBox(height: 18),
                   OutlinedButton.icon(
                     onPressed: () async {
-                      await Clipboard.setData(
-                        ClipboardData(text: _preview(q)),
-                      );
+                      await Clipboard.setData(ClipboardData(text: _preview(q)));
                       if (!context.mounted) return;
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -372,16 +441,21 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                     label: const Text('Үнийн мэдээллийн төслийг хуулах'),
                   ),
                   const SizedBox(height: 16),
-                  const Text(
-                    'Төлбөр төлөх, э-баримт гаргах, имэйл илгээх үйлдэл '
-                    'эмнэлгийн merchant, касс болон серверийн гүйлгээ '
-                    'баталгаажуулалтын холболт хийгдсэний дараа идэвхжинэ.',
-                    style: TextStyle(
-                      color: AppColors.muted,
-                      fontSize: 12,
-                      height: 1.45,
+                  if (widget.api.settings.isAcademic)
+                    const Text(
+                      'Сургалтын хувилбар. Төлбөр, баримт болон имэйл илгээхгүй.',
+                    )
+                  else
+                    const Text(
+                      'Төлбөр төлөх, э-баримт гаргах, имэйл илгээх үйлдэл '
+                      'эмнэлгийн merchant, касс болон серверийн гүйлгээ '
+                      'баталгаажуулалтын холболт хийгдсэний дараа идэвхжинэ.',
+                      style: TextStyle(
+                        color: AppColors.muted,
+                        fontSize: 12,
+                        height: 1.45,
+                      ),
                     ),
-                  ),
                 ],
               );
             },
@@ -419,8 +493,9 @@ class _PaymentEstimateScreenState extends State<PaymentEstimateScreen> {
                   child: Text(
                     method.$2,
                     style: const TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: AppColors.navy),
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.navy,
+                    ),
                   ),
                 ),
                 Icon(

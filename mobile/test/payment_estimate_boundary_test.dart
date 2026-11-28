@@ -30,11 +30,23 @@ http.Response jsonReply(Object body) => http.Response(
   headers: {'content-type': 'application/json'},
 );
 
+class AcademicFixtureSettings extends ApiSettings {
+  const AcademicFixtureSettings()
+    : super(baseUrl: 'https://pricing.example.invalid', clinicId: 7);
+
+  @override
+  bool get isAcademic => true;
+}
+
 Future<DentalApi> patient(
-  FutureOr<http.Response> Function(http.Request) estimate,
-) async {
+  FutureOr<http.Response> Function(http.Request) estimate, {
+  ApiSettings apiSettings = const ApiSettings(
+    baseUrl: 'https://pricing.example.invalid',
+    clinicId: 7,
+  ),
+}) async {
   final api = DentalApi(
-    const ApiSettings(baseUrl: 'https://pricing.example.invalid', clinicId: 7),
+    apiSettings,
     client: MockClient(
       (request) async => request.url.path == '/api/Auth/login'
           ? jsonReply({
@@ -153,4 +165,31 @@ void main() {
     expect(find.text('Synthetic treatment 41'), findsNothing);
     expect(find.text('Synthetic treatment 42'), findsOneWidget);
   });
+  testWidgets(
+    'academic estimate shows actual scoped quote without dead delivery actions',
+    (tester) async {
+      final calls = <String>[];
+      final api = (await tester.runAsync(
+        () => patient((request) {
+          calls.add('${request.method} ${request.url.path}');
+          return jsonReply(quote());
+        }, apiSettings: const AcademicFixtureSettings()),
+      ))!;
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PaymentEstimateScreen(
+            api: api,
+            appointment: appointment(41, 5),
+            allowEstimateEmail: false,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.text('Synthetic treatment 41'), findsOneWidget);
+      expect(find.text('Үнийн мэдээллийг имэйлээр авах'), findsNothing);
+      expect(find.text('Төлбөрийн хэрэгсэл'), findsNothing);
+      expect(find.text('Баримт авах сонголт'), findsNothing);
+      expect(calls, ['GET /api/appointments/41/payment-estimate']);
+    },
+  );
 }

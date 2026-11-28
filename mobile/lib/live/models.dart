@@ -8,6 +8,7 @@ class ApiSettings {
     this.clinicId = const int.fromEnvironment('NEXORA_CLINIC_ID'),
   });
   bool get isLive => baseUrl.isNotEmpty;
+  bool get isAcademic => false;
   String? get error {
     final uri = Uri.tryParse(baseUrl);
     if (!isLive) return null;

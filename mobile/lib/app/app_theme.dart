@@ -2,15 +2,18 @@ import 'package:flutter/material.dart';
 
 /// Figma: Nexora Dental Clinical Premium (390 × 844 mobile layouts).
 abstract final class AppColors {
-  static const navy = Color(0xFF152E47);
-  static const blue = Color(0xFF2879A9);
-  static const sky = Color(0xFFE8F4FC);
-  static const paper = Color(0xFFF6F8FA);
-  static const ink = Color(0xFF19354D);
-  static const muted = Color(0xFF718298);
-  static const line = Color(0xFFDFE8EF);
+  static const navy = Color(0xFF102942);
+  static const blue = Color(0xFF166CA6);
+  static const sky = Color(0xFFE7F4FC);
+  static const paper = Color(0xFFF0F5FA);
+  static const ink = Color(0xFF17344F);
+  static const muted = Color(0xFF50677F);
+  static const line = Color(0xFFD5E2EF);
   static const mint = Color(0xFFD8F2EA);
-  static const green = Color(0xFF188F75);
+  static const green = Color(0xFF10725F);
+  static const heroDark = Color(0xFF0A223C);
+  static const heroBlue = Color(0xFF125A87);
+  static const heroLight = Color(0xFFCCECFA);
 
   // Backward-compatible aliases for DEMO and existing feature widgets.
   static const teal = blue;
@@ -27,7 +30,7 @@ abstract final class AppTheme {
     );
     return ThemeData(
       useMaterial3: true,
-      fontFamily: 'Roboto',
+      fontFamily: 'Noto Sans',
       colorScheme: scheme,
       scaffoldBackgroundColor: AppColors.paper,
       appBarTheme: const AppBarTheme(
@@ -54,16 +57,8 @@ abstract final class AppTheme {
           fontWeight: FontWeight.w700,
           color: AppColors.navy,
         ),
-        bodyLarge: TextStyle(
-          fontSize: 16,
-          height: 1.5,
-          color: AppColors.ink,
-        ),
-        bodyMedium: TextStyle(
-          fontSize: 14,
-          height: 1.5,
-          color: AppColors.ink,
-        ),
+        bodyLarge: TextStyle(fontSize: 16, height: 1.5, color: AppColors.ink),
+        bodyMedium: TextStyle(fontSize: 14, height: 1.5, color: AppColors.ink),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,

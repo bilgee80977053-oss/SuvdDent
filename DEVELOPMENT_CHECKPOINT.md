@@ -781,3 +781,13 @@ case. The invoice case checks owned review totals and no-store plus denial
 for both another patient in the same clinic and a patient in another clinic.
 Flutter analyze and all 232 normal Flutter tests passed locally. These are
 synthetic checks, not evidence of an issued invoice or production backend.
+
+## Academic-only loopback runtime
+
+The standalone classroom command starts the real clinic API on IPv4 loopback
+using a unique disposable SQLite in-memory database. A separate browser
+entry enables only its fixed loopback origin. A smoke run against the
+portable API build passed booking creation, replacement, cancellation,
+history, profile, catalog and doctor lookup, verification with code captured
+locally rather than sent, Director access and assigned Doctor API reads.
+Existing production release setup is unchanged; no live data or services.

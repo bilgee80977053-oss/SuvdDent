@@ -2,14 +2,41 @@ import 'package:flutter/material.dart';
 
 import 'app_theme.dart';
 
+Duration clinicalMotion(BuildContext context, [int milliseconds = 180]) =>
+    MediaQuery.disableAnimationsOf(context) ||
+        MediaQuery.accessibleNavigationOf(context)
+    ? Duration.zero
+    : Duration(milliseconds: milliseconds);
+
+class _ClinicMark extends StatelessWidget {
+  const _ClinicMark();
+
+  @override
+  Widget build(BuildContext context) => ExcludeSemantics(
+    child: Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        gradient: const LinearGradient(
+          colors: [AppColors.navy, AppColors.blue],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: const Icon(
+        Icons.medical_services_outlined,
+        color: Colors.white,
+        size: 21,
+      ),
+    ),
+  );
+}
+
 /// Presentation-only widgets matching the Nexora Dental Figma Clinical Premium
 /// screens. Data, identity and booking transitions remain with the controllers.
 class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
-  const ClinicalHeader({
-    super.key,
-    this.onBack,
-    this.actions = const [],
-  });
+  const ClinicalHeader({super.key, this.onBack, this.actions = const []});
 
   final VoidCallback? onBack;
   final List<Widget> actions;
@@ -23,7 +50,7 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
     elevation: 0,
     backgroundColor: Colors.white,
     leading: onBack == null
-        ? const Icon(Icons.medical_services_outlined, color: AppColors.blue)
+        ? const Center(child: _ClinicMark())
         : IconButton(
             key: const ValueKey('back-button'),
             tooltip: 'Буцах',
@@ -37,6 +64,8 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
       children: [
         Text(
           'Suvd Dent',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: AppColors.navy,
             fontSize: 19,
@@ -44,7 +73,7 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
         Text(
-          'Дархан-Уул • Suvd Dent    ·    NEXORA',
+          'Дархан-Уул · Төв салбар',
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
           style: TextStyle(
@@ -55,14 +84,7 @@ class ClinicalHeader extends StatelessWidget implements PreferredSizeWidget {
         ),
       ],
     ),
-    actions: [
-      ...actions,
-      if (actions.length < 2)
-        const Padding(
-          padding: EdgeInsets.only(left: 4, right: 20),
-          child: Icon(Icons.circle, size: 17, color: AppColors.blue),
-        ),
-    ],
+    actions: actions,
   );
 }
 
@@ -86,38 +108,51 @@ class ClinicalPageIntro extends StatelessWidget {
   Widget build(BuildContext context) => Column(
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
-      Text(
-        eyebrow,
-        style: const TextStyle(
-          color: AppColors.muted,
-          fontSize: 12,
-          fontWeight: FontWeight.w600,
-          letterSpacing: 0.4,
+      Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: AppColors.sky,
+          borderRadius: BorderRadius.circular(50),
+        ),
+        child: Text(
+          eyebrow,
+          style: const TextStyle(
+            color: AppColors.blue,
+            fontSize: 12,
+            fontWeight: FontWeight.w700,
+          ),
         ),
       ),
-      const SizedBox(height: 20),
-      Text(
-        title,
-        key: titleKey,
-        style: Theme.of(context).textTheme.headlineMedium,
+      const SizedBox(height: 12),
+      Semantics(
+        header: true,
+        child: Text(
+          title,
+          key: titleKey,
+          style: Theme.of(context).textTheme.headlineMedium,
+        ),
       ),
       if (description != null) ...[
         const SizedBox(height: 12),
         Text(
           description!,
-          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: AppColors.muted,
-          ),
+          style: Theme.of(context).textTheme.bodyMedium
+              ?.copyWith(color: AppColors.muted),
         ),
       ],
       if (progress != null) ...[
         const SizedBox(height: 18),
-        ClipRRect(
-          borderRadius: BorderRadius.circular(4),
-          child: LinearProgressIndicator(
-            value: progress!.clamp(0.0, 1.0).toDouble(),
-            minHeight: 4,
-            backgroundColor: AppColors.line,
+        TweenAnimationBuilder<double>(
+          tween: Tween(end: progress!.clamp(0.0, 1.0).toDouble()),
+          duration: clinicalMotion(context, 220),
+          builder: (context, value, child) => ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: value,
+              semanticsLabel: 'Захиалгын явц',
+              minHeight: 5,
+              backgroundColor: AppColors.line,
+            ),
           ),
         ),
       ],
@@ -126,62 +161,87 @@ class ClinicalPageIntro extends StatelessWidget {
 }
 
 class ClinicalHero extends StatelessWidget {
-  const ClinicalHero({
-    super.key,
-    required this.onBook,
-    this.enabled = true,
-  });
+  const ClinicalHero({super.key, required this.onBook, this.enabled = true});
   final VoidCallback onBook;
   final bool enabled;
 
   @override
-  Widget build(BuildContext context) => Container(
-    width: double.infinity,
-    padding: const EdgeInsets.all(20),
-    decoration: BoxDecoration(
-      color: AppColors.navy,
-      borderRadius: BorderRadius.circular(22),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Align(
-          alignment: Alignment.centerRight,
-          child: Icon(Icons.auto_awesome_rounded,
-              color: Color(0xFF94DCE9), size: 28),
+  Widget build(BuildContext context) => ClipRRect(
+    borderRadius: BorderRadius.circular(24),
+    child: DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          colors: [AppColors.heroDark, AppColors.heroBlue],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
         ),
-        const Text(
-          'Шүдний үзлэгт\nцаг захиалах',
-          style: TextStyle(
-            fontSize: 25,
-            height: 1.2,
-            fontWeight: FontWeight.w800,
-            color: Colors.white,
-          ),
-        ),
-        const SizedBox(height: 10),
-        const Text(
-          'Эмч болон өөрт тохирох цагийг\nхэдхэн алхмаар сонгоорой.',
-          style: TextStyle(color: Color(0xFFD3E6F1), fontSize: 13),
-        ),
-        const SizedBox(height: 16),
-        SizedBox(
-          width: double.infinity,
-          child: FilledButton.icon(
-            onPressed: enabled ? onBook : null,
-            style: FilledButton.styleFrom(
-              backgroundColor: Colors.white,
-              foregroundColor: AppColors.navy,
-              minimumSize: const Size(0, 43),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(10),
+      ),
+      child: Stack(
+        children: [
+          const Positioned(
+            top: -60,
+            right: -46,
+            child: IgnorePointer(
+              child: ExcludeSemantics(
+                child: Icon(
+                  Icons.blur_circular_rounded,
+                  size: 245,
+                  color: Color(0x245FE0F8),
+                ),
               ),
             ),
-            label: const Text('Цаг сонгох'),
-            icon: const Icon(Icons.arrow_forward_rounded, size: 19),
           ),
-        ),
-      ],
+          Padding(
+            padding: const EdgeInsets.all(22),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Icon(
+                  Icons.calendar_month_outlined,
+                  color: AppColors.heroLight,
+                  size: 25,
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Шүдний үзлэгт\nцаг захиалах',
+                  style: TextStyle(
+                    fontSize: 27,
+                    height: 1.13,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  'Үйлчилгээ, эмч, өөрт тохирох цагаа сонгоорой.',
+                  style: TextStyle(
+                    color: AppColors.heroLight,
+                    fontSize: 14,
+                    height: 1.45,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                SizedBox(
+                  width: double.infinity,
+                  child: FilledButton.icon(
+                    onPressed: enabled ? onBook : null,
+                    style: FilledButton.styleFrom(
+                      backgroundColor: Colors.white,
+                      foregroundColor: AppColors.navy,
+                      minimumSize: const Size(0, 48),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(13),
+                      ),
+                    ),
+                    label: const Text('Цаг сонгох'),
+                    icon: const Icon(Icons.arrow_forward_rounded, size: 19),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     ),
   );
 }
@@ -272,9 +332,7 @@ class ClinicalChoiceCard extends StatelessWidget {
                   width: 50,
                   height: 55,
                   decoration: BoxDecoration(
-                    color: selected
-                        ? const Color(0xFFCFEAF9)
-                        : AppColors.paper,
+                    color: selected ? const Color(0xFFCFEAF9) : AppColors.paper,
                     borderRadius: BorderRadius.circular(13),
                   ),
                   child: Center(
@@ -315,12 +373,19 @@ class ClinicalChoiceCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                Icon(
-                  selected
-                      ? Icons.check_circle_rounded
-                      : Icons.arrow_forward_ios_rounded,
-                  color: AppColors.blue,
-                  size: selected ? 22 : 16,
+                SizedBox(
+                  width: 22,
+                  child: AnimatedSwitcher(
+                    duration: clinicalMotion(context, 140),
+                    child: Icon(
+                      selected
+                          ? Icons.check_circle_rounded
+                          : Icons.chevron_right,
+                      key: ValueKey(selected),
+                      color: AppColors.blue,
+                      size: 22,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -354,7 +419,10 @@ class ClinicalCalendarPicker extends StatelessWidget {
     final monday = today.subtract(Duration(days: today.weekday - 1));
     final last = today.add(const Duration(days: 30));
     final selected = DateTime(
-        selectedDate.year, selectedDate.month, selectedDate.day);
+      selectedDate.year,
+      selectedDate.month,
+      selectedDate.day,
+    );
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -371,11 +439,14 @@ class ClinicalCalendarPicker extends StatelessWidget {
                 for (final label in _weekdays)
                   Expanded(
                     child: Center(
-                      child: Text(label,
-                          style: const TextStyle(
-                              color: AppColors.muted,
-                              fontSize: 12,
-                              fontWeight: FontWeight.w600)),
+                      child: Text(
+                        label,
+                        style: const TextStyle(
+                          color: AppColors.muted,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                     ),
                   ),
               ],
@@ -393,9 +464,8 @@ class ClinicalCalendarPicker extends StatelessWidget {
               ),
               itemBuilder: (context, index) {
                 final date = monday.add(Duration(days: index));
-                final selectable = enabled &&
-                    !date.isBefore(today) &&
-                    !date.isAfter(last);
+                final selectable =
+                    enabled && !date.isBefore(today) && !date.isAfter(last);
                 final isSelected = date == selected;
                 return Semantics(
                   selected: isSelected,
@@ -416,7 +486,9 @@ class ClinicalCalendarPicker extends StatelessWidget {
                                 : FontWeight.w500,
                             color: isSelected
                                 ? Colors.white
-                                : selectable ? AppColors.ink : AppColors.muted,
+                                : selectable
+                                ? AppColors.ink
+                                : AppColors.muted,
                           ),
                         ),
                       ),
@@ -448,8 +520,7 @@ class ClinicalInfoPanel extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text(title,
-              style: Theme.of(context).textTheme.titleLarge),
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 18),
           ...children,
         ],
@@ -464,27 +535,41 @@ class ClinicalDetail extends StatelessWidget {
   final String value;
 
   @override
-  Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 11),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        SizedBox(
-          width: 111,
-          child: Text(label,
-              style: const TextStyle(color: AppColors.muted, fontSize: 13)),
-        ),
-        Expanded(
-          child: Text(value,
-              style: const TextStyle(
-                color: AppColors.navy,
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-              )),
-        ),
-      ],
-    ),
-  );
+  Widget build(BuildContext context) {
+    final keyText = Text(
+      label,
+      style: const TextStyle(color: AppColors.muted, fontSize: 13),
+    );
+    final valueText = Text(
+      value,
+      style: const TextStyle(
+        color: AppColors.navy,
+        fontSize: 14,
+        fontWeight: FontWeight.w700,
+      ),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final enlarged = MediaQuery.textScalerOf(context).scale(14) >= 23;
+          if (constraints.maxWidth < 270 || enlarged) {
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [keyText, const SizedBox(height: 4), valueText],
+            );
+          }
+          return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(width: 112, child: keyText),
+              Expanded(child: valueText),
+            ],
+          );
+        },
+      ),
+    );
+  }
 }
 
 class ClinicalNavigation extends StatelessWidget {
@@ -522,31 +607,60 @@ class ClinicalNavigation extends StatelessWidget {
           children: [
             for (var i = 0; i < items.length; i++)
               Expanded(
-                child: InkWell(
-                  onTap: items[i].$3,
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 11),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(items[i].$1,
-                            color: activeIndex == i
-                                ? AppColors.blue
-                                : AppColors.muted),
-                        const SizedBox(height: 3),
-                        Text(
-                          items[i].$2,
-                          style: TextStyle(
-                            fontSize: 11,
-                            fontWeight: activeIndex == i
-                                ? FontWeight.w700
-                                : FontWeight.w400,
-                            color: activeIndex == i
-                                ? AppColors.blue
-                                : AppColors.muted,
-                          ),
+                child: Semantics(
+                  selected: activeIndex == i,
+                  button: true,
+                  enabled: items[i].$3 != null,
+                  child: Material(
+                    color: Colors.white,
+                    child: InkWell(
+                      onTap: items[i].$3,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8,
+                          horizontal: 2,
                         ),
-                      ],
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            AnimatedContainer(
+                              duration: clinicalMotion(context),
+                              curve: Curves.easeOut,
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 4,
+                                horizontal: 12,
+                              ),
+                              decoration: BoxDecoration(
+                                color: activeIndex == i
+                                    ? AppColors.sky
+                                    : Colors.white,
+                                borderRadius: BorderRadius.circular(24),
+                              ),
+                              child: Icon(
+                                items[i].$1,
+                                size: 23,
+                                color: activeIndex == i
+                                    ? AppColors.blue
+                                    : AppColors.muted,
+                              ),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              items[i].$2,
+                              textAlign: TextAlign.center,
+                              style: TextStyle(
+                                fontSize: 11,
+                                fontWeight: activeIndex == i
+                                    ? FontWeight.w800
+                                    : FontWeight.w500,
+                                color: activeIndex == i
+                                    ? AppColors.navy
+                                    : AppColors.muted,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
