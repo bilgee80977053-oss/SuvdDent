@@ -564,3 +564,13 @@ also retains the separate API acceptance for note/addenda and assignment
 selection. The native harness passed 2/2 on the exact #34 parent before
 combining the two clinical panels. This combined draft runs the harness
 again; local widget regressions for the composed panels passed 215/215.
+
+## Director service assignment preserves unchanged inactive links
+
+A catalog deactivation no longer prevents a Director from updating another
+service on the same doctor's full replacement assignment form. An inactive
+catalog link can be carried forward only if it is already stored and exactly
+unchanged; new or edited inactive rows are still rejected, and omission
+retains the existing deactivation policy. The synthetic HTTP and Flutter
+regressions passed (44 focused backend, 18 focused Flutter). The rule does
+not make an inactive service bookable or alter clinic visibility.
