@@ -487,3 +487,15 @@ runtime storage, authorization or tax policy.
 Release build completed with no warnings or errors and 50 focused tests
 passed, including seven new receipt prerequisite cases. Hosted regression
 is tracked separately.
+
+## Patient-facing draft invoice breakdown contract
+
+The internal projection derives every ordered charge/discount/tax line and
+the review total from the same immutable approved-price draft. It returns
+an explicit non-payable draft status, uses a fixed non-clinical label key,
+excludes patient/encounter/approval references and serializes integer units
+as exact decimal strings with currency and scale. Oversized breakdowns fail
+as a whole rather than showing an incomplete total. No endpoint, client
+routing, tariff source, issued invoice, payment action or provider was added.
+Release build passed with zero warnings/errors; all 54 focused invoice and
+settlement tests passed, including the four projection regressions.
