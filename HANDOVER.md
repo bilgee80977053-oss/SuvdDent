@@ -261,3 +261,12 @@ This integration combines the #20 clinician transport and #21 patient
 history boundary. Its one-encounter anchor cannot be used to bypass the
 same-clinic, same-patient, active-assignment and original-signer checks.
 Do not persist returned history or enable this synthetic flow in default UI.
+
+## Clinical note confirmation on the synthetic branch
+
+Resolve an uncertain original note with the audited original GET. Keep the
+same addendum UUID for an explicitly retried addendum; use its audited keyed
+GET to reconcile uncertain results. The Flutter adapter verifies a suitable
+Location for creation without following redirects. A separate cross-origin
+browser deployment review must address Location exposure; no CORS expansion
+or production route is implied by this work.

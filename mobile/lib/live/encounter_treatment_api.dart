@@ -18,6 +18,38 @@ String _requestId(String value) {
   return value.toLowerCase();
 }
 
+const _noteMaxResponseBytes = 16384;
+final _clinicalLineEndings = RegExp(r'\r\n|[\r\u000c\u0085\u2028\u2029]');
+final _unsupportedNoteControls = RegExp(r'[\x00-\x09\x0b-\x1f\x7f-\x9f]');
+
+void _validateWriteNote(String note) {
+  final normalized = note.replaceAll(_clinicalLineEndings, '\n').trim();
+  if (note.length > 2000 ||
+      normalized.isEmpty ||
+      _unsupportedNoteControls.hasMatch(normalized)) {
+    throw const ApiFailure('Тэмдэглэл 1–2000 тэмдэгттэй байх ёстой.', 400);
+  }
+}
+
+enum EncounterAddendumSignResult { recorded, replayed }
+
+enum EncounterWriteReconciliation { originalNote, keyedAddendum }
+
+/// The server may have committed a write whose result could not be verified.
+/// The caller must explicitly use the same-encounter audited read. No payload,
+/// server error text, note, or retry instruction is stored here.
+final class EncounterWriteOutcomeUncertain extends ApiFailure {
+  final EncounterWriteReconciliation reconciliation;
+
+  const EncounterWriteOutcomeUncertain._(this.reconciliation, int? status)
+    : super(
+        reconciliation == EncounterWriteReconciliation.originalNote
+            ? 'Хадгалсан эсэхийг баталгаажуулж чадсангүй. Үзлэгийн тэмдэглэлийг уншиж шалгана уу.'
+            : 'Нэмэлт хадгалагдсан эсэхийг баталгаажуулж чадсангүй. Ижил дугаараар уншиж шалгана уу.',
+        status,
+      );
+}
+
 String _note(Json data) {
   final note = text(data, 'note');
   if (note.trim().isEmpty || note.length > 2000) {
@@ -281,8 +313,8 @@ final class PerformedProcedureReplayed extends PerformedProcedureSignResult {
 /// Unwired review adapter scoped to an authorized encounter. Requires an explicit
 /// transport and keeps only a verified doctor token in memory, never clinical
 /// responses. The caller owns the returned records and must not persist them.
-/// No default client, UI entry point or unrestricted patient search. The only write
-/// is an explicit single-encounter procedure sign; never retried automatically.
+/// No default client, UI entry point or unrestricted patient search.
+/// Writes are explicit, single-encounter only, and never retried automatically.
 class EncounterTreatmentApi {
   final ApiSettings _settings;
   final http.Client _client;
@@ -333,6 +365,8 @@ class EncounterTreatmentApi {
     Map<String, String>? query,
     int successStatus = 200,
     T Function()? onReplay,
+    T Function()? onEmptySuccess,
+    String? expectedLocationPath,
     int? maxResponseBytes,
   }) async {
     _checkGeneration(generation);
@@ -342,7 +376,12 @@ class EncounterTreatmentApi {
     final uri = Uri.parse(_settings.baseUrl)
         .replace(path: path, queryParameters: query);
     final request =
-        http.Request(login || onReplay != null ? 'POST' : 'GET', uri)
+        http.Request(
+            login || onReplay != null || onEmptySuccess != null
+                ? 'POST'
+                : 'GET',
+            uri,
+          )
           ..followRedirects = false
           ..headers['Accept'] = 'application/json'
           ..headers['Cache-Control'] = 'no-store';
@@ -360,7 +399,17 @@ class EncounterTreatmentApi {
           await streamed.stream.listen((_) {}).cancel();
           return (streamed.statusCode, null as List<int>?);
         }
-        final limit = isReplay ? 0 : maxResponseBytes;
+        if (!isReplay &&
+            expectedLocationPath != null &&
+            !_validWriteLocation(
+              _singleHeader(streamed.headers, 'location'),
+              uri,
+              expectedLocationPath,
+            )) {
+          await streamed.stream.listen((_) {}).cancel();
+          throw const FormatException();
+        }
+        final limit = isReplay || onEmptySuccess != null ? 0 : maxResponseBytes;
         if (limit != null && (streamed.contentLength ?? 0) > limit) {
           await streamed.stream.listen((_) {}).cancel();
           throw const FormatException();
@@ -388,6 +437,7 @@ class EncounterTreatmentApi {
         );
       }
       if (status == 204 && onReplay != null) return onReplay();
+      if (onEmptySuccess != null) return onEmptySuccess();
       return parse(object(jsonDecode(utf8.decode(success))));
     } on ApiFailure {
       rethrow;
@@ -400,6 +450,66 @@ class EncounterTreatmentApi {
     } catch (_) {
       _checkGeneration(generation);
       throw const ApiFailure('Серверийн хариу буруу байна.');
+    }
+  }
+
+  static String? _singleHeader(Map<String, String> headers, String name) {
+    String? match;
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() != name) continue;
+      if (match != null) return null;
+      match = entry.value;
+    }
+    return match;
+  }
+
+  static bool _validWriteLocation(String? raw, Uri target, String path) {
+    final location = raw == null ? null : Uri.tryParse(raw);
+    if (location == null ||
+        location.path != path ||
+        location.hasQuery ||
+        location.hasFragment ||
+        location.userInfo.isNotEmpty) {
+      return false;
+    }
+    return !location.hasScheme && !location.hasAuthority
+        ? raw!.startsWith('/')
+        : location.scheme == target.scheme &&
+              location.host == target.host &&
+              location.port == target.port;
+  }
+
+  static Future<T> _noteWrite<T>(
+    EncounterWriteReconciliation reconciliation,
+    Future<T> Function() send,
+  ) async {
+    try {
+      return await send();
+    } on ApiFailure catch (failure) {
+      // An authoritative rejection is never treated as a successful write.
+      // Other HTTP responses, timeout, malformed success and transport errors
+      // are ambiguous; an explicit audited GET is required, not another POST.
+      if (failure.status == 409) {
+        throw ApiFailure(
+          reconciliation == EncounterWriteReconciliation.originalNote
+              ? 'Үзлэгийн тэмдэглэл өмнө нь баталгаажсан. Солих боломжгүй.'
+              : 'Энэ хүсэлтийн дугаараар өөр нэмэлт баталгаажсан байна.',
+          409,
+        );
+      }
+      if (const {
+        400,
+        401,
+        403,
+        404,
+        413,
+        415,
+        422,
+        429,
+      }.contains(failure.status)) {
+        rethrow;
+      }
+      throw EncounterWriteOutcomeUncertain._(reconciliation, failure.status);
     }
   }
 
@@ -449,7 +559,59 @@ class EncounterTreatmentApi {
         (data) => EncounterTreatmentNote._(data, appointmentId),
         generation: _generation,
         token: _token,
+        maxResponseBytes: _noteMaxResponseBytes,
       );
+
+  /// On an uncertain result, explicitly call [readTreatment]. A duplicate 409
+  /// is not equivalent to signing this note, and this method never retries.
+  Future<void> signTreatment(int appointmentId, {required String note}) async {
+    final path = _encounter(appointmentId);
+    _validateWriteNote(note);
+    await _noteWrite(
+      EncounterWriteReconciliation.originalNote,
+      () => _call<void>(
+        path,
+        (_) => throw const FormatException(),
+        generation: _generation,
+        token: _token,
+        body: {'note': note},
+        successStatus: 201,
+        expectedLocationPath: path,
+        onEmptySuccess: () {},
+      ),
+    );
+  }
+
+  /// The UUID is supplied/retained by the caller. On uncertainty, use the
+  /// audited keyed read; this method never creates or replaces retry keys.
+  Future<EncounterAddendumSignResult> signAddendum(
+    int appointmentId, {
+    required String requestId,
+    required String note,
+  }) async {
+    final path = '${_encounter(appointmentId)}/addenda';
+    final String id;
+    try {
+      id = _requestId(requestId);
+    } on FormatException {
+      throw const ApiFailure('Нэмэлтийн хүсэлтийн дугаар буруу байна.', 400);
+    }
+    _validateWriteNote(note);
+    return _noteWrite(
+      EncounterWriteReconciliation.keyedAddendum,
+      () => _call<EncounterAddendumSignResult>(
+        path,
+        (_) => throw const FormatException(),
+        generation: _generation,
+        token: _token,
+        body: {'requestId': id, 'note': note},
+        successStatus: 201,
+        expectedLocationPath: '$path/$id',
+        onEmptySuccess: () => EncounterAddendumSignResult.recorded,
+        onReplay: () => EncounterAddendumSignResult.replayed,
+      ),
+    );
+  }
 
   Future<EncounterAddendaPage> listAddenda(
     int appointmentId, {
@@ -483,6 +645,7 @@ class EncounterTreatmentApi {
       (data) => EncounterTreatmentAddendum._(data, id),
       generation: _generation,
       token: _token,
+      maxResponseBytes: _noteMaxResponseBytes,
     );
   }
 

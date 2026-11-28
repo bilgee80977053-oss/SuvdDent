@@ -90,6 +90,27 @@ void main() {
         patientHistory.items.single.startedUtc,
         DateTime.utc(2026, 11, 26, 23),
       );
+      const note = 'Synthetic note for the isolated acceptance fixture.';
+      await doctor.signTreatment(301, note: note);
+      await expectLater(
+        doctor.signTreatment(
+          301,
+          note: 'Synthetic replacement is not allowed.',
+        ),
+        throwsA(
+          isA<ApiFailure>().having((failure) => failure.status, 'status', 409),
+        ),
+      );
+      final original = await doctor.readTreatment(301);
+      expect(original.note, note);
+      const addendumKey = 'b4287f04-3b94-4782-b707-419cd7bf0f45';
+      const addendum =
+          'Synthetic follow-up for the isolated acceptance fixture.';
+      Future<EncounterAddendumSignResult> signAddendum() =>
+          doctor.signAddendum(301, requestId: addendumKey, note: addendum);
+      expect(await signAddendum(), EncounterAddendumSignResult.recorded);
+      expect(await signAddendum(), EncounterAddendumSignResult.replayed);
+      expect((await doctor.readAddendum(301, addendumKey)).note, addendum);
       doctor.logout();
       expect(doctor.authenticated, isFalse);
     },

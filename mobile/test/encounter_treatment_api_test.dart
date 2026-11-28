@@ -50,6 +50,231 @@ TypeMatcher<ApiFailure> _failure(int? status) =>
     isA<ApiFailure>().having((error) => error.status, 'status', status);
 
 void main() {
+  test(
+    'signs an immutable note with an empty same-encounter 201 only',
+    () async {
+      var writes = 0;
+      final api = _client((request) {
+        if (request.url.path != _root) return _default(request);
+        writes++;
+        expect(request.method, 'POST');
+        expect(request.url.scheme, 'https');
+        expect(request.url.host, 'clinical.invalid');
+        expect(request.followRedirects, isFalse);
+        expect(request.headers['Cache-Control'], 'no-store');
+        expect(
+          request.headers['Authorization'],
+          'Bearer synthetic-doctor-token',
+        );
+        expect(jsonDecode(request.body), {'note': ' Synthetic note '});
+        return http.Response('', 201, headers: {'Location': _root});
+      });
+      await expectLater(
+        api.signTreatment(41, note: _synthetic),
+        throwsA(_failure(401)),
+      );
+      await _authenticate(api);
+      await api.signTreatment(41, note: ' Synthetic note ');
+      expect(writes, 1);
+    },
+  );
+
+  test('initial write ambiguity requires an explicit audited GET, never POST retry', () async {
+    var posts = 0;
+    var reads = 0;
+    final api = _client((request) {
+      if (request.url.path != _root) return _default(request);
+      if (request.method == 'POST') {
+        posts++;
+        throw http.ClientException(_synthetic);
+      }
+      reads++;
+      expect(request.method, 'GET');
+      return _json({
+        'appointmentId': 41,
+        'note': _synthetic,
+        'signedUtc': _signed,
+      });
+    });
+    await _authenticate(api);
+    await expectLater(
+      api.signTreatment(41, note: _synthetic),
+      throwsA(
+        isA<EncounterWriteOutcomeUncertain>()
+            .having(
+              (failure) => failure.reconciliation,
+              'read',
+              EncounterWriteReconciliation.originalNote,
+            )
+            .having(
+              (failure) => failure.message,
+              'sanitized message',
+              isNot(contains(_synthetic)),
+            ),
+      ),
+    );
+    expect(posts, 1);
+    expect(reads, 0);
+    expect((await api.readTreatment(41)).note, _synthetic);
+    expect(reads, 1);
+    expect(posts, 1);
+  });
+
+  test('original 409 is authoritative, not a successful replay', () async {
+    var sends = 0;
+    final api = _client((request) {
+      if (request.url.path != _root) return _default(request);
+      sends++;
+      expect(request.method, 'POST');
+      return _json({'message': _synthetic, 'note': _synthetic}, 409);
+    });
+    await _authenticate(api);
+    await expectLater(
+      api.signTreatment(41, note: _synthetic),
+      throwsA(
+        _failure(409)
+            .having(
+              (failure) => failure is EncounterWriteOutcomeUncertain,
+              'uncertain',
+              isFalse,
+            )
+            .having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains(_synthetic)),
+            ),
+      ),
+    );
+    expect(sends, 1);
+  });
+
+  test(
+    'malformed initial success and 503 never reveal or imply a note',
+    () async {
+      final responses = <http.Response>[
+        http.Response('null', 201, headers: {'location': _root}),
+        http.Response(_synthetic, 201, headers: {'location': _root}),
+        http.Response('', 201),
+        http.Response(
+          '',
+          201,
+          headers: {'location': 'https://other.invalid$_root'},
+        ),
+        http.Response('', 201, headers: {'location': '$_root?secret=1'}),
+        http.Response('', 204),
+        _json({'detail': _synthetic}, 503),
+      ];
+      var posts = 0;
+      final api = _client((request) {
+        if (request.url.path != _root) return _default(request);
+        expect(request.method, 'POST');
+        return responses[posts++];
+      });
+      await _authenticate(api);
+      for (var i = 0; i < responses.length; i++) {
+        await expectLater(
+          api.signTreatment(41, note: _synthetic),
+          throwsA(
+            isA<EncounterWriteOutcomeUncertain>().having(
+              (failure) => failure.message,
+              'message',
+              isNot(contains(_synthetic)),
+            ),
+          ),
+        );
+      }
+      expect(posts, responses.length);
+    },
+  );
+
+  test(
+    'addendum writes use the caller UUID and accept only empty 201 or 204',
+    () async {
+      var posts = 0;
+      final path = '$_root/addenda';
+      final api = _client((request) {
+        if (request.url.path != path) return _default(request);
+        posts++;
+        expect(request.method, 'POST');
+        expect(request.followRedirects, isFalse);
+        expect(request.headers['Cache-Control'], 'no-store');
+        expect(
+          request.headers['Authorization'],
+          'Bearer synthetic-doctor-token',
+        );
+        expect(jsonDecode(request.body), {
+          'requestId': _key,
+          'note': _synthetic,
+        });
+        if (posts == 1) {
+          return http.Response(
+            '',
+            201,
+            headers: {'Location': 'https://clinical.invalid$path/$_key'},
+          );
+        }
+        if (posts == 2) return http.Response('', 204);
+        if (posts == 3) return _json({'note': _synthetic}, 409);
+        return http.Response(_synthetic, 204);
+      });
+      await _authenticate(api);
+      Future<EncounterAddendumSignResult> sign() =>
+          api.signAddendum(41, requestId: _key.toUpperCase(), note: _synthetic);
+      expect(await sign(), EncounterAddendumSignResult.recorded);
+      expect(await sign(), EncounterAddendumSignResult.replayed);
+      await expectLater(sign(), throwsA(_failure(409)));
+      await expectLater(
+        sign(),
+        throwsA(
+          isA<EncounterWriteOutcomeUncertain>().having(
+            (failure) => failure.reconciliation,
+            'read',
+            EncounterWriteReconciliation.keyedAddendum,
+          ),
+        ),
+      );
+      expect(posts, 4);
+    },
+  );
+
+  test('invalid writes and identifiers never reach transport', () async {
+    final api = _client(_default);
+    await _authenticate(api);
+    final attempts = <Future<void> Function()>[
+      () => api.signTreatment(0, note: _synthetic),
+      () => api.signTreatment(41, note: '   '),
+      () => api.signTreatment(41, note: 'x' * 2001),
+      () => api.signTreatment(41, note: 'text\u0000text'),
+      () => api.signAddendum(41, requestId: 'wrong', note: _synthetic),
+      () => api.signAddendum(41, requestId: _key, note: 'text\ttext'),
+    ];
+    for (final attempt in attempts) {
+      await expectLater(attempt(), throwsA(_failure(400)));
+    }
+  });
+
+  test(
+    'late signed acknowledgement after logout does not reach old session',
+    () async {
+      final sent = Completer<void>();
+      final delayed = Completer<http.Response>();
+      final api = _client((request) {
+        if (request.url.path != _root) return _default(request);
+        expect(request.method, 'POST');
+        sent.complete();
+        return delayed.future;
+      });
+      await _authenticate(api);
+      final result = api.signTreatment(41, note: _synthetic);
+      final denied = expectLater(result, throwsA(_failure(401)));
+      await sent.future;
+      api.logout();
+      delayed.complete(http.Response('', 201, headers: {'Location': _root}));
+      await denied;
+      expect(api.authenticated, isFalse);
+    },
+  );
+
   const historyPath = '/api/clinical/appointments/41/patient-history';
   final historyFrom = DateTime.utc(2026, 11, 1);
   final historyUntil = DateTime.utc(2026, 12, 1);

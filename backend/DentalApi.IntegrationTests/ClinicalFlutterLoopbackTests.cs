@@ -46,6 +46,7 @@ public sealed partial class StructuredProcedureDraftTests
                 listen => listen.UseHttps(certificate)));
         });
         host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
+        host.Services.GetRequiredService<IConfiguration>()["Features:ClinicalTreatment"] = "true";
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -85,9 +86,12 @@ public sealed partial class StructuredProcedureDraftTests
         Assert.Equal(301, signed.AppointmentId);
         Assert.Equal(13, signed.DoctorUserId);
         var events = await db.Set<ClinicalAuditEvent>().AsNoTracking().ToListAsync();
-        Assert.Equal(3, events.Count);
-        Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentRecorded);
-        Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
+        Assert.Single(await db.Set<TreatmentRecord>().AsNoTracking().ToListAsync());
+        Assert.Single(await db.Set<TreatmentAddendum>().AsNoTracking().ToListAsync());
+        Assert.Equal(7, events.Count);
+        Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.TreatmentRecorded));
+        Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentAmended);
+        Assert.Equal(4, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
         Assert.All(events, row => Assert.Equal((101, 301, 13), (row.ClinicId, row.AppointmentId, row.ActorUserId)));
     }
 
