@@ -158,6 +158,112 @@ class PerformedProcedurePage {
   }
 }
 
+const _patientHistoryMaxResponseBytes = 8192;
+const _patientHistoryMaxPage = 100;
+final _historyInstant = RegExp(
+  r'^([0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9])(?:\.([0-9]{1,7}))?(?:Z|[+]00:00)$',
+);
+
+bool _utcDate(DateTime value) =>
+    value.isUtc &&
+    value.year >= 1 &&
+    value.year <= 9999 &&
+    value.hour == 0 &&
+    value.minute == 0 &&
+    value.second == 0 &&
+    value.millisecond == 0 &&
+    value.microsecond == 0;
+
+String _isoDate(DateTime utc) => utc.toIso8601String().substring(0, 10);
+
+class PatientHistoryVisit {
+  final int appointmentId;
+  final DateTime startedUtc;
+
+  const PatientHistoryVisit._(this.appointmentId, this.startedUtc);
+
+  static (PatientHistoryVisit, String) _parse(Json data) {
+    final id = number(data, 'appointmentId');
+    final rawUtc = text(data, 'startedUtc');
+    final match = _historyInstant.firstMatch(rawUtc);
+    if (data.length != 2 ||
+        !_positiveId(id) ||
+        match == null ||
+        match.end != rawUtc.length) {
+      throw const FormatException();
+    }
+    final parsed = DateTime.parse(rawUtc).toUtc();
+    final prefix = match[1]!;
+    // DateTime.parse normalizes impossible calendar dates; don't accept them.
+    if (parsed.year < 1 ||
+        parsed.toIso8601String().substring(0, 19) != prefix) {
+      throw const FormatException();
+    }
+    // .NET UTC can carry 100 ns ticks; compare a fixed-width key to avoid
+    // falsely rejecting rows sharing a Dart microsecond but not a server tick.
+    final orderKey = prefix + (match[2] ?? '').padRight(7, '0');
+    return (PatientHistoryVisit._(id, parsed), orderKey);
+  }
+}
+
+class PatientHistoryPage {
+  final int page, pageSize;
+  final bool hasMore;
+  final List<PatientHistoryVisit> items;
+
+  const PatientHistoryPage._(
+    this.page,
+    this.pageSize,
+    this.hasMore,
+    this.items,
+  );
+
+  static PatientHistoryPage _parse(
+    Json data,
+    int page,
+    int pageSize,
+    DateTime fromUtc,
+    DateTime untilUtc,
+  ) {
+    final hasMore = data['hasMore'] as bool;
+    final rawItems = data['items'] as List;
+    if (data.length != 4 ||
+        number(data, 'page') != page ||
+        number(data, 'pageSize') != pageSize ||
+        rawItems.length > pageSize ||
+        (hasMore &&
+            (rawItems.length != pageSize || page == _patientHistoryMaxPage))) {
+      throw const FormatException();
+    }
+
+    final visits = <PatientHistoryVisit>[];
+    final seen = <int>{};
+    String? previousKey;
+    int? previousId;
+    for (final rawItem in rawItems) {
+      final (visit, orderKey) = PatientHistoryVisit._parse(object(rawItem));
+      if (!seen.add(visit.appointmentId) ||
+          visit.startedUtc.isBefore(fromUtc) ||
+          !visit.startedUtc.isBefore(untilUtc) ||
+          (previousKey != null &&
+              (orderKey.compareTo(previousKey) > 0 ||
+                  (orderKey == previousKey &&
+                      visit.appointmentId >= previousId!)))) {
+        throw const FormatException();
+      }
+      visits.add(visit);
+      previousKey = orderKey;
+      previousId = visit.appointmentId;
+    }
+    return PatientHistoryPage._(
+      page,
+      pageSize,
+      hasMore,
+      List.unmodifiable(visits),
+    );
+  }
+}
+
 sealed class PerformedProcedureSignResult {
   const PerformedProcedureSignResult();
 }
@@ -172,10 +278,10 @@ final class PerformedProcedureReplayed extends PerformedProcedureSignResult {
   const PerformedProcedureReplayed._();
 }
 
-/// Unwired review adapter for one encounter at a time. Requires an explicit
+/// Unwired review adapter scoped to an authorized encounter. Requires an explicit
 /// transport and keeps only a verified doctor token in memory, never clinical
 /// responses. The caller owns the returned records and must not persist them.
-/// No default client, UI entry point or patient-wide discovery. The only write
+/// No default client, UI entry point or unrestricted patient search. The only write
 /// is an explicit single-encounter procedure sign; never retried automatically.
 class EncounterTreatmentApi {
   final ApiSettings _settings;
@@ -395,6 +501,43 @@ class EncounterTreatmentApi {
       token: _token,
       query: {'page': '$page', 'pageSize': '$pageSize'},
       maxResponseBytes: _procedureMaxResponseBytes,
+    );
+  }
+
+  Future<PatientHistoryPage> listPatientPeriodHistory(
+    int anchorAppointmentId, {
+    required DateTime fromUtc,
+    required DateTime untilUtc,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    final days = untilUtc.difference(fromUtc).inDays;
+    if (!_utcDate(fromUtc) ||
+        !_utcDate(untilUtc) ||
+        days < 1 ||
+        days > 31 ||
+        page < 1 ||
+        page > _patientHistoryMaxPage ||
+        pageSize < 1 ||
+        pageSize > 20) {
+      throw const ApiFailure(
+        'Огнооны хүрээ эсвэл хуудасны хэмжээ буруу байна.',
+        400,
+      );
+    }
+    return _call(
+      _encounter(anchorAppointmentId, resource: 'patient-history'),
+      (data) =>
+          PatientHistoryPage._parse(data, page, pageSize, fromUtc, untilUtc),
+      generation: _generation,
+      token: _token,
+      query: {
+        'from': _isoDate(fromUtc),
+        'until': _isoDate(untilUtc),
+        'page': '$page',
+        'pageSize': '$pageSize',
+      },
+      maxResponseBytes: _patientHistoryMaxResponseBytes,
     );
   }
 

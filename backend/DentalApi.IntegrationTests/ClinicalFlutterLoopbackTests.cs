@@ -6,6 +6,7 @@ using DentalApi.Data;
 using DentalApi.Models;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
@@ -15,7 +16,7 @@ public sealed partial class StructuredProcedureDraftTests
 {
     [ClinicalFlutterFact]
     [Trait("Category", "ClinicalFlutterLoopback")]
-    public async Task Flutter_clinician_confirms_and_reads_a_performed_procedure_over_loopback_TLS()
+    public async Task Flutter_clinician_confirms_and_reads_treatment_and_patient_history_over_loopback_TLS()
     {
         Assert.Null(Environment.GetEnvironmentVariable("NEXORA_PG_TEST_CONNECTION"));
         Assert.Null(Environment.GetEnvironmentVariable("PGPASSWORD"));
@@ -44,6 +45,7 @@ public sealed partial class StructuredProcedureDraftTests
             factory.UseKestrel(options => options.Listen(IPAddress.Loopback, 0,
                 listen => listen.UseHttps(certificate)));
         });
+        host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -83,9 +85,9 @@ public sealed partial class StructuredProcedureDraftTests
         Assert.Equal(301, signed.AppointmentId);
         Assert.Equal(13, signed.DoctorUserId);
         var events = await db.Set<ClinicalAuditEvent>().AsNoTracking().ToListAsync();
-        Assert.Equal(2, events.Count);
+        Assert.Equal(3, events.Count);
         Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentRecorded);
-        Assert.Single(events, row => row.Action == ClinicalAuditAction.HistoryRead);
+        Assert.Equal(2, events.Count(row => row.Action == ClinicalAuditAction.HistoryRead));
         Assert.All(events, row => Assert.Equal((101, 301, 13), (row.ClinicId, row.AppointmentId, row.ActorUserId)));
     }
 
