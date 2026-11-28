@@ -284,3 +284,16 @@ parse integer unit strings exactly and apply the supplied scale for display.
 The fixed label key intentionally carries no procedure name or patient data.
 Do not expose the contract before a trusted store and an owner-bound audited
 read policy exist. Do not lower the line guard by truncating the result.
+
+## Flutter synthetic itemized draft review
+
+The default app continues to use the existing booking price estimate. An
+explicit review-only, release-disabled My Bookings composition can inject
+a source for #44-format approved-price snapshot fixtures. The widget shows
+one selected booking's ordered draft amounts and cannot pay, send, issue or
+create a receipt. It does not persist amounts, call a backend invoice route,
+derive price from the booked service, or display arbitrary patient/clinical
+labels. The reader must bind the outcome to the selected booking; switching
+booking, clinic, reader, history page or session removes the stale review.
+Before enabling a real app entry, specify stored draft ownership, approved
+pricing, audited access, cache policy and the separate invoice lifecycle.

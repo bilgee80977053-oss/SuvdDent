@@ -499,3 +499,20 @@ as a whole rather than showing an incomplete total. No endpoint, client
 routing, tariff source, issued invoice, payment action or provider was added.
 Release build passed with zero warnings/errors; all 54 focused invoice and
 settlement tests passed, including the four projection regressions.
+
+## Flutter My Bookings nonpayable draft acceptance
+
+Isolated `dot/flutter-invoice-review` starts from exact draft #44
+`1a58b8d`. Only a non-release review composition with an explicit
+injected reader can select a booking's draft in My Bookings; otherwise the
+existing estimate action is unchanged. The exact internal projection is
+decoded as bounded signed-64-bit unit strings via BigInt, with contiguous
+ordered rows, a fixed generic label and independently checked line/aggregate
+arithmetic. Switching booking or ending the session discards prior results;
+a mismatched or failed response displays no amounts. No payable invoice,
+checkout, receipt, email, pricing fallback, endpoint, storage or backend
+changes are included.
+
+Flutter analysis passed with no issues. The final offline Flutter suite
+passed 159/159, including eight model and real-My-Bookings widget mock cases.
+The review has no live backend acceptance or deployed client evidence.

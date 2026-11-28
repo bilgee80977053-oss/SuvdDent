@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
 import '../app/app_theme.dart';
@@ -10,13 +11,21 @@ import 'notification_settings_screen.dart';
 import 'clinical_service_details.dart';
 import 'dental_knowledge.dart';
 import 'payment_estimate_screen.dart';
+import 'patient_invoice_review.dart';
 import 'profile_settings_screen.dart';
 import 'reschedule_appointment_screen.dart';
 
 class LivePatientFlow extends StatefulWidget {
   final ApiSettings settings;
   final DentalApi? api;
-  const LivePatientFlow({super.key, required this.settings, this.api});
+  // Explicit review-only injection. The normal app supplies no reader.
+  final InvoiceReviewReader? invoiceReviewReader;
+  const LivePatientFlow({
+    super.key,
+    required this.settings,
+    this.api,
+    this.invoiceReviewReader,
+  });
   @override
   State<LivePatientFlow> createState() => _LivePatientFlowState();
 }
@@ -24,6 +33,10 @@ class LivePatientFlow extends StatefulWidget {
 class _LivePatientFlowState extends State<LivePatientFlow> {
   late final LiveFlowController flow;
   final historyScroll = ScrollController();
+  int? reviewBookingId;
+
+  InvoiceReviewReader? get reviewReader =>
+      kReleaseMode || flow.session == null ? null : widget.invoiceReviewReader;
   final identifier = TextEditingController(),
       password = TextEditingController(),
       name = TextEditingController(),
@@ -54,14 +67,19 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   @override
   void didUpdateWidget(covariant LivePatientFlow oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.invoiceReviewReader != widget.invoiceReviewReader) {
+      reviewBookingId = null;
+    }
     if (oldWidget.settings.baseUrl != widget.settings.baseUrl ||
         oldWidget.settings.clinicId != widget.settings.clinicId ||
         oldWidget.api != widget.api) {
+      reviewBookingId = null;
       flow.changeClinic(widget.api ?? DentalApi(widget.settings));
     }
   }
 
   void onChange() {
+    if (flow.session == null) reviewBookingId = null;
     if (flow.session == null && flow.step == 0) {
       for (final field in [identifier, password, name, email, phone, code]) {
         field.clear();
@@ -667,15 +685,33 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
     if (!resume) flow.loadRescheduleSlots();
   }
 
+  void loadHistoryPage(int page) {
+    if (reviewBookingId != null) setState(() => reviewBookingId = null);
+    flow.loadAppointments(page);
+  }
+
   Widget historyAppointment(Appointment value) => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       details(value),
-      button(
-        'Төлбөр / үнийн мэдээлэл',
-        () => openPayment(value),
-        secondary: true,
-      ),
+      if (reviewReader case final reader?) ...[
+        button(
+          'Туршилтын задаргаа харах',
+          () => setState(() => reviewBookingId = value.id),
+          secondary: true,
+        ),
+        if (reviewBookingId == value.id)
+          PatientInvoiceReviewPanel(
+            key: ValueKey(value.id),
+            bookingId: value.id,
+            reader: reader,
+          ),
+      ] else
+        button(
+          'Төлбөр / үнийн мэдээлэл',
+          () => openPayment(value),
+          secondary: true,
+        ),
       if (flow.uncertainCancellations.contains(value.id)) ...[
         const Text('Цуцлалтын үр дүнг шалгана уу.'),
         button('Төлөв шалгах', () => flow.reconcileCancellation(value.id)),
@@ -711,12 +747,12 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
         for (final a in flow.history!.items) historyAppointment(a),
         button(
           'Өмнөх хуудас',
-          () => flow.loadAppointments(flow.history!.page - 1),
+          () => loadHistoryPage(flow.history!.page - 1),
           enabled: flow.history!.page > 1,
         ),
         button(
           'Дараагийн хуудас',
-          () => flow.loadAppointments(flow.history!.page + 1),
+          () => loadHistoryPage(flow.history!.page + 1),
           enabled:
               flow.history!.items.length == flow.history!.pageSize &&
               flow.history!.page < 100000,
@@ -724,12 +760,15 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
       ],
       button(
         'Хуудсыг шинэчлэх',
-        () => flow.loadAppointments(flow.history?.page ?? 1),
+        () => loadHistoryPage(flow.history?.page ?? 1),
         secondary: true,
       ),
       button(
         'Захиалгын алхам руу буцах',
-        () => setState(() => showHistory = false),
+        () => setState(() {
+          showHistory = false;
+          reviewBookingId = null;
+        }),
       ),
     ],
   );
@@ -914,6 +953,7 @@ class _LivePatientFlowState extends State<LivePatientFlow> {
   void openHistory() {
     if (flow.busy || flow.session == null) return;
     setState(() {
+      reviewBookingId = null;
       showHistory = true;
       showDashboard = false;
     });
