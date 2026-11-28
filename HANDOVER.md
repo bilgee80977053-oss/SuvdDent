@@ -320,3 +320,10 @@ selected encounter and authenticated transport, and preserve uncertain
 writes while switching tabs. The native harness verifies only synthetic
 SQLite and loopback TLS. Device/release and real PostgreSQL readiness
 remain separate.
+
+## Director full-replacement assignment regression
+
+Keep existing inactive catalog assignments unchanged when a form updates
+a different service; the backend rejects introducing or editing those
+inactive rows. No schema or production work is involved. Review availability
+and cross-clinic behavior with the hosted regression before release.

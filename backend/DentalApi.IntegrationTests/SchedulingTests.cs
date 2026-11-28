@@ -79,6 +79,43 @@ public sealed class SchedulingTests
         Assert.Equal(beforeB, await app.SnapshotAsync(202));
     }
 
+    [Fact]
+    public async Task Director_can_edit_an_active_assignment_while_preserving_a_deactivated_catalog_link()
+    {
+        using var app = await App();
+        using var director = await app.AsAsync(15);
+        const string deactivate = "/api/admin/services/51/deactivate";
+        var original = await Get<DoctorServicesResponse>(director, ServicesUrl);
+        using var linked = await director.PutAsJsonAsync(ServicesUrl,
+            new UpdateDoctorServicesRequest(original.Version, [Service(), Service(52)]));
+        Assert.Equal(HttpStatusCode.OK, linked.StatusCode);
+
+        using var deactivated = await director.PostAsync(deactivate, null);
+        Assert.Equal(HttpStatusCode.OK, deactivated.StatusCode);
+        var current = await Get<DoctorServicesResponse>(director, ServicesUrl);
+        var frozen = Assert.Single(current.Services, row => row.ServiceId == 51);
+        var changed = Service(52) with { DurationMinutes = 45 };
+        using var edited = await director.PutAsJsonAsync(ServicesUrl,
+            new UpdateDoctorServicesRequest(current.Version, [frozen, changed]));
+        Assert.Equal(HttpStatusCode.OK, edited.StatusCode);
+        var updated = (await edited.Content.ReadFromJsonAsync<DoctorServicesResponse>())!;
+        Assert.NotEqual(current.Version, updated.Version);
+        Assert.Equal(new[] { frozen, changed }, updated.Services);
+        var before = await State(app);
+
+        using var editFrozen = await director.PutAsJsonAsync(ServicesUrl,
+            new UpdateDoctorServicesRequest(updated.Version, [frozen with { DurationMinutes = 90 }, changed]));
+        Assert.Equal(HttpStatusCode.NotFound, editFrozen.StatusCode);
+        Assert.Equal(before, await State(app));
+        Assert.Equal(updated.Version, (await Get<DoctorServicesResponse>(director, ServicesUrl)).Version);
+
+        using var omitFrozen = await director.PutAsJsonAsync(ServicesUrl,
+            new UpdateDoctorServicesRequest(updated.Version, [changed]));
+        Assert.Equal(HttpStatusCode.OK, omitFrozen.StatusCode);
+        Assert.False(Assert.Single((await Get<DoctorServicesResponse>(director, ServicesUrl)).Services,
+            row => row.ServiceId == 51).IsActive);
+    }
+
     [Theory]
     [InlineData(32, 51)] // Another clinic's doctor.
     [InlineData(31, 61)] // Another clinic's service.

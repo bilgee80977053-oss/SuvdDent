@@ -33,7 +33,10 @@ Director PUT example (replace version with GET's value):
 ```
 
 Only active services and active profiles belonging to active Doctor users in the
-Director's clinic are eligible. ServiceId selects a target, never grants access.
+Director's clinic are eligible for new or changed assignments. A full-list save
+may carry forward an existing link to a deactivated catalog service only if its
+duration, buffers and active flag are unchanged. This does not reactivate the
+catalog service or make it bookable. ServiceId selects a target, never grants access.
 At most 100 unique service IDs per request. Duration >= 1, buffers >= 0, and total
 occupied duration <= 1440 minutes. Omitted associations become inactive rather
 than being deleted; their IDs remain stable for future appointment references.
