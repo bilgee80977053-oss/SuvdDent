@@ -15,6 +15,7 @@ namespace DentalApi.Controllers;
 /// </summary>
 [ApiController]
 [Authorize(Roles = "Patient")]
+[ResponseCache(NoStore = true, Location = ResponseCacheLocation.None)]
 [Route("api/appointments/{appointmentId:int}/payment-estimate")]
 public sealed class PaymentEstimatesController(AppDbContext db, EmailService email, IConfiguration configuration) : ControllerBase
 {

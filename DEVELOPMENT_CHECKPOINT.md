@@ -425,3 +425,12 @@ author separation, fixed-UTC tie ordering, signed label after catalogue
 rename, read auditing of empty pages and failure closed on audit insert
 or commit. Live PostgreSQL, production clinical roles and patient history
 were not verified or enabled.
+
+## Patient estimate cache boundary
+
+Appointment-linked price estimates and their email response now opt out of
+HTTP caching. A synthetic HTTP test checks a no-store owner response,
+404/no-store for other patients in both clinics, and no final amount,
+tracked payment or issued receipt in the estimate DTO. The focused test and
+Release build passed. No message, payment, receipt, schema or live connection
+was made by this change.

@@ -117,6 +117,35 @@ public sealed class AppointmentApiTests
     }
 
     [Fact]
+    public async Task Patient_estimate_is_private_uncached_and_never_a_payable_invoice()
+    {
+        using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var otherPatient = await app.AsAsync(27);
+        using var foreignPatient = await app.AsAsync(12, clinicId: 202);
+        var appointment = await Book(owner);
+        var path = $"/api/appointments/{appointment.Id}/payment-estimate";
+
+        using var estimate = await owner.GetAsync(path);
+        Assert.Equal(HttpStatusCode.OK, estimate.StatusCode);
+        Assert.True(estimate.Headers.CacheControl?.NoStore);
+        var payload = await estimate.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal(appointment.Id, payload.GetProperty("appointmentId").GetInt32());
+        Assert.Equal(100, payload.GetProperty("minPriceMnt").GetInt64());
+        Assert.False(payload.GetProperty("isFinalAmount").GetBoolean());
+        Assert.Equal(JsonValueKind.Null, payload.GetProperty("totalDueMnt").ValueKind);
+        Assert.Equal("NotTracked", payload.GetProperty("paymentState").GetString());
+        Assert.Equal("NotIssued", payload.GetProperty("receiptState").GetString());
+
+        foreach (var unrelated in new[] { otherPatient, foreignPatient })
+        {
+            using var denied = await unrelated.GetAsync(path);
+            Assert.Equal(HttpStatusCode.NotFound, denied.StatusCode);
+            Assert.True(denied.Headers.CacheControl?.NoStore);
+        }
+    }
+
+    [Fact]
     public async Task Reschedule_slots_exclude_only_the_owned_original_and_make_no_changes()
     {
         using var app = await App();
