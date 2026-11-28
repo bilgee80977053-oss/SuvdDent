@@ -261,3 +261,26 @@ This integration combines the #20 clinician transport and #21 patient
 history boundary. Its one-encounter anchor cannot be used to bypass the
 same-clinic, same-patient, active-assignment and original-signer checks.
 Do not persist returned history or enable this synthetic flow in default UI.
+### Reusable clinician performed-procedure panel
+
+The isolated Flutter candidate adds `PerformedProcedurePanel` on the
+performed-procedure adapter from PR #19. The host must supply an authenticated
+Doctor adapter and the already-selected encounter's server-sourced booked
+service ID and label. The host owns the adapter and must remove the panel on
+logout or account change. The panel holds one pending request only in memory;
+while mounted, uncertainty is resolved by an exact audited history match or by
+an explicit same-request retry. A definitive conflict is not retried, and an
+ambiguous sign must be reconciled before creating another intent after leaving
+the panel. No default navigation, persistence, financial fields, or production
+clinical route enablement is provided. See the checkpoint for the 177-test
+offline result.
+
+### Actual clinician panel loopback verification
+
+The combined PR #24/#26 candidate has a second opt-in
+`ClinicalFlutterLoopback` case for the actual procedure panel. Its native
+Flutter transport is restricted to the synthetic loopback address, expected
+fixture paths, and ephemeral CA; socket completion happens outside the widget
+fake clock. See the checkpoint for exact build, 2/2 HTTPS acceptance, and
+183/183 offline Flutter results. This does not authorize clinical routing or
+production enablement.

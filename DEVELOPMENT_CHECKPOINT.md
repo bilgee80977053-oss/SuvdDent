@@ -487,3 +487,36 @@ the clinician HTTPS acceptance now includes authorized same-patient visit
 reads and denial for another clinic. The independently tested Flutter diff
 passed 175/175 offline tests and static analysis. Hosted loopback verification
 is tracked separately; clinical UI and broader history policy remain pending.
+### Opt-in clinician performed-procedure panel (local review milestone, 2026-11-28)
+
+Based on the restored Flutter adapter at `3c2fea6` (PR #19).
+`PerformedProcedurePanel` accepts an already-selected encounter and its booked
+service from the caller. It loads audited history, requires explicit visit or
+routine FDI single-tooth confirmation, and submits one in-memory intent. An
+ambiguous response offers an explicit retry of precisely that intent or a
+history refresh. A matching audited row can settle uncertainty without a new
+write; a definitive conflict blocks a second signing intent. Leaving the panel
+suppresses stale completion UI. This work also preserves known HTTP denial and
+conflict outcomes when asynchronous response-body cancellation stalls.
+
+Local Flutter verification: dependency restore from cache, full `flutter
+analyze --no-pub` clean, and 177 Flutter tests passed, including eight new
+widget tests. The clinical widget and adapter tests use synthetic mock
+transport. No app navigation was changed, and no actual patient data,
+backend enablement, persistence, migration, PostgreSQL, or deployment was used.
+
+### Native clinician panel HTTPS acceptance (2026-11-28)
+
+The isolated integration combines exact PR #24 (`4ac71de`) and PR #26
+(`10683fc`) without changing default navigation or deployment. A native widget
+test exercised the actual panel against the synthetic 127.0.0.1 Kestrel HTTPS
+harness using an ephemeral certificate and in-memory SQLite. It verified an
+empty authorized history, no write before explicit confirmation, one signed
+FDI tooth entry after refresh, a single treatment-recorded audit, two authorized
+history-read audits, and foreign-clinic denial without revealing the signed
+row or granting signing controls.
+
+The exact Release build had zero warnings/errors. Both opt-in native HTTPS
+cases passed (2/2). Combined Flutter analyze was clean and 183 offline Flutter
+tests passed. No actual patient data, PostgreSQL, migrations, production
+configuration, or deployment was used.

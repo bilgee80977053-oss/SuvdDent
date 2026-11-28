@@ -16,7 +16,15 @@ public sealed partial class StructuredProcedureDraftTests
 {
     [ClinicalFlutterFact]
     [Trait("Category", "ClinicalFlutterLoopback")]
-    public async Task Flutter_clinician_confirms_and_reads_treatment_and_patient_history_over_loopback_TLS()
+    public Task Flutter_clinician_confirms_and_reads_treatment_and_patient_history_over_loopback_TLS() =>
+        AssertClinicalFlutterLoopback("tool/clinical_https_acceptance_test.dart", includePatientHistory: true);
+
+    [ClinicalFlutterFact]
+    [Trait("Category", "ClinicalFlutterLoopback")]
+    public Task Flutter_panel_shows_empty_history_confirms_and_refreshes_signed_entry_over_loopback_TLS() =>
+        AssertClinicalFlutterLoopback("tool/clinical_panel_https_acceptance_test.dart", includePatientHistory: false);
+
+    private async Task AssertClinicalFlutterLoopback(string testPath, bool includePatientHistory)
     {
         Assert.Null(Environment.GetEnvironmentVariable("NEXORA_PG_TEST_CONNECTION"));
         Assert.Null(Environment.GetEnvironmentVariable("PGPASSWORD"));
@@ -45,7 +53,8 @@ public sealed partial class StructuredProcedureDraftTests
             factory.UseKestrel(options => options.Listen(IPAddress.Loopback, 0,
                 listen => listen.UseHttps(certificate)));
         });
-        host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
+        if (includePatientHistory)
+            host.Services.GetRequiredService<IConfiguration>()["Features:PatientHistoryAcceptance"] = "true";
         using var addressClient = host.CreateDefaultClient();
         var origin = Assert.IsType<Uri>(addressClient.BaseAddress);
         Assert.Equal("https", origin.Scheme);
@@ -58,7 +67,7 @@ public sealed partial class StructuredProcedureDraftTests
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
-        foreach (var argument in new[] { "test", "--no-pub", "--reporter", "expanded", "tool/clinical_https_acceptance_test.dart" })
+        foreach (var argument in new[] { "test", "--no-pub", "--reporter", "expanded", testPath })
             options.ArgumentList.Add(argument);
         options.Environment["SUVDDENT_LOOPBACK_ORIGIN"] = origin.AbsoluteUri;
         options.Environment["SUVDDENT_LOOPBACK_CERT_PEM"] = certificate.ExportCertificatePem();
@@ -84,6 +93,11 @@ public sealed partial class StructuredProcedureDraftTests
         var signed = Assert.Single(await db.Set<PerformedProcedure>().AsNoTracking().ToListAsync());
         Assert.Equal(301, signed.AppointmentId);
         Assert.Equal(13, signed.DoctorUserId);
+        Assert.Equal(101, signed.ClinicId);
+        Assert.Equal(51, signed.ServiceId);
+        Assert.Equal("SingleTooth", signed.TargetScope);
+        Assert.Equal("85", signed.ToothCode);
+        Assert.Equal(Guid.Parse("98fcbaca-e637-4dad-a413-7aa83da9c331"), signed.RequestId);
         var events = await db.Set<ClinicalAuditEvent>().AsNoTracking().ToListAsync();
         Assert.Equal(3, events.Count);
         Assert.Single(events, row => row.Action == ClinicalAuditAction.TreatmentRecorded);
