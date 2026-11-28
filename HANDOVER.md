@@ -224,3 +224,10 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Director tariff request contract
+
+Always include `minPrice` explicitly in create and update requests. Zero
+requires explicit selection; an omitted minimum returns validation failure.
+Maximum-price behavior and authorization are unchanged. This does not
+establish tariff approval, audit/version policy or invoice issuance.

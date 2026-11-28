@@ -425,3 +425,12 @@ author separation, fixed-UTC tie ordering, signed label after catalogue
 rename, read auditing of empty pages and failure closed on audit insert
 or commit. Live PostgreSQL, production clinical roles and patient history
 were not verified or enabled.
+
+## 2026-11-28: Director tariff input validation
+
+The Director create and edit APIs now require an explicit minimum price.
+An omitted field no longer silently saves zero; an explicitly entered zero
+remains valid. The existing Flutter client already sends the field. On the
+isolated branch, 604 offline backend tests passed, including synthetic
+Director create/update regressions and preservation of the existing tariff.
+No schema, tariff policy, payment, live PostgreSQL or production changes.
