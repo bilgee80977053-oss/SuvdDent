@@ -230,3 +230,10 @@ metadata-only audit to commit before response. No schema or rollout changed.
 Keep appointment-linked estimates uncached and scoped to the verified active
 patient. Estimate UI must not infer a payable invoice, paid status or receipt.
 The regression uses only an isolated fixture and does not invoke email.
+
+## Keep pricing separate from billing
+
+The mobile estimate DTO accepts only the authenticated quoted catalog
+contract (including an unknown price). Do not reuse it for invoice balance,
+payment, or receipt. Use a separate pinned invoice snapshot, verified
+settlement and explicitly authorized receipt workflow when those exist.

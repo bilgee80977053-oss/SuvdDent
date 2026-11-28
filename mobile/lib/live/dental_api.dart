@@ -58,6 +58,7 @@ class DentalApi {
     Json? body,
     Map<String, String>? query,
     bool auth = true,
+    bool privateResponse = false,
     Set<int> statuses = const {200},
   }) async {
     if (auth && _token == null) throw ApiFailure(messageFor(401), 401);
@@ -67,6 +68,10 @@ class DentalApi {
           .replace(path: path, queryParameters: query);
       final request = http.Request(method, uri)
         ..headers['Accept'] = 'application/json';
+      if (privateResponse) {
+        request.followRedirects = false;
+        request.headers['Cache-Control'] = 'no-store';
+      }
       if (auth) request.headers['Authorization'] = 'Bearer $_token';
       if (body != null) {
         request.headers['Content-Type'] = 'application/json';
@@ -316,12 +321,27 @@ class DentalApi {
       'requestId': requestId,
     },
   );
-  Future<PaymentEstimate> paymentEstimate(int appointmentId) =>
-      _request(
-        'GET',
-        '/api/appointments/$appointmentId/payment-estimate',
-        (v) => PaymentEstimate.fromJson(object(v)),
-      );
+  Future<PaymentEstimate> paymentEstimate(
+    int appointmentId, {
+    int? expectedServiceId,
+  }) async {
+    if (appointmentId <= 0 || (expectedServiceId != null && expectedServiceId <= 0)) {
+      throw const ApiFailure('Захиалгын мэдээлэл буруу байна.', 400);
+    }
+    return _request(
+      'GET',
+      '/api/appointments/$appointmentId/payment-estimate',
+      (v) {
+        final estimate = PaymentEstimate.fromJson(object(v));
+        if (estimate.appointmentId != appointmentId ||
+            (expectedServiceId != null && estimate.serviceId != expectedServiceId)) {
+          throw const FormatException('Estimate does not match the selected appointment.');
+        }
+        return estimate;
+      },
+      privateResponse: true,
+    );
+  }
 
   Future<String> emailPaymentEstimate(int appointmentId) =>
       _request(

@@ -197,9 +197,11 @@ class PaymentEstimate {
         totalDueMnt = j['totalDueMnt'] as int?,
         isFinalAmount = j['isFinalAmount'] as bool {
     if (appointmentId <= 0 || serviceId <= 0 || currency != 'MNT' ||
-        (minPriceMnt != null && minPriceMnt! < 0) ||
-        (maxPriceMnt != null && maxPriceMnt! < 0) ||
-        (totalDueMnt != null && totalDueMnt! < 0)) {
+        priceSource != 'ClinicServiceCatalog' || serviceName.trim().isEmpty ||
+        isFinalAmount || totalDueMnt != null ||
+        paymentState != 'NotTracked' || receiptState != 'NotIssued' ||
+        (minPriceMnt != null && minPriceMnt! <= 0) ||
+        (maxPriceMnt != null && (minPriceMnt == null || maxPriceMnt! < minPriceMnt!))) {
       throw const FormatException('Invalid payment estimate.');
     }
   }

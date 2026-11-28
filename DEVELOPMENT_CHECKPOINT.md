@@ -434,3 +434,13 @@ HTTP caching. A synthetic HTTP test checks a no-store owner response,
 tracked payment or issued receipt in the estimate DTO. The focused test and
 Release build passed. No message, payment, receipt, schema or live connection
 was made by this change.
+
+## Flutter estimate contract and selection boundary
+
+An estimate must match the selected appointment and booked service, remain
+nonpayable and untracked, and contain no issued receipt or inconsistent price
+range. Flutter refuses model mismatches and requests no-store without
+following redirects. Switching inputs reloads the estimate and discards
+late results from the old selection. A distinct real invoice contract is
+still needed. This change sends no email, payment or receipt. Hosted
+verification is tracked separately from local tooling.
