@@ -234,3 +234,17 @@ checks for stacked PRs without adding any deployment, write permission or
 PostgreSQL access. The reconstructed Flutter adapter is independently
 reviewable above #18. A synthetic HTTPS sign/read/replay check is a separate
 milestone; do not present mocks as full client-to-server acceptance.
+
+### Reusable clinician performed-procedure panel
+
+The isolated Flutter candidate adds `PerformedProcedurePanel` on the
+performed-procedure adapter from PR #19. The host must supply an authenticated
+Doctor adapter and the already-selected encounter's server-sourced booked
+service ID and label. The host owns the adapter and must remove the panel on
+logout or account change. The panel holds one pending request only in memory;
+while mounted, uncertainty is resolved by an exact audited history match or by
+an explicit same-request retry. A definitive conflict is not retried, and an
+ambiguous sign must be reconciled before creating another intent after leaving
+the panel. No default navigation, persistence, financial fields, or production
+clinical route enablement is provided. See the checkpoint for the 177-test
+offline result.

@@ -444,3 +444,21 @@ with HTTPS and no default UI wiring. See this draft's distinct CI for results.
 Flutter-to-API acceptance, clinic-wide history policy and live PostgreSQL
 validation remain outstanding. No production workflow or real patient data
 is involved.
+
+### Opt-in clinician performed-procedure panel (local review milestone, 2026-11-28)
+
+Based on the restored Flutter adapter at `3c2fea6` (PR #19).
+`PerformedProcedurePanel` accepts an already-selected encounter and its booked
+service from the caller. It loads audited history, requires explicit visit or
+routine FDI single-tooth confirmation, and submits one in-memory intent. An
+ambiguous response offers an explicit retry of precisely that intent or a
+history refresh. A matching audited row can settle uncertainty without a new
+write; a definitive conflict blocks a second signing intent. Leaving the panel
+suppresses stale completion UI. This work also preserves known HTTP denial and
+conflict outcomes when asynchronous response-body cancellation stalls.
+
+Local Flutter verification: dependency restore from cache, full `flutter
+analyze --no-pub` clean, and 177 Flutter tests passed, including eight new
+widget tests. The clinical widget and adapter tests use synthetic mock
+transport. No app navigation was changed, and no actual patient data,
+backend enablement, persistence, migration, PostgreSQL, or deployment was used.
