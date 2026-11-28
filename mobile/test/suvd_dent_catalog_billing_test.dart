@@ -79,4 +79,83 @@ void main() {
     expect(find.text('Үзлэг, ажилбарын үед'), findsOneWidget);
     expect(find.text('Хаах'), findsOneWidget);
   });
+  for (final reduced in [true, false]) {
+    testWidgets(
+      'service sheet preserves booking and reduce-motion behavior ($reduced)',
+      (tester) async {
+        tester.view.devicePixelRatio = 1;
+        tester.view.physicalSize = reduced
+            ? const Size(320, 640)
+            : const Size(1440, 900);
+        addTearDown(tester.view.resetPhysicalSize);
+        addTearDown(tester.view.resetDevicePixelRatio);
+        var bookings = 0;
+        final service = BookingService.fromJson({
+          'id': 51,
+          'name': 'Сургалтын үзлэг',
+          'description': 'Сургалтын жишиг тайлбар',
+          'minPrice': 12000,
+        });
+        final opened = find.text('Үзлэгийн танилцуулга');
+        await tester.pumpWidget(
+          MaterialApp(
+            theme: AppTheme.light,
+            builder: (context, child) => MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                disableAnimations: reduced,
+                textScaler: TextScaler.linear(reduced ? 2 : 1),
+              ),
+              child: child!,
+            ),
+            home: Scaffold(
+              body: Builder(
+                builder: (context) => TextButton(
+                  onPressed: () => ClinicalServiceDetails.show(
+                    context,
+                    category: service.name,
+                    service: service,
+                    onBook: () => bookings++,
+                  ),
+                  child: const Text('Үзлэгийн танилцуулга'),
+                ),
+              ),
+            ),
+          ),
+        );
+        await tester.tap(opened);
+        await tester.pumpAndSettle();
+        final close = find.byTooltip('Танилцуулгыг хаах');
+        final route = ModalRoute.of(tester.element(close));
+        expect(route, isA<ModalBottomSheetRoute<void>>());
+        expect(
+          route!.transitionDuration,
+          reduced ? Duration.zero : const Duration(milliseconds: 240),
+        );
+        expect(
+          route.reverseTransitionDuration,
+          reduced ? Duration.zero : const Duration(milliseconds: 180),
+        );
+        expect(
+          tester.getSize(find.byKey(
+            const ValueKey('clinical-service-sheet-content'),
+          )).width,
+          lessThanOrEqualTo(680),
+        );
+        expect(tester.takeException(), isNull);
+        await tester.tap(close);
+        await tester.pumpAndSettle();
+        expect(bookings, 0);
+        expect(close, findsNothing);
+        await tester.tap(opened);
+        await tester.pumpAndSettle();
+        final book = find.text('Энэ үйлчилгээгээр цаг захиалах');
+        expect(book.hitTestable(), findsOneWidget);
+        await tester.tap(book);
+        await tester.pumpAndSettle();
+        expect(bookings, 1);
+        expect(close, findsNothing);
+        expect(tester.takeException(), isNull);
+      },
+    );
+  }
 }

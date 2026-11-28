@@ -39,6 +39,9 @@ def add_tree(zip_file, source, output_path):
         require(not file.is_symlink(), f"Linked package file rejected: {file.name}")
         if file.is_file():
             relative = file.relative_to(source)
+            # Flutter emits an internal cache marker at the web root; it is not a runtime asset.
+            if output_path == "web" and relative.as_posix() == ".last_build_id":
+                continue
             require(not any(part.startswith(".") for part in relative.parts),
                     f"Hidden package file rejected: {file.name}")
             require(file.suffix.lower() not in {".sqlite", ".db", ".pfx", ".pem", ".key"},

@@ -277,6 +277,8 @@ class AppointmentDetailsCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final a = appointment;
+    final doctorLabel = a.doctorName ?? doctorName;
+    final serviceLabel = a.serviceName ?? serviceName;
     String date, start, end, zone;
     try {
       final local = LiveLabels.local(a.startUtc, a.clinicTimeZoneId);
@@ -323,14 +325,14 @@ class AppointmentDetailsCard extends StatelessWidget {
           const Divider(),
           DetailRow(
             'Эмч',
-            doctorName?.trim().isNotEmpty == true
-                ? doctorName!
+            doctorLabel?.trim().isNotEmpty == true
+                ? doctorLabel!
                 : 'Эмчийн нэр ирээгүй. Эмнэлгээс лавлана уу.',
           ),
           DetailRow(
             'Үйлчилгээ',
-            serviceName?.trim().isNotEmpty == true
-                ? serviceName!
+            serviceLabel?.trim().isNotEmpty == true
+                ? serviceLabel!
                 : 'Үйлчилгээний нэр ирээгүй. Эмнэлгээс лавлана уу.',
           ),
           DetailRow('Огноо', date),

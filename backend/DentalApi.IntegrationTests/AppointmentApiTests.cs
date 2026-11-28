@@ -974,6 +974,57 @@ public sealed class AppointmentApiTests
     }
 
     [Fact]
+    public async Task Appointment_history_and_detail_include_only_owned_display_labels_after_reschedule_and_cancel()
+    {
+        await using var app = await App();
+        using var owner = await app.AsAsync(11);
+        using var sameClinic = await app.AsAsync(27);
+        using var otherClinic = await app.AsAsync(12, 202);
+        var booked = await Book(owner);
+        var move = await owner.PostAsJsonAsync($"{Url}/{booked.Id}/reschedule",
+            new RescheduleAppointmentRequest("2026-11-02T10:15:00+08:00", Guid.NewGuid()));
+        using (move)
+        {
+            Assert.Equal(HttpStatusCode.OK, move.StatusCode);
+            var replacement = (await move.Content.ReadFromJsonAsync<AppointmentResponse>())!;
+            await AssertStatus(await owner.PostAsync($"{Url}/{replacement.Id}/cancel", null), HttpStatusCode.OK);
+        }
+        // Historical labels come from the booking's linked catalog entities,
+        // not the currently bookable catalog or selected widgets.
+        await Mutate(app, async db =>
+        {
+            var service = await db.Services.SingleAsync(item => item.Id == 51);
+            service.IsActive = false;
+            var doctor = await db.DoctorProfiles.SingleAsync(item => item.Id == 31);
+            doctor.IsPublished = false;
+            await db.SaveChangesAsync();
+        });
+
+        var page = await owner.GetFromJsonAsync<JsonElement>($"{Url}/me?page=1&pageSize=10");
+        var items = page.GetProperty("items").EnumerateArray().ToArray();
+        Assert.Equal(2, items.Length);
+        Assert.All(items, row =>
+        {
+            Assert.Equal("Synthetic user 13", row.GetProperty("doctorName").GetString());
+            Assert.Equal("Synthetic treatment", row.GetProperty("serviceName").GetString());
+            Assert.Equal("Cancelled", row.GetProperty("status").GetString());
+        });
+        using var detail = await owner.GetAsync($"{Url}/{booked.Id}");
+        var payload = await detail.Content.ReadFromJsonAsync<JsonElement>();
+        Assert.Equal("Synthetic user 13", payload.GetProperty("doctorName").GetString());
+        Assert.Equal("Synthetic treatment", payload.GetProperty("serviceName").GetString());
+        Assert.False(payload.TryGetProperty("email", out _));
+        Assert.False(payload.TryGetProperty("clinicId", out _));
+        Assert.False(payload.TryGetProperty("patientId", out _));
+        foreach (var client in new[] { sameClinic, otherClinic })
+        {
+            await AssertStatus(await client.GetAsync($"{Url}/{booked.Id}"), HttpStatusCode.NotFound);
+            var deniedPage = await client.GetFromJsonAsync<AppointmentPage>($"{Url}/me");
+            Assert.Empty(deniedPage!.Items);
+        }
+    }
+
+    [Fact]
     public async Task Another_patient_cannot_book_occupied_doctor_interval_with_a_new_request_key()
     {
         using var app = await App(); using var owner = await app.AsAsync(11);

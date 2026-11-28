@@ -134,6 +134,17 @@ class SlotPage {
           .toList();
 }
 
+String? _appointmentLabel(Object? value) {
+  if (value is! String ||
+      value.length > 200 ||
+      RegExp(r'[\x00-\x1f\x7f-\x9f\u2028-\u202e\u2066-\u2069]')
+          .hasMatch(value)) {
+    return null;
+  }
+  final label = value.trim();
+  return label.isEmpty ? null : label;
+}
+
 class Appointment {
   final int id, doctorProfileId, serviceId;
   final DateTime startUtc,
@@ -142,6 +153,7 @@ class Appointment {
       occupiedEndUtc,
       createdAtUtc;
   final String clinicTimeZoneId, status;
+  final String? doctorName, serviceName;
   Appointment.fromJson(Json j)
     : id = number(j, 'id'),
       doctorProfileId = number(j, 'doctorProfileId'),
@@ -152,7 +164,9 @@ class Appointment {
       occupiedEndUtc = instant(j, 'occupiedEndUtc'),
       createdAtUtc = instant(j, 'createdAtUtc'),
       clinicTimeZoneId = text(j, 'clinicTimeZoneId'),
-      status = text(j, 'status');
+      status = text(j, 'status'),
+      doctorName = _appointmentLabel(j['doctorName']),
+      serviceName = _appointmentLabel(j['serviceName']);
 }
 
 class AppointmentPage {
@@ -179,30 +193,40 @@ class NotificationPreferences {
 /// Never treat this as a final bill, paid transaction or tax receipt.
 class PaymentEstimate {
   final int appointmentId, serviceId;
-  final String serviceName, currency, priceSource, paymentState,
-      priceExplanation, receiptState;
+  final String serviceName,
+      currency,
+      priceSource,
+      paymentState,
+      priceExplanation,
+      receiptState;
   final int? minPriceMnt, maxPriceMnt, totalDueMnt;
   final bool isFinalAmount;
 
   PaymentEstimate.fromJson(Json j)
-      : appointmentId = number(j, 'appointmentId'),
-        serviceId = number(j, 'serviceId'),
-        serviceName = text(j, 'serviceName'),
-        currency = text(j, 'currency'),
-        priceSource = text(j, 'priceSource'),
-        paymentState = text(j, 'paymentState'),
-        priceExplanation = text(j, 'priceExplanation'),
-        receiptState = text(j, 'receiptState'),
-        minPriceMnt = j['minPriceMnt'] as int?,
-        maxPriceMnt = j['maxPriceMnt'] as int?,
-        totalDueMnt = j['totalDueMnt'] as int?,
-        isFinalAmount = j['isFinalAmount'] as bool {
-    if (appointmentId <= 0 || serviceId <= 0 || currency != 'MNT' ||
-        priceSource != 'ClinicServiceCatalog' || serviceName.trim().isEmpty ||
-        isFinalAmount || totalDueMnt != null ||
-        paymentState != 'NotTracked' || receiptState != 'NotIssued' ||
+    : appointmentId = number(j, 'appointmentId'),
+      serviceId = number(j, 'serviceId'),
+      serviceName = text(j, 'serviceName'),
+      currency = text(j, 'currency'),
+      priceSource = text(j, 'priceSource'),
+      paymentState = text(j, 'paymentState'),
+      priceExplanation = text(j, 'priceExplanation'),
+      receiptState = text(j, 'receiptState'),
+      minPriceMnt = j['minPriceMnt'] as int?,
+      maxPriceMnt = j['maxPriceMnt'] as int?,
+      totalDueMnt = j['totalDueMnt'] as int?,
+      isFinalAmount = j['isFinalAmount'] as bool {
+    if (appointmentId <= 0 ||
+        serviceId <= 0 ||
+        currency != 'MNT' ||
+        priceSource != 'ClinicServiceCatalog' ||
+        serviceName.trim().isEmpty ||
+        isFinalAmount ||
+        totalDueMnt != null ||
+        paymentState != 'NotTracked' ||
+        receiptState != 'NotIssued' ||
         (minPriceMnt != null && minPriceMnt! <= 0) ||
-        (maxPriceMnt != null && (minPriceMnt == null || maxPriceMnt! < minPriceMnt!))) {
+        (maxPriceMnt != null &&
+            (minPriceMnt == null || maxPriceMnt! < minPriceMnt!))) {
       throw const FormatException('Invalid payment estimate.');
     }
   }

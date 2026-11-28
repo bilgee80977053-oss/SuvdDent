@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../app/app_theme.dart';
+import '../app/clinical_widgets.dart' show clinicalMotion;
 import 'dental_knowledge.dart';
 import 'models.dart';
 
@@ -29,6 +30,16 @@ String clinicPriceLabel(BookingService? service) {
   return mnt(service.minPrice);
 }
 
+AnimationStyle _serviceSheetAnimation(BuildContext context) {
+  final duration = clinicalMotion(context, 240);
+  return duration == Duration.zero
+      ? AnimationStyle.noAnimation
+      : AnimationStyle(
+          duration: duration,
+          reverseDuration: clinicalMotion(context, 180),
+        );
+}
+
 class ClinicalServiceDetails {
   static Future<void> show(
     BuildContext context, {
@@ -44,10 +55,14 @@ class ClinicalServiceDetails {
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
     ),
-    transitionAnimationController: null,
+    // HeroController pairs PageRoutes, not this modal. Preserve the
+    // real sheet's backdrop, swipe dismissal, back stack and focus.
+    sheetAnimationStyle: _serviceSheetAnimation(context),
+    constraints: const BoxConstraints(maxWidth: 680),
     builder: (sheetContext) {
       final content = DentalKnowledge.forService(service?.name ?? category);
       return FractionallySizedBox(
+        key: const ValueKey('clinical-service-sheet-content'),
         heightFactor: 0.88,
         child: Column(
           children: [
@@ -55,9 +70,27 @@ class ClinicalServiceDetails {
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(24, 8, 24, 24),
                 children: [
-                  const Text('ҮЙЛЧИЛГЭЭНИЙ ТАНИЛЦУУЛГА',
-                    style: TextStyle(color: AppColors.blue, fontSize: 12,
-                        fontWeight: FontWeight.w800, letterSpacing: 0.5)),
+                  Row(
+                    children: [
+                      const Expanded(
+                        child: Text(
+                          'ҮЙЛЧИЛГЭЭНИЙ ТАНИЛЦУУЛГА',
+                          style: TextStyle(
+                            color: AppColors.blue,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                      if (onBook != null && service != null)
+                        IconButton(
+                          tooltip: 'Танилцуулгыг хаах',
+                          onPressed: () => Navigator.of(sheetContext).pop(),
+                          icon: const Icon(Icons.close_rounded),
+                        ),
+                    ],
+                  ),
                   const SizedBox(height: 10),
                   Text(service?.name ?? content.name,
                       style: Theme.of(sheetContext).textTheme.headlineMedium),
