@@ -257,3 +257,11 @@ needs a reviewed durable schema with equivalent key scope, trusted
 provider verification and a committed ledger effect. No payment callback
 read, financial record creation, tax receipt, migration or live PostgreSQL
 is part of the fixture.
+
+## Invoice draft boundary
+
+Never construct approved pricing from client fields or mutable quote
+values. Before issuance provide a verified server authority and effective
+tariff history, clinic scope, tax/rounding policy, document numbering and a
+durable transaction. This type merely compares explicit scope and
+references. No invoice balance, settlement, receipt or production access.
