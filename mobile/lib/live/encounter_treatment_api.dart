@@ -191,8 +191,9 @@ class PerformedProcedurePage {
 }
 
 const _patientHistoryMaxResponseBytes = 8192;
-const _patientHistoryMaxPage = 100;
-final _historyInstant = RegExp(
+const _assignedMaxResponseBytes = 32768;
+const _boundedClinicalMaxPage = 100;
+final _clinicalInstant = RegExp(
   r'^([0-9]{4}-[0-9]{2}-[0-9]{2}T(?:[01][0-9]|2[0-3]):[0-5][0-9]:[0-5][0-9])(?:\.([0-9]{1,7}))?(?:Z|[+]00:00)$',
 );
 
@@ -208,6 +209,120 @@ bool _utcDate(DateTime value) =>
 
 String _isoDate(DateTime utc) => utc.toIso8601String().substring(0, 10);
 
+bool _validClinicalPeriod(DateTime from, DateTime until) =>
+    _utcDate(from) &&
+    _utcDate(until) &&
+    until.difference(from).inDays >= 1 &&
+    until.difference(from).inDays <= 31;
+
+bool _validClinicalPage(int page, int size) =>
+    page >= 1 && page <= _boundedClinicalMaxPage && size >= 1 && size <= 20;
+
+(DateTime, String) _parseClinicalUtc(String value) {
+  final match = _clinicalInstant.firstMatch(value);
+  if (match == null || match.end != value.length) throw const FormatException();
+  final parsed = DateTime.parse(value).toUtc();
+  final prefix = match[1]!;
+  // DateTime.parse normalizes impossible calendar dates; don't accept them.
+  if (parsed.year < 1 || parsed.toIso8601String().substring(0, 19) != prefix) {
+    throw const FormatException();
+  }
+  // Retain a comparison key for .NET's seventh fractional digit.
+  return (parsed, prefix + (match[2] ?? '').padRight(7, '0'));
+}
+
+bool _outOfClinicalOrder(
+  String key,
+  int id,
+  String? previousKey,
+  int? previousId,
+) =>
+    previousKey != null &&
+    (key.compareTo(previousKey) > 0 ||
+        (key == previousKey && id >= previousId!));
+
+class AssignedEncounter {
+  final int appointmentId, serviceId;
+  final DateTime startUtc, endUtc;
+  final String serviceLabel;
+
+  const AssignedEncounter._(
+    this.appointmentId,
+    this.startUtc,
+    this.endUtc,
+    this.serviceId,
+    this.serviceLabel,
+  );
+
+  static (AssignedEncounter, String) _parse(Json data) {
+    final appointment = number(data, 'appointmentId');
+    final service = number(data, 'serviceId');
+    final label = text(data, 'serviceLabel');
+    if (data.length != 5 ||
+        !_positiveId(appointment) ||
+        !_positiveId(service) ||
+        label.length < 2 ||
+        label.length > 160 ||
+        label.trim().isEmpty ||
+        label.runes.any((c) => c < 32 || (c >= 127 && c <= 159))) {
+      throw const FormatException();
+    }
+    final (start, startKey) = _parseClinicalUtc(text(data, 'startUtc'));
+    final (end, endKey) = _parseClinicalUtc(text(data, 'endUtc'));
+    if (endKey.compareTo(startKey) <= 0) throw const FormatException();
+    return (
+      AssignedEncounter._(appointment, start, end, service, label),
+      startKey,
+    );
+  }
+}
+
+class AssignedEncounterPage {
+  final int page, pageSize;
+  final List<AssignedEncounter> items;
+
+  const AssignedEncounterPage._(this.page, this.pageSize, this.items);
+
+  static AssignedEncounterPage _parse(
+    Json data,
+    int page,
+    int size,
+    DateTime fromUtc,
+    DateTime untilUtc,
+  ) {
+    final rawItems = data['items'] as List;
+    if (data.length != 3 ||
+        number(data, 'page') != page ||
+        number(data, 'pageSize') != size ||
+        rawItems.length > size) {
+      throw const FormatException();
+    }
+
+    final items = <AssignedEncounter>[];
+    final seen = <int>{};
+    String? previousKey;
+    int? previousId;
+    for (final raw in rawItems) {
+      final (item, orderKey) = AssignedEncounter._parse(object(raw));
+      if (!seen.add(item.appointmentId) ||
+          item.startUtc.isBefore(fromUtc) ||
+          !item.startUtc.isBefore(untilUtc) ||
+          _outOfClinicalOrder(
+            orderKey,
+            item.appointmentId,
+            previousKey,
+            previousId,
+          )) {
+        throw const FormatException();
+      }
+      items.add(item);
+      previousKey = orderKey;
+      previousId = item.appointmentId;
+    }
+    return AssignedEncounterPage._(page, size, List.unmodifiable(items));
+  }
+}
+
 class PatientHistoryVisit {
   final int appointmentId;
   final DateTime startedUtc;
@@ -216,25 +331,9 @@ class PatientHistoryVisit {
 
   static (PatientHistoryVisit, String) _parse(Json data) {
     final id = number(data, 'appointmentId');
-    final rawUtc = text(data, 'startedUtc');
-    final match = _historyInstant.firstMatch(rawUtc);
-    if (data.length != 2 ||
-        !_positiveId(id) ||
-        match == null ||
-        match.end != rawUtc.length) {
-      throw const FormatException();
-    }
-    final parsed = DateTime.parse(rawUtc).toUtc();
-    final prefix = match[1]!;
-    // DateTime.parse normalizes impossible calendar dates; don't accept them.
-    if (parsed.year < 1 ||
-        parsed.toIso8601String().substring(0, 19) != prefix) {
-      throw const FormatException();
-    }
-    // .NET UTC can carry 100 ns ticks; compare a fixed-width key to avoid
-    // falsely rejecting rows sharing a Dart microsecond but not a server tick.
-    final orderKey = prefix + (match[2] ?? '').padRight(7, '0');
-    return (PatientHistoryVisit._(id, parsed), orderKey);
+    if (data.length != 2 || !_positiveId(id)) throw const FormatException();
+    final (started, orderKey) = _parseClinicalUtc(text(data, 'startedUtc'));
+    return (PatientHistoryVisit._(id, started), orderKey);
   }
 }
 
@@ -264,7 +363,7 @@ class PatientHistoryPage {
         number(data, 'pageSize') != pageSize ||
         rawItems.length > pageSize ||
         (hasMore &&
-            (rawItems.length != pageSize || page == _patientHistoryMaxPage))) {
+            (rawItems.length != pageSize || page == _boundedClinicalMaxPage))) {
       throw const FormatException();
     }
 
@@ -277,10 +376,12 @@ class PatientHistoryPage {
       if (!seen.add(visit.appointmentId) ||
           visit.startedUtc.isBefore(fromUtc) ||
           !visit.startedUtc.isBefore(untilUtc) ||
-          (previousKey != null &&
-              (orderKey.compareTo(previousKey) > 0 ||
-                  (orderKey == previousKey &&
-                      visit.appointmentId >= previousId!)))) {
+          _outOfClinicalOrder(
+            orderKey,
+            visit.appointmentId,
+            previousKey,
+            previousId,
+          )) {
         throw const FormatException();
       }
       visits.add(visit);
@@ -667,6 +768,37 @@ class EncounterTreatmentApi {
     );
   }
 
+  /// Discovery for this authorized doctor only; a full page does not imply
+  /// additional rows. Selection is never entitlement for a subsequent action.
+  Future<AssignedEncounterPage> listAssignedEncounters({
+    required DateTime fromUtc,
+    required DateTime untilUtc,
+    int page = 1,
+    int pageSize = 10,
+  }) async {
+    if (!_validClinicalPeriod(fromUtc, untilUtc) ||
+        !_validClinicalPage(page, pageSize)) {
+      throw const ApiFailure(
+        'Огнооны хүрээ эсвэл хуудасны хэмжээ буруу байна.',
+        400,
+      );
+    }
+    return _call(
+      '/api/clinical/appointments/assigned',
+      (data) =>
+          AssignedEncounterPage._parse(data, page, pageSize, fromUtc, untilUtc),
+      generation: _generation,
+      token: _token,
+      query: {
+        'from': _isoDate(fromUtc),
+        'until': _isoDate(untilUtc),
+        'page': '$page',
+        'pageSize': '$pageSize',
+      },
+      maxResponseBytes: _assignedMaxResponseBytes,
+    );
+  }
+
   Future<PatientHistoryPage> listPatientPeriodHistory(
     int anchorAppointmentId, {
     required DateTime fromUtc,
@@ -674,15 +806,8 @@ class EncounterTreatmentApi {
     int page = 1,
     int pageSize = 10,
   }) async {
-    final days = untilUtc.difference(fromUtc).inDays;
-    if (!_utcDate(fromUtc) ||
-        !_utcDate(untilUtc) ||
-        days < 1 ||
-        days > 31 ||
-        page < 1 ||
-        page > _patientHistoryMaxPage ||
-        pageSize < 1 ||
-        pageSize > 20) {
+    if (!_validClinicalPeriod(fromUtc, untilUtc) ||
+        !_validClinicalPage(page, pageSize)) {
       throw const ApiFailure(
         'Огнооны хүрээ эсвэл хуудасны хэмжээ буруу байна.',
         400,

@@ -270,3 +270,17 @@ GET to reconcile uncertain results. The Flutter adapter verifies a suitable
 Location for creation without following redirects. A separate cross-origin
 browser deployment review must address Location exposure; no CORS expansion
 or production route is implied by this work.
+
+## Clinical selection prerequisite
+
+The assigned list is Testing + in-memory SQLite only and explicitly off by
+default. The authenticated static date bounds and page size are described
+in the clinical history acceptance guide. The future Flutter selector should
+use only server-returned encounter and booked service data and clear the
+page on session changes; never ask a doctor to guess a patient or clinic ID.
+
+## Assigned encounter mobile integration
+
+The isolated acceptance stack combines #28 and #30 only on a review branch.
+Its HTTPS harness uses the server-approved encounter and booked service
+before signing. The default app route is unchanged.

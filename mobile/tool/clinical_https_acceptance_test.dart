@@ -38,15 +38,25 @@ void main() {
       expect(doctor.authenticated, isTrue);
       final foreignDoctor = client(202);
       await foreignDoctor.login('user23@example.invalid', password);
+      Future<AssignedEncounterPage> assigned(EncounterTreatmentApi api) =>
+          api.listAssignedEncounters(
+            fromUtc: DateTime.utc(2026, 11, 26),
+            untilUtc: DateTime.utc(2026, 11, 28),
+          );
+      final selected = (await assigned(doctor)).items.single;
+      expect(selected.appointmentId, 301);
+      expect(selected.serviceId, 51);
+      expect(selected.serviceLabel, 'Synthetic booked service');
+      expect((await assigned(foreignDoctor)).items, isEmpty);
       const key = '98fcbaca-e637-4dad-a413-7aa83da9c331';
 
       Future<PerformedProcedureSignResult> sign(
         EncounterTreatmentApi api,
         String tooth,
       ) => api.signPerformedProcedure(
-        301,
+        selected.appointmentId,
         requestId: key,
-        serviceId: 51,
+        serviceId: selected.serviceId,
         scope: PerformedProcedureScope.singleTooth,
         toothCode: tooth,
       );

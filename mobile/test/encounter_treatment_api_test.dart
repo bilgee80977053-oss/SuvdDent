@@ -50,6 +50,265 @@ TypeMatcher<ApiFailure> _failure(int? status) =>
     isA<ApiFailure>().having((error) => error.status, 'status', status);
 
 void main() {
+  const assignedPath = '/api/clinical/appointments/assigned';
+  final assignedFrom = DateTime.utc(2026, 11, 1);
+  final assignedUntil = DateTime.utc(2026, 12, 1);
+  const assignedRow = {
+    'appointmentId': 41,
+    'startUtc': '2026-11-30T23:30:00+00:00',
+    'endUtc': '2026-12-01T00:15:00Z',
+    'serviceId': 12,
+    'serviceLabel': 'Synthetic booked service',
+  };
+
+  Future<AssignedEncounterPage> assigned(
+    EncounterTreatmentApi api, {
+    DateTime? from,
+    DateTime? until,
+    int page = 1,
+    int pageSize = 10,
+  }) => api.listAssignedEncounters(
+    fromUtc: from ?? assignedFrom,
+    untilUtc: until ?? assignedUntil,
+    page: page,
+    pageSize: pageSize,
+  );
+
+  test('lists only typed assigned encounter metadata, by HTTPS GET without a cache', () async {
+    var requests = 0;
+    final api = _client((request) {
+      if (request.url.path != assignedPath) return _default(request);
+      requests++;
+      expect(request.method, 'GET');
+      expect(request.body, isEmpty);
+      expect(request.url.origin, 'https://clinical.invalid');
+      expect(request.url.queryParameters, {
+        'from': '2026-11-01',
+        'until': '2026-12-01',
+        'page': '2',
+        'pageSize': '1',
+      });
+      expect(request.followRedirects, isFalse);
+      expect(request.headers['Cache-Control'], 'no-store');
+      expect(request.headers['Authorization'], 'Bearer synthetic-doctor-token');
+      if (requests > 1) return _json({'patientName': _synthetic}, 503);
+      return _json({
+        'page': 2,
+        'pageSize': 1,
+        'items': [assignedRow],
+      });
+    });
+    await expectLater(assigned(api), throwsA(_failure(401)));
+    await _authenticate(api);
+    final page = await assigned(api, page: 2, pageSize: 1);
+    expect((page.page, page.pageSize), (2, 1));
+    final row = page.items.single;
+    expect(
+      (row.appointmentId, row.serviceId, row.serviceLabel),
+      (41, 12, 'Synthetic booked service'),
+    );
+    expect(row.startUtc, DateTime.utc(2026, 11, 30, 23, 30));
+    // Only the start is bounded by the period; this visit can finish next day.
+    expect(row.endUtc, DateTime.utc(2026, 12, 1, 0, 15));
+    expect(() => page.items.clear(), throwsUnsupportedError);
+    await expectLater(
+      assigned(api, page: 2, pageSize: 1),
+      throwsA(
+        _failure(503).having(
+          (failure) => failure.message,
+          'sanitized',
+          isNot(contains(_synthetic)),
+        ),
+      ),
+    );
+    expect(requests, 2);
+  });
+
+  test(
+    'local UTC and page limits reject assigned list before transport',
+    () async {
+      final api = _client(_default);
+      await _authenticate(api);
+      final invalid = <Future<AssignedEncounterPage> Function()>[
+        () => assigned(api, page: 0),
+        () => assigned(api, page: 101),
+        () => assigned(api, pageSize: 0),
+        () => assigned(api, pageSize: 21),
+        () => assigned(api, from: DateTime(2026, 11, 1)),
+        () => assigned(api, from: DateTime.utc(2026, 11, 1, 1)),
+        () => assigned(api, until: assignedFrom),
+        () => assigned(api, until: DateTime.utc(2026, 12, 3)),
+      ];
+      for (final attempt in invalid) {
+        await expectLater(attempt(), throwsA(_failure(400)));
+      }
+    },
+  );
+
+  test('assigned list accepts empty pages and rejects added data and malformed rows', () async {
+    var result = <String, Object>{
+      'page': 1,
+      'pageSize': 2,
+      'items': <Object>[],
+    };
+    final api = _client(
+      (request) =>
+          request.url.path == assignedPath ? _json(result) : _default(request),
+    );
+    await _authenticate(api);
+    expect((await assigned(api, pageSize: 2)).items, isEmpty);
+
+    final invalid = <Map<String, Object>>[
+      {...result, 'hasMore': true},
+      {...result, 'total': 5},
+      {...result, 'page': 2},
+      {...result, 'pageSize': 20},
+      {
+        ...result,
+        'items': [assignedRow, assignedRow],
+      },
+      {
+        ...result,
+        'items': [
+          for (var i = 1; i <= 3; i++) {...assignedRow, 'appointmentId': i},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'patientId': 1},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'serviceId': 0},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'serviceLabel': 'x' * 161},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'serviceLabel': 'internal\ncontrol'},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'startUtc': '2026-11-31T23:30:00Z'},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'startUtc': '2026-12-01T00:00:00Z'},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'endUtc': '2026-11-30T23:30:00Z'},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'endUtc': '2026-12-01T08:15:00+08:00'},
+        ],
+      },
+      {
+        ...result,
+        'items': [
+          {...assignedRow, 'appointmentId': 39},
+          assignedRow,
+        ],
+      },
+    ];
+    for (final bad in invalid) {
+      result = bad;
+      await expectLater(assigned(api, pageSize: 2), throwsA(_failure(null)));
+    }
+  });
+
+  test('assigned sorting preserves seventh UTC fractional position', () async {
+    final api = _client(
+      (request) => request.url.path == assignedPath
+          ? _json({
+              'page': 1,
+              'pageSize': 2,
+              'items': [
+                {
+                  ...assignedRow,
+                  'appointmentId': 39,
+                  'startUtc': '2026-11-30T23:30:00.1234567Z',
+                },
+                {
+                  ...assignedRow,
+                  'startUtc': '2026-11-30T23:30:00.1234566+00:00',
+                },
+              ],
+            })
+          : _default(request),
+    );
+    await _authenticate(api);
+    final page = await assigned(api, pageSize: 2);
+    expect(page.items.map((item) => item.appointmentId), [39, 41]);
+    expect(page.items.first.startUtc, page.items.last.startUtc);
+  });
+
+  test('assigned list refuses oversized responses and cross-origin redirects', () async {
+    var calls = 0;
+    final api = _client((request) {
+      if (request.url.path != assignedPath) return _default(request);
+      calls++;
+      expect(request.followRedirects, isFalse);
+      if (calls == 1) {
+        return http.Response(
+          "${jsonEncode({'page': 1, 'pageSize': 10, 'items': []})}${' ' * 32768}",
+          200,
+        );
+      }
+      return http.Response(
+        '',
+        302,
+        headers: {'location': 'https://other.invalid/'},
+      );
+    });
+    await _authenticate(api);
+    await expectLater(assigned(api), throwsA(_failure(null)));
+    await expectLater(assigned(api), throwsA(_failure(302)));
+    expect(calls, 2);
+  });
+
+  test('assigned list discards late results after session changes', () async {
+    final sent = Completer<void>();
+    final delayed = Completer<http.Response>();
+    final api = _client((request) {
+      if (request.url.path != assignedPath) return _default(request);
+      sent.complete();
+      return delayed.future;
+    });
+    await _authenticate(api);
+    final result = assigned(api);
+    final denied = expectLater(result, throwsA(_failure(401)));
+    await sent.future;
+    api.logout();
+    delayed.complete(
+      _json({
+        'page': 1,
+        'pageSize': 10,
+        'items': [assignedRow],
+      }),
+    );
+    await denied;
+    expect(api.authenticated, isFalse);
+  });
+
   test(
     'signs an immutable note with an empty same-encounter 201 only',
     () async {
