@@ -580,3 +580,14 @@ events were two records, one amendment and six history reads, all scoped to
 that encounter and doctor. Both loopback acceptances passed locally. Release
 build was clean. This is synthetic acceptance only, not a rollout or a
 verification of any persistent database.
+
+
+## Director service assignment preserves unchanged inactive links
+
+A catalog deactivation no longer prevents a Director from updating another
+service on the same doctor's full replacement assignment form. An inactive
+catalog link can be carried forward only if it is already stored and exactly
+unchanged; new or edited inactive rows are still rejected, and omission
+retains the existing deactivation policy. The synthetic HTTP and Flutter
+regressions passed (44 focused backend, 18 focused Flutter). The rule does
+not make an inactive service bookable or alter clinic visibility.

@@ -363,9 +363,12 @@ void main() {
     expect(hourWrites, 0);
   });
 
-  test('Doctor-service mapping reads versioned roster and keeps unrelated rows', () async {
+  test('Doctor-service saves preserve an unchanged link to a deactivated catalog entry', () async {
     http.Request? write;
     final api = makeApi((request) {
+      if (request.url.path == '/api/admin/services') {
+        return reply([service, {...service, 'id': 4, 'isActive': false}]);
+      }
       if (request.url.path == '/api/admin/Doctors/20/services') {
         if (request.method == 'GET') {
           return reply({
@@ -384,7 +387,7 @@ void main() {
                 'durationMinutes': 60,
                 'bufferBeforeMinutes': 0,
                 'bufferAfterMinutes': 10,
-                'isActive': false,
+                'isActive': true,
               },
             ],
           });
@@ -400,6 +403,8 @@ void main() {
     });
     addTearDown(api.close);
     await api.login('test', 'test');
+    final catalog = await api.services();
+    expect(catalog.singleWhere((s) => s.id == 4).isActive, isFalse);
     final snapshot = await api.doctorServices(20);
     final rows = [
       for (final s in snapshot.services)
@@ -416,7 +421,8 @@ void main() {
     expect(updated.services.length, 2);
     expect(jsonDecode(write!.body)['version'], snapshot.version);
     expect((jsonDecode(write!.body)['services'] as List)
-        .any((s) => s['serviceId'] == 4 && s['isActive'] == false), isTrue);
+        .singleWhere((s) => s['serviceId'] == 4),
+        snapshot.services.singleWhere((s) => s.serviceId == 4).toJson());
     expect(jsonDecode(write!.body).containsKey('clinicId'), isFalse);
   });
 

@@ -327,3 +327,11 @@ ephemeral loopback host and retain the independent adapter acceptance.
 The fixture checks the write and audit counts and verifies that tab changes
 do not fetch additional data or leave clinical text visible after logout.
 It does not unlock the default app, release UI, or persistent-provider use.
+
+
+## Director full-replacement assignment regression
+
+Keep existing inactive catalog assignments unchanged when a form updates
+a different service; the backend rejects introducing or editing those
+inactive rows. No schema or production work is involved. Review availability
+and cross-clinic behavior with the hosted regression before release.
