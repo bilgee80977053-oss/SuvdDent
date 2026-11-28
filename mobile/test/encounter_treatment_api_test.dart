@@ -46,10 +46,288 @@ EncounterTreatmentApi _client(
 Future<void> _authenticate(EncounterTreatmentApi api) =>
     api.login('synthetic@example.invalid', 'synthetic-password');
 
-Matcher _failure(int? status) =>
+TypeMatcher<ApiFailure> _failure(int? status) =>
     isA<ApiFailure>().having((error) => error.status, 'status', status);
 
 void main() {
+  const procedurePath = '/api/clinical/appointments/41/performed-procedures';
+  const row = {
+    'requestId': _key,
+    'serviceId': 25,
+    'serviceLabel': _synthetic,
+    'scope': 'SingleTooth',
+    'toothCode': '18',
+    'signedUtc': _signed,
+  };
+  Future<PerformedProcedureSignResult> sign(EncounterTreatmentApi api) =>
+      api.signPerformedProcedure(
+        41,
+        requestId: _key,
+        serviceId: 25,
+        scope: PerformedProcedureScope.singleTooth,
+        toothCode: '18',
+      );
+
+  test('lists a typed, bounded audit page for a single encounter', () async {
+    final api = _client((request) {
+      if (request.url.path != procedurePath) return _default(request);
+      expect(request.method, 'GET');
+      expect(request.url.queryParameters, {'page': '2', 'pageSize': '1'});
+      expect(request.headers['Authorization'], 'Bearer synthetic-doctor-token');
+      expect(request.headers['Cache-Control'], 'no-store');
+      expect(request.followRedirects, isFalse);
+      return _json({
+        'page': 2,
+        'pageSize': 1,
+        'hasMore': true,
+        'items': [row],
+      });
+    });
+    await expectLater(api.listPerformedProcedures(41), throwsA(_failure(401)));
+    await _authenticate(api);
+    final page = await api.listPerformedProcedures(41, page: 2, pageSize: 1);
+    expect(page.page, 2);
+    expect(page.hasMore, isTrue);
+    expect(page.items.single.scope, PerformedProcedureScope.singleTooth);
+    expect(page.items.single.toothCode, '18');
+    expect(page.items.single.signedUtc, DateTime.utc(2026, 11, 27, 12));
+    expect(() => page.items.clear(), throwsUnsupportedError);
+  });
+
+  test('empty audited page remains an exact 200 read result', () async {
+    final api = _client(
+      (request) => request.url.path == procedurePath
+          ? _json({'page': 1, 'pageSize': 20, 'hasMore': false, 'items': []})
+          : _default(request),
+    );
+    await _authenticate(api);
+    expect((await api.listPerformedProcedures(41)).items, isEmpty);
+  });
+
+  test(
+    'POST 201 and empty 204 use the exact caller UUID and payload',
+    () async {
+      var requests = 0;
+      final api = _client((request) {
+        if (request.url.path != procedurePath) return _default(request);
+        expect(request.method, 'POST');
+        expect(request.url.hasQuery, isFalse);
+        expect(
+          request.headers['Authorization'],
+          'Bearer synthetic-doctor-token',
+        );
+        expect(request.headers['Content-Type'], contains('application/json'));
+        expect(request.followRedirects, isFalse);
+        expect(jsonDecode(request.body), {
+          'requestId': _key,
+          'serviceId': 25,
+          'scope': 'SingleTooth',
+          'toothCode': '18',
+        });
+        if (++requests == 1) return _json({...row, 'appointmentId': 41}, 201);
+        return http.Response('', 204);
+      });
+      await _authenticate(api);
+      final saved = (await sign(api)) as PerformedProcedureRecorded;
+      expect(saved.appointmentId, 41);
+      expect(saved.procedure.serviceId, 25);
+      expect(saved.procedure.requestId, _key);
+      expect(requests, 1);
+      expect(await sign(api), isA<PerformedProcedureReplayed>());
+      expect(requests, 2);
+    },
+  );
+
+  test('explicit visit submits null tooth and accepts only a visit', () async {
+    final api = _client((request) {
+      if (request.url.path != procedurePath) return _default(request);
+      expect(jsonDecode(request.body), {
+        'requestId': _key,
+        'serviceId': 25,
+        'scope': 'Visit',
+        'toothCode': null,
+      });
+      return _json({
+        ...row,
+        'appointmentId': 41,
+        'scope': 'Visit',
+        'toothCode': null,
+      }, 201);
+    });
+    await _authenticate(api);
+    final saved = await api.signPerformedProcedure(
+      41,
+      requestId: _key,
+      serviceId: 25,
+      scope: PerformedProcedureScope.visit,
+    );
+    expect((saved as PerformedProcedureRecorded).procedure.toothCode, isNull);
+  });
+
+  test(
+    'local ID, page and routine FDI validation rejects invalid calls',
+    () async {
+      final api = _client(_default);
+      await _authenticate(api);
+      await expectLater(api.listPerformedProcedures(0), throwsA(_failure(400)));
+      await expectLater(
+        api.listPerformedProcedures(41, page: 1001),
+        throwsA(_failure(400)),
+      );
+      await expectLater(
+        api.listPerformedProcedures(41, pageSize: 51),
+        throwsA(_failure(400)),
+      );
+      for (final (id, key, service, scope, tooth) in [
+        (0, _key, 25, PerformedProcedureScope.visit, null),
+        (41, 'invalid', 25, PerformedProcedureScope.visit, null),
+        (41, _key, 0, PerformedProcedureScope.visit, null),
+        (41, _key, 25, PerformedProcedureScope.visit, '18'),
+        (41, _key, 25, PerformedProcedureScope.singleTooth, '56'),
+        (41, _key, 25, PerformedProcedureScope.singleTooth, '49'),
+        (41, _key, 25, PerformedProcedureScope.singleTooth, null),
+      ]) {
+        await expectLater(
+          api.signPerformedProcedure(
+            id,
+            requestId: key,
+            serviceId: service,
+            scope: scope,
+            toothCode: tooth,
+          ),
+          throwsA(_failure(400)),
+        );
+      }
+    },
+  );
+
+  test(
+    '503 and 409 never auto-retry; caller can explicitly retry the same UUID',
+    () async {
+      final submitted = <String>[];
+      final api = _client((request) {
+        if (request.url.path != procedurePath) return _default(request);
+        submitted.add((jsonDecode(request.body) as Map)['requestId'] as String);
+        return switch (submitted.length) {
+          1 => _json({'message': _synthetic}, 503),
+          2 => _json({'message': _synthetic}, 409),
+          _ => http.Response('', 204),
+        };
+      });
+      await _authenticate(api);
+      await expectLater(sign(api), throwsA(_failure(503)));
+      expect(submitted, [_key]);
+      await expectLater(sign(api), throwsA(_failure(409)));
+      expect(submitted, [_key, _key]);
+      expect(await sign(api), isA<PerformedProcedureReplayed>());
+      expect(submitted, [_key, _key, _key]);
+    },
+  );
+
+  for (final mismatch in <Map<String, Object?>>[
+    {'appointmentId': 42},
+    {'requestId': _otherKey},
+    {'serviceId': 26},
+    {'scope': 'Visit', 'toothCode': null},
+    {'toothCode': '56'},
+    {'toothCode': '17'},
+    {'signedUtc': '2026-11-27T20:00:00'},
+    {'serviceLabel': ''},
+  ]) {
+    test('201 response mismatch is never recorded: $mismatch', () async {
+      final api = _client(
+        (request) => request.url.path == procedurePath
+            ? _json({...row, 'appointmentId': 41, ...mismatch}, 201)
+            : _default(request),
+      );
+      await _authenticate(api);
+      await expectLater(sign(api), throwsA(_failure(null)));
+    });
+  }
+
+  test('a 204 with content and a 200 are not valid POST outcomes', () async {
+    var calls = 0;
+    final api = _client(
+      (request) => request.url.path == procedurePath
+          ? (++calls == 1
+                ? http.Response('not empty', 204)
+                : _json({...row, 'appointmentId': 41}))
+          : _default(request),
+    );
+    await _authenticate(api);
+    await expectLater(sign(api), throwsA(isA<ApiFailure>()));
+    await expectLater(sign(api), throwsA(isA<ApiFailure>()));
+  });
+
+  test(
+    'list rejects wrong pagination metadata and out-of-contract rows',
+    () async {
+      var calls = 0;
+      final api = _client((request) {
+        if (request.url.path != procedurePath) return _default(request);
+        return _json({
+          'page': calls == 0 ? 2 : 1,
+          'pageSize': 20,
+          'hasMore': false,
+          'items': switch (calls++) {
+            0 => [row],
+            1 => [row, row],
+            2 => [
+              {...row, 'scope': 'Unknown'},
+            ],
+            _ => [
+              {...row, 'toothCode': 18},
+            ],
+          },
+        });
+      });
+      await _authenticate(api);
+      for (var i = 0; i < 4; i++) {
+        await expectLater(
+          api.listPerformedProcedures(41),
+          throwsA(_failure(null)),
+        );
+      }
+    },
+  );
+
+  test(
+    'rejects oversize procedure response bodies without exposing content',
+    () async {
+      final oversized = List.filled(65537, 'x').join();
+      final api = _client(
+        (request) => request.url.path == procedurePath
+            ? http.Response(oversized, request.method == 'GET' ? 200 : 201)
+            : _default(request),
+      );
+      await _authenticate(api);
+      final safeFailure = _failure(null).having(
+        (ApiFailure error) => error.message,
+        'safe message',
+        isNot(contains(oversized.substring(0, 100))),
+      );
+      await expectLater(api.listPerformedProcedures(41), throwsA(safeFailure));
+      await expectLater(sign(api), throwsA(safeFailure));
+    },
+  );
+
+  test('logout discards an in-flight procedure response', () async {
+    final entered = Completer<void>();
+    final pending = Completer<http.Response>();
+    final api = _client((request) {
+      if (request.url.path != procedurePath) return _default(request);
+      entered.complete();
+      return pending.future;
+    });
+    await _authenticate(api);
+    final request = sign(api);
+    await entered.future;
+    final fails = expectLater(request, throwsA(_failure(401)));
+    api.logout();
+    pending.complete(_json({...row, 'appointmentId': 41}, 201));
+    await fails;
+  });
+
   test('only authenticated Doctor calls request a single encounter', () async {
     final paths = <String>[];
     final api = _client((r) {

@@ -425,3 +425,22 @@ author separation, fixed-UTC tie ordering, signed label after catalogue
 rename, read auditing of empty pages and failure closed on audit insert
 or commit. Live PostgreSQL, production clinical roles and patient history
 were not verified or enabled.
+
+## 2026-11-28: Stacked CI and Flutter performed-procedure review
+
+The owner resumed isolated development and draft PR publication. PostgreSQL
+live access, production, and main merges remain unauthorized. PR #1–#4 are
+ancestors of #6. #7 includes #5 and #6 and resolves the overlapping checkpoint
+and handover edits. Review #7–#16 in base order. Validation-only draft #17 ran
+the exact #16 tree `40e2e489`; GitHub Actions run 46120829550 passed 603
+offline backend tests, 151 Flutter tests and the PowerShell helper. Draft #18
+extends only the offline PR trigger to stacked development branches.
+
+The previous local Flutter commit `7efc7e9` was not available after the
+environment restart; historical test logs are not evidence for this new tree.
+This draft reconstructs the clinician adapter and mock tests against #16.
+The adapter supports only single-encounter signing, replay and bounded reads,
+with HTTPS and no default UI wiring. See this draft's distinct CI for results.
+Flutter-to-API acceptance, clinic-wide history policy and live PostgreSQL
+validation remain outstanding. No production workflow or real patient data
+is involved.

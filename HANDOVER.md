@@ -224,3 +224,13 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Resumed work: performed procedures in Flutter
+
+Start review with #6, then #7 (which includes #5), and follow the declared
+stack through #16. Validation-only #17 is not a merge candidate; its hosted
+run 46120829550 verified the same source tree as #16. #18 enables offline
+checks for stacked PRs without adding any deployment, write permission or
+PostgreSQL access. The reconstructed Flutter adapter is independently
+reviewable above #18. A synthetic HTTPS sign/read/replay check is a separate
+milestone; do not present mocks as full client-to-server acceptance.

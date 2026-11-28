@@ -92,3 +92,14 @@ This is a development branch, not production release approval.
 - No live database migration, schema reset, destructive data operation or
   modification of real patient records.
 - No real payment, receipt, SMS, or email validation using patient data.
+
+## 2026-11-28 review and acceptance order
+
+Review #6, #7 (including #5) and then #8–#16 in order. Keep validation-only
+#17 unmerged and review the CI trigger change in #18 independently. Gate final
+booking and clinical acceptance on paired Flutter/DentalApi loopback tests
+using synthetic data. Distinguish encounter-only records from longitudinal
+history and verify authorization and committed audit before release. Once
+the clinical milestones meet acceptance, add provider-neutral invoice
+snapshots, verified settlement, receipts and clinic administration. Keep
+PostgreSQL live, production deployment and main merges outside this approval.
