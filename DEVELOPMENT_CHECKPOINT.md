@@ -564,3 +564,19 @@ also retains the separate API acceptance for note/addenda and assignment
 selection. The native harness passed 2/2 on the exact #34 parent before
 combining the two clinical panels. This combined draft runs the harness
 again; local widget regressions for the composed panels passed 215/215.
+
+## Native clinician review acceptance: immutable note and signed addendum
+
+The same opt-in Flutter review widget now has synthetic acceptance over
+loopback HTTPS for procedure confirmation, deliberate original-note signing,
+audited original read, append-only addendum, audited addendum discovery and
+keyed read. Switching in either direction does not send a request and keeps
+the result tied to the selected encounter. Logout and changing clinics hide
+both notes. The independent adapter acceptance remains in the same suite.
+
+The in-memory SQLite fixture verified exactly one original, one addendum and
+one procedure for the approved clinic/encounter/doctor. The exact nine audit
+events were two records, one amendment and six history reads, all scoped to
+that encounter and doctor. Both loopback acceptances passed locally. Release
+build was clean. This is synthetic acceptance only, not a rollout or a
+verification of any persistent database.
