@@ -14,17 +14,21 @@ internal sealed class ClinicalEncounterAccess(AppDbContext db, TimeProvider cloc
     internal async Task<ClinicalEncounterScope?> FindAsync(
         ClaimsPrincipal principal, int appointmentId, CancellationToken cancellationToken = default)
     {
-        if (principal.Identity?.IsAuthenticated != true ||
-            !principal.IsInRole(nameof(Role.Doctor)) ||
-            !int.TryParse(principal.FindFirstValue("clinicId"), out var clinicId) || clinicId <= 0 ||
-            !int.TryParse(principal.FindFirstValue("userId"), out var userId) || userId <= 0 ||
-            appointmentId <= 0)
+        if (!TryReadDoctorIdentity(principal, out var clinicId, out var userId) || appointmentId <= 0)
             return null;
 
         return await AssignedEncounters(clinicId, userId)
             .Where(row => row.Id == appointmentId)
             .Select(row => new ClinicalEncounterScope(row.ClinicId, row.PatientId, row.Id, userId))
             .SingleOrDefaultAsync(cancellationToken);
+    }
+
+    internal static bool TryReadDoctorIdentity(ClaimsPrincipal principal, out int clinicId, out int userId)
+    {
+        clinicId = userId = 0;
+        return principal.Identity?.IsAuthenticated == true && principal.IsInRole(nameof(Role.Doctor)) &&
+            int.TryParse(principal.FindFirstValue("clinicId"), out clinicId) && clinicId > 0 &&
+            int.TryParse(principal.FindFirstValue("userId"), out userId) && userId > 0;
     }
 
     // Query only with clinic/user identities obtained from validated clinic claims
