@@ -233,3 +233,11 @@ Next require approved effective tariffs and tax/rounding policy, then review
 authorization, numbering, immutable persistence, verified settlement and
 receipt lifecycle separately. No live gateway or patient records are needed
 for reviewing this arithmetic slice.
+
+## Settlement acceptance remains separate
+
+Before using a matching capture in a real workflow, require an authorized
+server verifier, independently bound transaction, verified finality,
+atomic unique transaction claim and audit in the same transaction. The
+internal comparison is not a trusted verifier, replay lock or settlement
+record. Do not connect it to a callback body or use it to issue a receipt.
