@@ -224,3 +224,13 @@ under the same opt-in Testing/in-memory gate as POST. It does not let
 a reassigned clinician read another author's rows or access patient-wide
 history. Each authorized page, including an empty one, requires a
 metadata-only audit to commit before response. No schema or rollout changed.
+
+## Test-only anchor-bound patient period history
+
+`dot/patient-period-history` limits one synthetic date-range page to the same
+clinic/patient from a currently assigned anchor and the same doctor's own
+signed visits. It discloses only visit ID and start UTC; any page is released
+only after all anchor/returned-visit audit entries commit. Both explicit flags
+and the Testing/in-memory gate are required. No broader production policy,
+schema or real data is implied. See
+[patient history acceptance](backend/DentalApi/PatientPeriodHistoryAcceptance.md).
